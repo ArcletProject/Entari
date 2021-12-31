@@ -10,7 +10,7 @@ from edoves.main import Edoves
 
 app = Edoves(
     debug=True,
-    profile={
+    profile={  # 默认为MAH的配置
         "verify_token": "INITKEYWylsVdbr",
         "port": "9090",
         "account": 3165388245
@@ -24,10 +24,10 @@ edoves/builtin/mah/module.py:
 ```python
 from typing import Type
 from edoves.main.module import MediumModule
-from ..medium import Message
-from edoves.builtin.mah import VERIFY_CODE
 from edoves.main.typings import TMProtocol
-from ..types import MType
+from edoves.builtin.mah import VERIFY_CODE
+from edoves.builtin.mah.medium import Message
+from edoves.builtin.mah.types import MType
 
 
 class MessageModule(MediumModule):
