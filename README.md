@@ -42,7 +42,7 @@ class MessageModule(MediumModule):
             return msg.content
 
 
-@MessageModule.prefab_handler(MType.Friend)
+@MessageModule.new_handler(MType.Friend)
 def test(msg: Message):
     return msg.purveyor
 
