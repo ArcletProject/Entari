@@ -6,21 +6,23 @@ import os
 import json
 from .protocol import ModuleProtocol
 from .module import MediumModule
-from .dock_server import BaseDockServer
+from .server_docker import BaseServerDocker
 from .typings import TNProtocol, TConfig
 from .exceptions import DataMissing, ValidationFailed
 from ..logger import Logger
 from ..utilles import ModuleStatus
+from .controller import Controller
 from .monomer import Monomer
 
 
 class Edoves(Generic[TNProtocol, TConfig]):
+    event_system: EventSystem
+    loop: asyncio.AbstractEventLoop
     module_protocol: ModuleProtocol
     config: TConfig
-    dock_server: BaseDockServer
-    modules: Dict[Type[MediumModule], MediumModule]
-    event_system: EventSystem
+    server_docker: BaseServerDocker
     self: Monomer
+    monomer_controller: Controller[int, Monomer]
 
     def __init__(
             self,
@@ -32,6 +34,7 @@ class Edoves(Generic[TNProtocol, TConfig]):
             profile: Optional[Union[str, Dict]] = None
     ):
         self.event_system: EventSystem = event_system or EventSystem()
+        self.loop = self.event_system.loop
         self.logger = logger or Logger(level='DEBUG' if debug else 'INFO').logger
         if config:
             self.config = config
@@ -47,36 +50,33 @@ class Edoves(Generic[TNProtocol, TConfig]):
                 else:
                     raise Exception('没有有效文件！')
         else:
-            raise DataMissing
-        self._init_protocol()
-        self._init_modules()
+            raise DataMissing("配置文件缺失！")
 
-    def _init_modules(self):
-        self.modules = {}
-        try:
-            if self.config.get("dock_server"):
-                self.dock_server = self.config.get("dock_server")(self.network_protocol)
-            else:
-                from edoves.builtin.mah import MAHConfig
-                self.dock_server = MAHConfig.dock_server(self.network_protocol)
-        except ValidationFailed:
-            self.logger.warning(
-                f"{self.network_protocol.__class__.__name__} does not supply the dock server you chosen")
-            raise
-        self.logger.info(f"{self.dock_server.__class__.__name__} activate successful")
-
-    def _init_protocol(self):
         self.self = Monomer(self.config.get("protocol")(self, self.config), "Edoves Application")
         self.self.identifier = self.config.get("account")
         self.module_protocol = ModuleProtocol(self, self.identifier)
         self.logger.info(f"{self.network_protocol.__class__.__name__} activate successful")
 
+        try:
+            if sc := self.config.get("server_docker"):
+                self.server_docker = sc(self.network_protocol)
+            else:
+                from edoves.builtin.mah import MAHConfig
+                self.server_docker = MAHConfig.dock_server(self.network_protocol)
+            self.logger.info(f"{self.server_docker.__class__.__name__} activate successful")
+        except ValidationFailed:
+            self.logger.warning(
+                f"{self.network_protocol.__class__.__name__} does not supply the dock server you chosen")
+
+        self.monomer_controller = Controller(self)
+        self.monomer_controller.add(self.self.identifier, self.self)
+
     @property
-    def network_protocol(self):
+    def network_protocol(self) -> TNProtocol:
         return self.self.protocol
 
     @property
-    def identifier(self):
+    def identifier(self) -> int:
         return self.self.protocol.identifier
 
     def activate_module(self, module_type: Type[MediumModule]) -> Optional[MediumModule]:
@@ -89,16 +89,16 @@ class Edoves(Generic[TNProtocol, TConfig]):
         """
         if module_type.state in (ModuleStatus.CLOSED, ModuleStatus.UNKNOWN):
             return
-        if self.modules.get(module_type):
-            return self.modules[module_type]
+        _name = module_type.__name__
+        if m := self.module_protocol.modules.get(module_type):
+            return m
         try:
             new_module = module_type(self.module_protocol)
-            self.modules[module_type] = new_module
-            self.logger.info(f"{new_module.__name__} activate successful")
+            self.module_protocol.modules.add(module_type, new_module)
+            self.logger.info(f"{_name} activate successful")
             return new_module
         except ValidationFailed:
-            self.logger.warning(f"{module_type.__name__} does not supply the dock server you chosen")
-            raise
+            self.logger.warning(f"{_name} does not supply the dock server you chosen")
 
     def activate_modules(self, *module_type: Type[MediumModule]) -> None:
         """激活多个模块
@@ -110,21 +110,17 @@ class Edoves(Generic[TNProtocol, TConfig]):
         for mt in module_type:
             if mt.state in (ModuleStatus.CLOSED, ModuleStatus.UNKNOWN):
                 continue
+            _name = mt.__name__
             try:
-                self.modules[mt] = mt(self.module_protocol)
-                self.logger.debug(f"{mt.__name__} activate successful")
+                _name = mt.__name__
+                self.module_protocol.modules.add(mt, mt(self.module_protocol))
+                self.logger.debug(f"{_name} activate successful")
                 count += 1
             except ValidationFailed:
-                self.logger.warning(f"{module_type.__name__} does not supply the dock server you chosen")
-                raise
+                self.logger.warning(f"{_name} does not supply the dock server you chosen")
         self.logger.info(f"{count} modules activate successful")
 
-    def run(self, loop: Optional[asyncio.AbstractEventLoop] = None):
-        if self.event_system:
-            loop = self.event_system.loop
-        else:
-            loop = loop or asyncio.get_event_loop()
-
+    def run(self):
         try:
             # if not self.running:
             #     self.running = True
