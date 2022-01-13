@@ -1,5 +1,5 @@
 import asyncio
-from typing import Type, List, Callable, Optional, Dict
+from typing import Type, Callable, Dict
 from abc import ABCMeta
 from arclet.letoderea.entities.subscriber import Subscriber
 from arclet.letoderea.handler import await_exec_target
@@ -29,7 +29,7 @@ class BaseModule(metaclass=ABCMeta):
         self.state = ModuleStatus.ESTABLISHED
 
     @property
-    def __name__(self):
+    def name(self):
         return self.__class__.__name__
 
     def __repr__(self):
@@ -43,34 +43,23 @@ class MediumModule(BaseModule):
     protocol: TMProtocol
     medium_type: Type[BaseMedium]
     handlers: Dict[Type[BasicEvent], Subscriber] = {}
-    __cache: List[Optional[List]] = []
 
     def __init__(self, protocol: TMProtocol):
         super().__init__(protocol)
-        if self.__cache:
-            for er in self.__cache:
-                self.handlers.setdefault(er[0], Subscriber(er[1]))
-            self.__cache.clear()
-
-    def new_handler(self, event_type, reaction: Optional[Callable] = None):
-        def __wrapper(_reaction):
-            self.handlers.setdefault(event_type.value, Subscriber(_reaction))
-        if not reaction:
-            return __wrapper
-        __wrapper(reaction)
 
     @classmethod
-    def prefab_handler(cls, event_type, reaction: Optional[Callable] = None):
+    def new_handler(cls, event_type, *reaction: Callable):
         def __wrapper(_reaction):
-            cls.__cache.append([event_type, _reaction])
+            cls.handlers.setdefault(event_type.value, Subscriber(_reaction))
         if not reaction:
             return __wrapper
-        __wrapper(reaction)
+        for r in reaction:
+            __wrapper(r)
 
     def parameter_generator(self, event_type: Type[BasicEvent], medium: BaseMedium):
         def __export():
             return event_type.param_export(
-                Edoves=self.protocol.client,
+                Edoves=self.protocol.edoves,
                 protocol=self.protocol,
                 **{medium.__class__.__name__: medium},
                 **{k: v for k, v in medium.__dict__.items() if k in medium.__annotations__}
