@@ -5,9 +5,9 @@ A new abstract framework based on Cesloi
 
 main.py:
 ```python
-from arclet.edoves.builtin.mah.module import MessageModule
-from arclet.edoves.builtin.client import AioHttpClient
-from arclet.edoves.main import Edoves
+from edoves.builtin.mah.module import MessageModule
+from edoves.builtin.client import AioHttpClient
+from edoves.main import Edoves
 
 app = Edoves(
     debug=True,
@@ -25,11 +25,11 @@ app.run()
 edoves/builtin/mah/module.py:
 ```python
 from typing import Type
-from arclet.edoves.main.module import MediumModule
-from arclet.edoves.main.typings import TMProtocol
-from arclet.edoves.builtin.mah import VERIFY_CODE
-from arclet.edoves.builtin.mah.medium import Message
-from arclet.edoves.builtin.mah.types import MType
+from edoves.main.module import MediumModule
+from edoves.main.typings import TMProtocol
+from edoves.builtin.mah import VERIFY_CODE
+from edoves.builtin.mah.medium import Message
+from edoves.builtin.mah.types import MType
 
 async def test1(msg: Message):
     return msg.content
