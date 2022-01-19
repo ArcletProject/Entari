@@ -3,11 +3,11 @@ from xml import sax
 from enum import Enum
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING, Union, List
-from edoves_old.message.element import MessageElement, DataStructure, Quote, Text, Image
+from ...message.element import MessageElement, DataStructure, Quote, Text, Image
 from pydantic import Field
 
 if TYPE_CHECKING:
-    from edoves_old.message.chain import MessageChain
+    from ...message.chain import MessageChain
 
 Plain = Text
 
@@ -185,7 +185,7 @@ class Forward(MessageElement):
 
 
 def _update_forward_refs():
-    from edoves_old.message.chain import MessageChain
+    from ...message.chain import MessageChain
 
     Quote.update_forward_refs(MessageChain=MessageChain)
     ForwardNode.update_forward_refs(MessageChain=MessageChain)
