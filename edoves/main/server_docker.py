@@ -12,7 +12,7 @@ from ..utilles.security import UNKNOWN
 class BaseDockerMetaComponent(ModuleMetaComponent):
     io: "BaseServerDocker"
     protocol: TNProtocol
-    medium_type: Type[JsonMedium]
+    medium_type: Type[JsonMedium] = JsonMedium
     session: NetworkClient
     identifier: str = UNKNOWN
 
@@ -33,13 +33,13 @@ class DockerBehavior(ModuleBehavior):
             raise NotImplementedError
 
     @abstractmethod
-    def start(self):
-        medium = self.data.protocol.get_medium(self.data.medium_type)
+    async def start(self):
+        medium = await self.data.protocol.get_medium(self.data.medium_type)
         if medium.content.get("start"):
             return True
 
     @abstractmethod
-    def session_handle(self):
+    async def session_handle(self):
         pass
 
 
