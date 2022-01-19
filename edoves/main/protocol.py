@@ -1,5 +1,6 @@
 import asyncio
 from abc import ABCMeta, abstractmethod
+from asyncio import Event
 from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict
 from .medium import BaseMedium
 from ..utilles.security import UNDEFINED
@@ -8,7 +9,7 @@ from ..utilles import ModuleStatus
 from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
 
-TM = TypeVar("TM")
+TM = TypeVar("TM", bound=BaseMedium)
 
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ class AbstractProtocol(metaclass=ABCMeta):
         else:
             self.__identifier = identifier
         self.storage = {}
+        self.medium_ev: Event = asyncio.Event()
 
     @property
     def identifier(self):
@@ -49,27 +51,17 @@ class AbstractProtocol(metaclass=ABCMeta):
             other.metadata.state = ModuleStatus.CLOSED
             raise ValidationFailed
 
-    def get_medium(self, medium_type: Optional[Type[TM]]) -> Union[TM, TData]:
+    async def get_medium(self, medium_type: Optional[Type[TM]]) -> Union[TM, TData]:
+        if not self.medium:
+            await self.medium_ev.wait()
+        self.medium_ev.clear()
         if medium_type and not isinstance(self.medium, medium_type):
-            return medium_type.create(self.edoves.self, Type[self.medium])(self.medium)
+            return medium_type.create(self.edoves.self, Dict)(self.medium)
         return self.medium
 
     def set_medium(self, medium: Union[TM, TData]):
         self.medium = medium
-
-    async def start_running(self, interval: float = 0.02):
-        for k, v in self.storage.items():
-            try:
-                await v.behavior.start()
-            except NotImplementedError:
-                self.edoves.logger.warning(f"{k}'s behavior start failed")
-        while True:
-            await asyncio.sleep(interval)
-            for k, v in self.storage.items():
-                try:
-                    await v.behavior.update()
-                except NotImplementedError:
-                    pass
+        self.medium_ev.set()
 
     def __repr__(self):
         return (
