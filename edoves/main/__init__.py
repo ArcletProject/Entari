@@ -11,7 +11,7 @@ from .server_docker import BaseServerDocker
 from .typings import TNProtocol, TConfig
 from .exceptions import DataMissing, ValidationFailed
 from ..utilles.logger import Logger
-from .monomer import Monomer, BaseMonoBehaviour, MonoMetaComponent
+from .monomer import Monomer, BaseMonoBehavior, MonoMetaComponent
 
 from .scene import EdovesScene
 
@@ -21,16 +21,18 @@ class EdovesMetadata(MonoMetaComponent):
     edoves: "Edoves"
 
 
-class EdovesMainBehaviour(BaseMonoBehaviour):
+class EdovesMainBehavior(BaseMonoBehavior):
     io: "EdovesSelf"
     loop: asyncio.AbstractEventLoop
     data: EdovesMetadata
 
     async def start(self):
         start_time = time.time()
-        self.data.edoves.scene.monomers.setdefault(self.data.identifier, self.io)
         self.data.edoves.logger.info("Edoves Application Starting...")
         self.data.edoves.logger.info("this is start!")
+        self.data.protocol.set_medium({
+            "start": True
+        })
         self.data.edoves.logger.info(f"Edoves Application Started with {time.time() - start_time:.2}s")
 
     def activate(self):
@@ -42,7 +44,7 @@ class EdovesMainBehaviour(BaseMonoBehaviour):
 
 class EdovesSelf(Monomer):
     prefab_metadata = EdovesMetadata
-    prefab_behavior = EdovesMainBehaviour
+    prefab_behavior = EdovesMainBehavior
 
 
 class Edoves(Generic[TConfig]):
@@ -90,6 +92,7 @@ class Edoves(Generic[TConfig]):
             raise
 
         self.scene = EdovesScene(self)
+        self.scene.monomers.setdefault(self.self.metadata.identifier, self.self)
 
         try:
             if sc := self.config.get("server_docker"):
@@ -121,11 +124,9 @@ class Edoves(Generic[TConfig]):
             # while not self.bot_session.sessionKey:
             #     loop.run_until_complete(asyncio.sleep(0.001))
             # self.event_system.event_spread(ApplicationRunning(self))
-            # self.running_task = self.event_system.loop.create_task(self.scene.setting_tasks())
-            # if self.running_task:
-            #     self.event_system.loop.run_until_complete(self.running_task)
-            coros = self.scene.setting_tasks()
-            self.event_system.loop.run_until_complete(asyncio.wait(coros))
+            self.running_task = self.event_system.loop.create_task(self.scene.start_running())
+            if self.running_task:
+                self.event_system.loop.run_until_complete(self.running_task)
         # if self.daemon_task:
         #     loop.run_until_complete(self.daemon_task)
         except KeyboardInterrupt or asyncio.CancelledError:
