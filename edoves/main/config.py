@@ -15,3 +15,10 @@ class TemplateConfig(DataStructure):
 
     def get(self, key: str):
         return self.__dict__.get(key)
+
+    def summon_url(self, api: str, **kwargs: str):
+        return self.connection_url() + f"/{api}" + \
+               ("?" + "&".join([f"{k}={v}" for k, v in kwargs.items()])) if kwargs else ""
+
+    def connection_url(self):
+        return self.host + ":" + self.port
