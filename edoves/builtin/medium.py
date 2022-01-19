@@ -11,14 +11,6 @@ if TYPE_CHECKING:
 class JsonMedium(BaseMedium):
     content: Dict[str, TData]
 
-    def __init__(
-            self,
-            purveyor: "Monomer",
-            type: str,
-    ):
-        self.purveyor = purveyor
-        self.type = type
-
     def json_loads(self, json: Union[dict, str]):
         if isinstance(json, str):
             json = JSON.loads(json)
