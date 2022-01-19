@@ -15,7 +15,7 @@ class MonoMetaComponent(MetadataComponent):
     alias: str
 
 
-class BaseMonoBehaviour(BaseBehavior):
+class BaseMonoBehavior(BaseBehavior):
     io: "Monomer"
 
     @abstractmethod
@@ -29,7 +29,7 @@ class BaseMonoBehaviour(BaseBehavior):
 
 class Monomer(InteractiveObject):
     prefab_metadata = MonoMetaComponent
-    prefab_behavior = BaseMonoBehaviour
+    prefab_behavior = BaseMonoBehavior
 
     def __init__(
             self,
