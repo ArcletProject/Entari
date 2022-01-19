@@ -1,3 +1,4 @@
+import asyncio
 from typing import Generic, TYPE_CHECKING, Optional, Type
 from .protocol import ModuleProtocol, MonomerProtocol
 from ..utilles import ModuleStatus
@@ -74,9 +75,19 @@ class EdovesScene(Generic[TNProtocol]):
                 self.edoves.logger.warning(f"{_name} does not supply the dock server you chosen")
         self.edoves.logger.info(f"{count} modules activate successful")
 
-    def setting_tasks(self):
-        return (
-            self.module_protocol.start_running(),
-            self.monomer_protocol.start_running(),
-            self.network_protocol.start_running()
-        )
+    async def start_running(self, interval: float = 0.02):
+        all_io = {**self.module_protocol.storage, **self.monomer_protocol.storage, **self.network_protocol.storage}
+        for k, v in all_io.items():
+            try:
+                await v.behavior.start()
+            except NotImplementedError:
+                self.edoves.logger.warning(f"{k}'s behavior start failed")
+        while True:
+            await asyncio.sleep(interval)
+            all_io = {**self.module_protocol.storage, **self.monomer_protocol.storage, **self.network_protocol.storage}
+            for k, v in all_io.items():
+                try:
+                    await v.behavior.update()
+                except NotImplementedError:
+                    pass
+
