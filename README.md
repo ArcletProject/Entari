@@ -5,46 +5,42 @@ A new abstract framework based on Cesloi
 
 main.py:
 ```python
-from edoves.builtin.mah.module import MessageModule
-from edoves.builtin.client import AioHttpClient
-from edoves.main import Edoves
+from arclet.edoves.builtin.mah.module import MessageModule
+from arclet.edoves.builtin.medium import Message
+from arclet.edoves.builtin.event.message import AllMessage
+from arclet.edoves.main import Edoves
+from arclet.edoves.builtin.client import AioHttpClient
 
 app = Edoves(
-    debug=True,
-    profile={  # 默认为MAH的配置
+    debug=False,
+    profile={
         "verify_token": "INITKEYWylsVdbr",
         "port": "9090",
         "client": AioHttpClient,
         "account": 3165388245
     }
 )
+message_module = app.scene.activate_module(MessageModule)
+message_module.set_parent(app.self)
 
-app.activate_modules(MessageModule)
+
+async def test_message_reaction(message: Message):
+    if message.content.startswith("Hello"):
+        print("I received 'Hello World!'")
+
+message_module.new_handler(AllMessage, test_message_reaction)
 app.run()
 ```
 edoves/builtin/mah/module.py:
 ```python
 from typing import Type
-from edoves.main.module import MediumModule
-from edoves.main.typings import TMProtocol
-from edoves.builtin.mah import VERIFY_CODE
-from edoves.builtin.mah.medium import Message
-from edoves.builtin.mah.types import MType
+from arclet.edoves.main.module import BaseModule
+from arclet.edoves.builtin.medium import Message
+from arclet.edoves.builtin.mah import VERIFY_CODE
 
-async def test1(msg: Message):
-    return msg.content
 
-class MessageModule(MediumModule):
+class MessageModule(BaseModule):
     medium_type = Type[Message]
     identifier = VERIFY_CODE
 
-    def __init__(self, protocol: TMProtocol):
-        super().__init__(protocol)
-        self.new_handler(MType.ALL, test1)
-        
-
-
-def test(msg: Message):
-    return msg.purveyor
-MessageModule.new_handler(MType.Friend, test)
 ```
