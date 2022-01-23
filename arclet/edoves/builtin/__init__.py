@@ -1,1 +1,0 @@
-from .medium import Message
