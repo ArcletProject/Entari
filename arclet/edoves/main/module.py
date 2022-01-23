@@ -7,7 +7,7 @@ from arclet.letoderea.utils import run_always_await
 from .interact import InteractiveObject
 from .typings import TProtocol, TMProtocol
 from ..utilles import ModuleStatus
-from ..utilles.security import UNKNOWN, IdentifierChecker, MIRAI_API_HTTP_DEFAULT
+from ..utilles.security import UNKNOWN, IdentifierChecker
 from .behavior import BaseBehavior
 from .event import BasicEvent
 from .component import MetadataComponent, Component
@@ -16,7 +16,7 @@ from .component import MetadataComponent, Component
 class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
     io: "BaseModule"
     protocol: TProtocol
-    identifier: str = MIRAI_API_HTTP_DEFAULT or UNKNOWN
+    identifier: str = UNKNOWN
     state: ModuleStatus = ModuleStatus.ACTIVATE_WAIT
 
 

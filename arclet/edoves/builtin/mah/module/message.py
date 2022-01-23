@@ -1,9 +1,10 @@
-from typing import Type
-from ....main.module import BaseModule
-from ...medium import Message
+from ....main.module import BaseModule, ModuleMetaComponent
 from ....builtin.mah import VERIFY_CODE
 
 
-class MessageModule(BaseModule):
-    medium_type = Type[Message]
+class MessageModuleData(ModuleMetaComponent):
     identifier = VERIFY_CODE
+
+
+class MessageModule(BaseModule):
+    prefab_metadata = MessageModuleData

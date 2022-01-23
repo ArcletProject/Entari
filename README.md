@@ -33,14 +33,16 @@ app.run()
 ```
 edoves/builtin/mah/module.py:
 ```python
-from typing import Type
-from arclet.edoves.main.module import BaseModule
-from arclet.edoves.builtin.medium import Message
+from arclet.edoves.main.module import BaseModule, ModuleMetaComponent
 from arclet.edoves.builtin.mah import VERIFY_CODE
 
 
-class MessageModule(BaseModule):
-    medium_type = Type[Message]
+class MessageModuleData(ModuleMetaComponent):
     identifier = VERIFY_CODE
+
+
+class MessageModule(BaseModule):
+    prefab_metadata = MessageModuleData
+
 
 ```
