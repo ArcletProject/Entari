@@ -1,14 +1,15 @@
-from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List, Set
+from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List
 from inspect import isclass
 from .component import Component, MetadataComponent
 from .behavior import BaseBehavior
+from ..utilles import IOStatus
 
 TC = TypeVar("TC", bound=Component)
 
 
 class Relationship(TypedDict):
-    parents: Set["InteractiveObject"]
-    children: Set["InteractiveObject"]
+    parents: Dict[str, "InteractiveObject"]
+    children: Dict[str, "InteractiveObject"]
 
 
 class InteractiveObject:
@@ -37,10 +38,11 @@ class InteractiveObject:
             behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None
     ):
         self._components = {}
-        self.relation = {"parents": set(), "children": set()}
+        self.relation = {"parents": {}, "children": {}}
         self.metadata = (
             metadata(self) if isclass(metadata) else metadata
         ) if metadata else self.prefab_metadata(self)
+        self.metadata.state = IOStatus.ACTIVATE_WAIT
         self.behavior = (
             behavior(self) if isclass(behavior) else behavior
         ) if behavior else self.prefab_behavior(self)
@@ -54,12 +56,12 @@ class InteractiveObject:
         return self.relation['children']
 
     def set_parent(self, parent: "InteractiveObject"):
-        parent.relation['children'].add(self)
-        self.relation['parents'].add(parent)
+        parent.relation['children'].setdefault(self.__class__.__name__, self)
+        self.relation['parents'].setdefault(parent.__class__.__name__, parent)
 
     def set_child(self, child: "InteractiveObject"):
-        child.relation['parents'].add(self)
-        self.relation['children'].add(child)
+        child.relation['parents'].setdefault(self.__class__.__name__, self)
+        self.relation['children'].setdefault(child.__class__.__name__, child)
 
     @property
     def all_components(self):
@@ -78,12 +80,12 @@ class InteractiveObject:
         return result
 
     def get_component_in_parent(self, __t: Union[str, Type[TC]]) -> TC:
-        for __i in self.relation['parents']:
+        for __i in self.relation['parents'].values():
             if __c := __i.get_component(__t):
                 return __c
 
     def get_component_in_children(self, __t: Union[str, Type[TC]]) -> TC:
-        for __i in self.relation['children']:
+        for __i in self.relation['children'].values():
             if __c := __i.get_component(__t):
                 return __c
 

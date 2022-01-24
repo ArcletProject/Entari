@@ -5,6 +5,7 @@ from .typings import TMonoProtocol
 from .interact import InteractiveObject
 from .component import MetadataComponent
 from .behavior import BaseBehavior
+from ..utilles import IOStatus
 
 
 class MonoMetaComponent(MetadataComponent):
@@ -40,10 +41,11 @@ class Monomer(InteractiveObject):
     ):
         data = self.prefab_metadata(self)
         data.protocol = protocol
-        data.identifier = identifier or ""
+        data.identifier = str(identifier) or ""
         data.name = name
         data.alias = alias or ""
         super(Monomer, self).__init__(data)
+        self.metadata.state = IOStatus.ESTABLISHED
 
     def add_tags(self, *tag: str):
         self.metadata.add_tags(tag)

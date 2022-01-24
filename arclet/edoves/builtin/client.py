@@ -4,12 +4,11 @@ from typing import Union, Dict, Any
 from aiohttp import ClientSession, ClientWebSocketResponse
 from yarl import URL
 
-from ..main.network import NetworkClient, HTTP_METHODS
+from ..main.network import NetworkClient, HTTP_METHODS, NetworkResponse
 
 
 class AioHttpClient(NetworkClient):
     session: ClientSession
-    ws_conn: ClientWebSocketResponse
 
     def __init__(self):
         self.session = ClientSession()
@@ -23,11 +22,12 @@ class AioHttpClient(NetworkClient):
             timeout: float = 10.0,
             **kwargs: Any
     ):
-        async with self.session.ws_connect(
-                url, timeout=timeout, **kwargs
-        ) as resp:
-            self.ws_conn = resp
-            yield resp
+        # async with self.session.ws_connect(
+        #         url, timeout=timeout, **kwargs
+        # ) as resp:
+        #     yield NetworkResponse(get_connection=lambda: resp)
+        resp = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
+        yield NetworkResponse(get_connection=lambda: resp)
 
     @asynccontextmanager
     async def request(
@@ -38,7 +38,13 @@ class AioHttpClient(NetworkClient):
             data: Union[str, bytes] = None,
             **kwargs: Any
     ):
-        pass
+        async with self.session.request(
+                method, url, **{"headers": headers, "data": data, **kwargs}
+        ) as resp:
+            async def _read():
+                return await resp.read()
+
+            yield NetworkResponse(get_content=_read)
 
     @asynccontextmanager
     async def get(
@@ -47,7 +53,18 @@ class AioHttpClient(NetworkClient):
             headers: Dict[str, str] = None,
             **kwargs: Any
     ):
-        pass
+        async with self.session.get(
+                url, **{"headers": headers, **kwargs}
+        ) as resp:
+            resp.raise_for_status()
+
+            async def _read():
+                return await resp.read()
+
+            async def _json():
+                return await resp.json()
+
+            yield NetworkResponse(get_content=_read, get_json=_json)
 
     @asynccontextmanager
     async def post(
@@ -56,7 +73,18 @@ class AioHttpClient(NetworkClient):
             headers: Dict[str, str] = None,
             **kwargs: Any
     ):
-        pass
+        async with self.session.post(
+                url, **{"headers": headers, "data": data, **kwargs}
+        ) as resp:
+            resp.raise_for_status()
+
+            async def _read():
+                return await resp.read()
+
+            async def _json():
+                return await resp.json()
+
+            yield NetworkResponse(get_content=_read, get_json=_json)
 
     @asynccontextmanager
     async def put(

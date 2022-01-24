@@ -1,13 +1,14 @@
 import asyncio
-from typing import Generic, TYPE_CHECKING, Optional, Type
+from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, Union
 from .protocol import ModuleProtocol, MonomerProtocol
-from ..utilles import ModuleStatus
+from ..utilles import IOStatus
 from .typings import TNProtocol, TConfig
 from .exceptions import ValidationFailed
 from .module import BaseModule
 
 if TYPE_CHECKING:
     from . import Edoves
+    from .interact import InteractiveObject
 
 
 class EdovesScene(Generic[TNProtocol]):
@@ -15,6 +16,7 @@ class EdovesScene(Generic[TNProtocol]):
     module_protocol: ModuleProtocol
     monomer_protocol: MonomerProtocol
     network_protocol: TNProtocol
+    running: bool
 
     def __init__(
             self,
@@ -51,7 +53,7 @@ class EdovesScene(Generic[TNProtocol]):
             return m
         try:
             new_module = module_type(self.module_protocol)
-            if new_module.metadata.state in (ModuleStatus.CLOSED, ModuleStatus.UNKNOWN):
+            if new_module.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                 return
             self.modules.setdefault(module_type, new_module)
             self.edoves.logger.info(f"{_name} activate successful")
@@ -72,7 +74,7 @@ class EdovesScene(Generic[TNProtocol]):
                 _name = mt.__name__
                 nm = mt(self.module_protocol)
                 self.modules.setdefault(mt, nm)
-                if nm.metadata.state in (ModuleStatus.CLOSED, ModuleStatus.UNKNOWN):
+                if nm.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                     return
                 self.edoves.logger.debug(f"{_name} activate successful")
                 count += 1
@@ -81,21 +83,45 @@ class EdovesScene(Generic[TNProtocol]):
         self.edoves.logger.info(f"{count} modules activate successful")
 
     async def start_running(self, interval: float = 0.02):
-        all_io = {**self.module_protocol.storage, **self.monomer_protocol.storage, **self.network_protocol.storage}
+        all_io: Dict[str, "InteractiveObject"] = {
+            **self.module_protocol.storage,
+            **self.monomer_protocol.storage,
+            **self.network_protocol.storage
+        }
         for k, v in all_io.items():
+            if v.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
+                continue
             try:
                 await v.behavior.start()
             except NotImplementedError:
                 self.edoves.logger.warning(f"{k}'s behavior start failed")
-        while True:
+        self.running = True
+        while self.running:
             await asyncio.sleep(interval)
-            all_io = {**self.module_protocol.storage, **self.monomer_protocol.storage, **self.network_protocol.storage}
+            all_io: Dict[str, "InteractiveObject"] = {
+                **self.module_protocol.storage,
+                **self.monomer_protocol.storage,
+                **self.network_protocol.storage
+            }
             tasks = [
                 asyncio.create_task(
                     v.behavior.update(), name=f"IO_Update @AllIO[{i}]"
-                ) for i, v in enumerate(all_io.values())
+                ) for i, v in enumerate(all_io.values()) if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN)
             ]
             try:
                 await asyncio.gather(*tasks)
             except NotImplementedError:
                 pass
+
+    async def stop_running(self):
+        self.running = False
+        all_io: Dict[str, "InteractiveObject"] = {
+            **self.module_protocol.storage,
+            **self.monomer_protocol.storage,
+            **self.network_protocol.storage
+        }
+        for k, v in all_io.items():
+            try:
+                await v.behavior.quit()
+            except NotImplementedError:
+                self.edoves.logger.warning(f"{k}'s behavior start failed")

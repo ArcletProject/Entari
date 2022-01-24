@@ -6,7 +6,7 @@ from arclet.letoderea.utils import run_always_await
 
 from .interact import InteractiveObject
 from .typings import TProtocol, TMProtocol
-from ..utilles import ModuleStatus
+from ..utilles import IOStatus
 from ..utilles.security import UNKNOWN, IdentifierChecker
 from .behavior import BaseBehavior
 from .event import BasicEvent
@@ -17,7 +17,6 @@ class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
     io: "BaseModule"
     protocol: TProtocol
     identifier: str = UNKNOWN
-    state: ModuleStatus = ModuleStatus.ACTIVATE_WAIT
 
 
 class MediumHandlers(Component):
@@ -59,7 +58,7 @@ class ModuleBehavior(BaseBehavior):
     def activate(self):
         data = self.get_component(ModuleMetaComponent)
         data.protocol.verify(self.interactive_object)
-        data.state = ModuleStatus.ESTABLISHED
+        data.state = IOStatus.ESTABLISHED
 
     async def invoke(self, method_name: str, time: float):
         if method_name not in self.invoke_list:

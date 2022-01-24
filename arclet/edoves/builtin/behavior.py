@@ -7,10 +7,10 @@ class MessageBehavior(BaseMonoBehavior):
     protocol: NetworkProtocol
 
     def activate(self):
-        self.protocol = self.get_component("metadata").protocol
+        self.protocol = self.io.metadata.protocol.scene.network_protocol
 
     async def send_with(self, medium: Message, reply: bool = False, nudge: bool = False):
-        sendable_data = await self.protocol.transform_medium(medium)
+        sendable_data = await self.protocol.medium_transport(medium)
         self.protocol.set_medium(
             {
                 "target": self.io.metadata.identifier,

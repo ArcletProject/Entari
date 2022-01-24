@@ -9,7 +9,9 @@ from pydantic import Field
 if TYPE_CHECKING:
     from ...message.chain import MessageChain
 
-Plain = Text
+
+class Plain(Text):
+    pass
 
 
 class Source(MessageElement):
@@ -189,7 +191,3 @@ def _update_forward_refs():
 
     Quote.update_forward_refs(MessageChain=MessageChain)
     ForwardNode.update_forward_refs(MessageChain=MessageChain)
-
-
-if TYPE_CHECKING:
-    _update_forward_refs()

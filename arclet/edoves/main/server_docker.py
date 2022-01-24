@@ -7,7 +7,7 @@ from .network import NetworkClient, HTTP_METHODS
 from ..builtin.medium import JsonMedium
 from .typings import TNProtocol
 from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
-from ..utilles import ModuleStatus
+from ..utilles import IOStatus
 from ..utilles.security import UNKNOWN
 
 
@@ -61,5 +61,5 @@ class BaseServerDocker(BaseModule, Generic[TNProtocol]):
     def __init__(self, protocol: TNProtocol, client: NetworkClient):
         super().__init__(protocol)
         data = self.get_component(BaseDockerMetaComponent)
-        data.state = ModuleStatus.MEDIUM_WAIT
+        data.state = IOStatus.MEDIUM_WAIT
         data.session = client

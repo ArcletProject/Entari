@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Union, Any, Literal, Dict, AsyncGenerator
+from arclet.letoderea.utils import run_always_await
+from typing import Union, Any, Literal, Dict, AsyncGenerator, Type, Callable
 
 from yarl import URL
 
@@ -14,7 +15,19 @@ HTTP_METHODS = Union[
 
 
 class NetworkResponse:
-    pass
+    activity_handlers: Dict[str, Callable]
+
+    def __init__(
+            self,
+            **kwargs
+    ):
+        self.activity_handlers = kwargs
+
+    async def execute(self, target: str):
+        handler = self.activity_handlers.get(target)
+        if handler is None:
+            raise NotImplementedError(f"No handler for exec_func {target}")
+        return await run_always_await(handler)
 
 
 class NetworkClient(metaclass=ABCMeta):

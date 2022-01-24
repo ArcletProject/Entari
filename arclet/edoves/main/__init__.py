@@ -57,6 +57,7 @@ class Edoves(Generic[TConfig]):
             *,
             event_system: Optional[EventSystem] = None,
             logger: Optional[Logger] = None,
+            is_chat_log: bool = True,
             debug: bool = False,
             config: TConfig = None,
             profile: Optional[Union[str, Dict]] = None
@@ -91,7 +92,9 @@ class Edoves(Generic[TConfig]):
             self.config.get("account"),
             "edoves"
         )
-
+        if is_chat_log:
+            from ..builtin.chatlog import ChatLogModule
+            self.scene.activate_module(ChatLogModule)
         try:
             if sc := self.config.get("server_docker"):
                 self.scene.dockers.setdefault(sc, sc(self.network_protocol, self.config.client()))

@@ -4,9 +4,9 @@ from asyncio import Event
 from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict
 from arclet.letoderea.utils import search_event
 from .medium import BaseMedium
-from ..utilles.security import UNDEFINED
+from ..utilles.security import UNDEFINED, EDOVES_DEFAULT
 from ..utilles.data_source_info import DataSourceInfo
-from ..utilles import ModuleStatus
+from ..utilles import IOStatus
 from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
 
@@ -44,11 +44,13 @@ class AbstractProtocol(metaclass=ABCMeta):
     def current(self):
         return list(self.storage.values())[-1]
 
-    def verify(self, other: Union[int, "BaseModule"]):
-        if isinstance(other, int) and other != self.__identifier:
+    def verify(self, other: Union[str, "InteractiveObject"]):
+        if other.metadata.identifier == EDOVES_DEFAULT:
+            return
+        if isinstance(other, str) and other != self.__identifier:
             raise ValidationFailed
-        if other.metadata.identifier != str(self.__identifier):
-            other.metadata.state = ModuleStatus.CLOSED
+        if other.metadata.identifier != self.__identifier:
+            other.metadata.state = IOStatus.CLOSED
             raise ValidationFailed
 
     async def get_medium(
@@ -80,15 +82,17 @@ class ModuleProtocol(AbstractProtocol):
     async def broadcast_medium(self, event_type: str, medium_type: Optional[Type[TM]] = None):
         medium = await self.get_medium(event_type, medium_type)
         for m in self.storage.values():
-            await m.behavior.handler_event(
-                search_event(event_type)(
-                    medium=medium
+            if m.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT):
+                await m.behavior.handler_event(
+                    search_event(event_type)(
+                        medium=medium,
+                        module=m
+                    )
                 )
-            )
 
 
 class MonomerProtocol(AbstractProtocol):
-    storage: Dict[int, "Monomer"]
+    storage: Dict[str, "Monomer"]
 
 
 class NetworkProtocol(ModuleProtocol):
@@ -106,11 +110,11 @@ class NetworkProtocol(ModuleProtocol):
         super().__init__(scene, self.source_information.instance_identifier)
 
     @abstractmethod
-    async def parse_raw_data(self, data: TData) -> BaseMedium:
+    async def parse_raw_data(self, data: TData):
         """将server端传入的原始数据封装"""
         raise NotImplementedError
 
     @abstractmethod
-    async def transform_medium(self, medium: BaseMedium) -> Union[TM, TData]:
-        """将传入的medium转换为自身需要的类型"""
+    async def medium_transport(self, data: BaseMedium):
+        """将来自其他模块的medium传出给server"""
         raise NotImplementedError

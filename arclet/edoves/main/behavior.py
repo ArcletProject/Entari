@@ -31,6 +31,9 @@ class BaseBehavior(Component, metaclass=ABCMeta):
         """主程序会以固定时间间隔调用该方法"""
         pass
 
+    async def quit(self):
+        """当主程序关闭时调用"""
+
     async def on_enable(self):
         pass
 

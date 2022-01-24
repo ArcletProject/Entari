@@ -1,5 +1,6 @@
 from typing import Set, TYPE_CHECKING, Type, Union, Iterable
 
+from ..utilles import IOStatus
 from .typings import TProtocol
 
 if TYPE_CHECKING:
@@ -55,8 +56,9 @@ class Component:
 
 class MetadataComponent(Component):
     tags: Set[str] = set()
-    identifier: Union[str, int]
+    identifier: str
     protocol: TProtocol
+    state: IOStatus
 
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:
