@@ -47,6 +47,26 @@ class InteractiveObject:
             behavior(self) if isclass(behavior) else behavior
         ) if behavior else self.prefab_behavior(self)
 
+    def compare(self, *tag: str):
+        """对比输入的tag是否存在于该IO的tags中"""
+        return set(self.metadata.tags).issuperset(tag)
+
+    def add_tags(self, *tag: str):
+        self.metadata.add_tags(tag)
+
+    def set_prime_tag(self, tag: str):
+        if self.compare(tag):
+            index = self.metadata.tags.index(tag)
+            self.metadata.tags[0], self.metadata.tags[index] = self.metadata.tags[index], self.metadata.tags[0]
+        else:
+            self.metadata.tags.append(tag)
+            self.metadata.tags[0], self.metadata.tags[-1] = self.metadata.tags[-1], self.metadata.tags[0]
+
+    @property
+    def prime_tag(self):
+        if self.metadata.tags:
+            return self.metadata.tags[0]
+
     @property
     def parents(self):
         return self.relation['parents']
@@ -54,6 +74,12 @@ class InteractiveObject:
     @property
     def children(self):
         return self.relation['children']
+
+    def filter_parents(self, *tag):
+        return list(filter(lambda x: x.compare(*tag), self.parents.values()))
+
+    def filter_children(self, *tag):
+        return list(filter(lambda x: x.compare(*tag), self.children.values()))
 
     def set_parent(self, parent: "InteractiveObject"):
         parent.relation['children'].setdefault(self.__class__.__name__, self)

@@ -1,4 +1,4 @@
-from typing import Type, Optional, Callable, Any, Coroutine
+from typing import Type, Optional, Callable, Coroutine
 from .monomer import Monomer
 from .typings import TMeta
 
@@ -20,7 +20,7 @@ class BaseMedium:
             return new_medium
         return __wrapper
 
-    def action(self, method_name: str) -> Callable[[Any, Any], Coroutine]:
+    def action(self, method_name: str) -> Callable[..., Coroutine]:
         for func in [getattr(c, method_name, None) for c in self.purveyor.all_components]:
             if not func:
                 continue

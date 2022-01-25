@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from .config import TemplateConfig
     from .protocol import NetworkProtocol, ModuleProtocol, MonomerProtocol
 
-TMeta = Union[str, bool, int, float, datetime, timedelta, None]
+TMeta = Union[str, bool, int, float, datetime, timedelta, None, List, Dict]
 TData = Union[TMeta, List[TMeta], Dict[str, TMeta]]
 
 TProtocol = TypeVar("TProtocol")

@@ -98,7 +98,9 @@ class ModuleBehavior(BaseBehavior):
         delegate: EventDelegate = self.get_component(MediumHandlers)[event.__class__.__name__]
         if not delegate:
             return
+        self.io.metadata.state = IOStatus.PROCESSING
         await delegate.executor(event)
+        self.io.metadata.state = IOStatus.ESTABLISHED
 
 
 class BaseModule(InteractiveObject):
@@ -119,7 +121,7 @@ class BaseModule(InteractiveObject):
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):
             for k, v in self.local_storage[self.__class__].items():
-                self.get_component(ModuleBehavior).new_handler(k, *v)
+                self.get_component(self.prefab_behavior).new_handler(k, *v)
 
     @property
     def name(self):

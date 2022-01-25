@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class Plain(Text):
-    pass
+    type: str = "Plain"
 
 
 class Source(MessageElement):
@@ -109,7 +109,7 @@ class Dice(MessageElement):
 
 class File(MessageElement):
     type = "File"
-    file_id: str
+    file_id: str = Field(..., alias="id")
     name: str
     size: int
 

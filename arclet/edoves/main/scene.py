@@ -1,10 +1,12 @@
 import asyncio
-from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, Union
+from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar
 from .protocol import ModuleProtocol, MonomerProtocol
 from ..utilles import IOStatus
 from .typings import TNProtocol, TConfig
 from .exceptions import ValidationFailed
 from .module import BaseModule
+
+TMde = TypeVar("TMde", bound=BaseModule)
 
 if TYPE_CHECKING:
     from . import Edoves
@@ -40,7 +42,7 @@ class EdovesScene(Generic[TNProtocol]):
     def dockers(self):
         return self.network_protocol.storage
 
-    def activate_module(self, module_type: Type[BaseModule]) -> Optional[BaseModule]:
+    def activate_module(self, module_type: Type[TMde]) -> Optional[TMde]:
         """激活单个模块并返回
 
         Args:

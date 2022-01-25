@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 from ...main.monomer import Monomer, MonoMetaComponent
 from ..behavior import MessageBehavior
@@ -22,76 +22,39 @@ class Equipment(str, Enum):
     MacOS = "MACOS"  # mac电脑
 
 
-class GroupData(MonoMetaComponent):
+class MiraiMonoMetadata(MonoMetaComponent):
+    specialTitle: Optional[str]
     permission: Permission
-
-
-class MemberData(GroupData):
     joinTimestamp: Optional[int]
     lastSpeakTimestamp: Optional[int]
     mutetimeRemaining: Optional[int]
+    group: Optional[str]
+
+    def update_data(self, name: str, value: Any):
+        if not self.__dict__.get(name):
+            setattr(self, name, value)
+        self.__dict__[name] = value
 
 
-class Friend(Monomer):
-    prefab_behavior = MessageBehavior
-
-
-class Stranger(Monomer):
-    prefab_behavior = MessageBehavior
-
-
-class Member(Monomer):
-    prefab_metadata = MemberData
+class MiraiMonomer(Monomer):
+    prefab_metadata = MiraiMonoMetadata
     prefab_behavior = MessageBehavior
 
     def __init__(
             self,
             protocol: TMonoProtocol,
-            name: str,
-            permission: str,
-            identifier: Optional[int] = None,
-            alias: Optional[str] = None,
-            join_timestamp: Optional[int] = None,
-            last_speak_timestamp: Optional[int] = None,
-            mutetime_remaining: Optional[int] = None
+            nickname: str,
+            identifier: Optional[str] = None,
+            remark: Optional[str] = None,
+            **data: Dict[str, Any]
     ):
-        super().__init__(protocol, name, identifier, alias)
-        self.metadata.permission = Permission(permission)
-        self.metadata.joinTimestamp = join_timestamp
-        self.metadata.lastSpeakTimestamp = last_speak_timestamp
-        self.metadata.mutetimeRemaining = mutetime_remaining
-
-    @classmethod
-    def parse_obj(cls, protocol: TMonoProtocol, obj: Dict):
-        return cls(
-            protocol,
-            obj.get("memberName"),
-            obj.get("permission"),
-            obj.get("id"),
-            obj.get("specialTitle"),
-            obj.get("joinTimestamp"),
-            obj.get("lastSpeakTimestamp"),
-            obj.get("mutetimeRemaining")
-        )
-
-    def avatar(self):
-        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'
+        super().__init__(protocol, nickname, identifier, remark)
+        for k, v in data.items():
+            self.get_component(MiraiMonoMetadata).update_data(k, v)
 
     @property
     def group(self):
-        return list(self.parents.values())[0]
+        return self.parents[self.metadata.group] if hasattr(self.metadata, "group") else None
 
-
-class Group(Monomer):
-    prefab_metadata = GroupData
-    prefab_behavior = MessageBehavior
-
-    def __init__(
-            self,
-            protocol: TMonoProtocol,
-            name: str,
-            permission: str,
-            identifier: Optional[int] = None,
-    ):
-        super().__init__(protocol, name, identifier)
-        self.metadata.permission = Permission(permission)
+    def avatar(self):
+        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'

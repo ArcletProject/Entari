@@ -8,7 +8,7 @@ from .event.message import AllMessage
 
 def log_message(module: BaseModule, message: Message, purveyor: Monomer):
     edoves = module.metadata.protocol.scene.edoves
-    if purveyor.parents:
+    if purveyor.prime_tag == "Member":
         edoves.logger.log(
             module.metadata.log_level,
             module.metadata.group_message_log_format.format(
@@ -20,10 +20,10 @@ def log_message(module: BaseModule, message: Message, purveyor: Monomer):
                 message_string=message.content.to_text().__repr__(),
             ),
         )
-    else:
+    elif purveyor.prime_tag == "Friend":
         edoves.logger.log(
             module.metadata.log_level,
-            module.metadata.group_message_log_format.format(
+            module.metadata.friend_message_log_format.format(
                 friend_id=purveyor.metadata.identifier,
                 friend_name=purveyor.metadata.name,
                 bot_id=edoves.self.metadata.identifier,

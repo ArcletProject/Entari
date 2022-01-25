@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABCMeta, abstractmethod
 from asyncio import Event
-from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict
+from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, Generic
 from arclet.letoderea.utils import search_event
 from .medium import BaseMedium
 from ..utilles.security import UNDEFINED, EDOVES_DEFAULT
@@ -83,7 +83,7 @@ class ModuleProtocol(AbstractProtocol):
         medium = await self.get_medium(event_type, medium_type)
         for m in self.storage.values():
             if m.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT):
-                await m.behavior.handler_event(
+                await m.import_event(
                     search_event(event_type)(
                         medium=medium,
                         module=m
@@ -115,6 +115,6 @@ class NetworkProtocol(ModuleProtocol):
         raise NotImplementedError
 
     @abstractmethod
-    async def medium_transport(self, data: BaseMedium):
+    async def medium_transport(self, action: str):
         """将来自其他模块的medium传出给server"""
         raise NotImplementedError

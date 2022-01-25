@@ -127,7 +127,7 @@ class MAHBehavior(DockerBehavior):
         elif method in ("POST", "Update"):
             if not isinstance(content, str):
                 content = json.dumps(content, cls=DatetimeEncoder)
-            async with self.session.post(
+            async with self.data.session.post(
                     self.data.protocol.config.url(action), data=content
             ) as response:
                 resp_json: dict = await response.execute("get_json")
@@ -145,7 +145,7 @@ class MAHBehavior(DockerBehavior):
                         form.add_field(k, v)
             else:
                 raise ValueError
-            async with self.session.post(
+            async with self.data.session.post(
                     self.data.protocol.config.url(action), data=form
             ) as response:
                 resp_json: dict = await response.execute("get_json")

@@ -24,5 +24,4 @@ class Message(BaseMedium):
         return self
 
     async def send(self):
-        coro = self.action("send_with")
-        return await coro(self.purveyor, self.content)
+        return await self.action("send_with")(self)

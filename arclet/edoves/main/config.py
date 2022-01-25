@@ -18,7 +18,7 @@ class TemplateConfig(DataStructure):
 
     def url(self, api: str, **kwargs: str):
         return self.connection_url() + f"/{api}" + \
-               ("?" + "&".join([f"{k}={v}" for k, v in kwargs.items()])) if kwargs else ""
+               (("?" + "&".join([f"{k}={v}" for k, v in kwargs.items()])) if kwargs else "")
 
     def connection_url(self):
         return self.host + ":" + self.port

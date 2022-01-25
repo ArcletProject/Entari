@@ -1,7 +1,9 @@
-from typing import List, Iterable, Type, Union
+from typing import List, Iterable, Type, Union, TypeVar
 
 from .element import MessageElement
 from ..utilles import DataStructure, gen_subclass
+
+TMElement = TypeVar("TMElement", bound=MessageElement)
 
 
 class MessageChain(DataStructure):
@@ -9,7 +11,7 @@ class MessageChain(DataStructure):
     即 "消息链", 用于承载整个消息内容的数据结构, 包含有一有序列表, 包含有继承了 MessageElement 的类实例.
     """
 
-    __root__: List[MessageElement]
+    __root__: List[TMElement]
 
     @staticmethod
     def search_element(name: str):
@@ -18,7 +20,7 @@ class MessageChain(DataStructure):
                 return i
 
     @staticmethod
-    def build_chain(obj: List[Union[dict, MessageElement]]):
+    def build_chain(obj: List[Union[dict, TMElement]]):
         elements = []
         for i in obj:
             if isinstance(i, MessageElement):
@@ -28,14 +30,14 @@ class MessageChain(DataStructure):
         return elements
 
     @classmethod
-    def parse_obj(cls: Type["MessageChain"], obj: List[Union[dict, MessageElement]]) -> "MessageChain":
+    def parse_obj(cls: Type["MessageChain"], obj: List[Union[dict, TMElement]]) -> "MessageChain":
         return cls(__root__=cls.build_chain(obj))  # 默认是不可变型
 
-    def __init__(self, __root__: Iterable[MessageElement]):
+    def __init__(self, __root__: Iterable[TMElement]):
         super().__init__(__root__=self.build_chain(list(__root__)))
 
     @classmethod
-    def create(cls, *elements: Union[Iterable[MessageElement], MessageElement, str]) -> "MessageChain":
+    def create(cls, *elements: Union[Iterable[TMElement], TMElement, str]) -> "MessageChain":
         element_list = []
         for ele in elements:
             if isinstance(ele, MessageElement):
@@ -74,7 +76,7 @@ class MessageChain(DataStructure):
         """
         return "".join(i.to_text() if i else "" for i in self.findall("Plain"))
 
-    def is_instance(self, element_type: Union[str, Type[MessageElement]]) -> bool:
+    def is_instance(self, element_type: Union[str, Type[TMElement]]) -> bool:
         if isinstance(element_type, str):
             element_type = MessageChain.search_element(element_type)
         for i, v in enumerate(self.__root__):
@@ -84,13 +86,13 @@ class MessageChain(DataStructure):
                 return False
         return True
 
-    def findall(self, element_type: Union[str, Type[MessageElement]]) -> List[MessageElement]:
+    def findall(self, element_type: Union[str, Type[TMElement]]) -> List[TMElement]:
         """返回消息链内可能的所有指定元素"""
         if isinstance(element_type, str):
             element_type = MessageChain.search_element(element_type)
         return [i for i in self.__root__ if type(i) is element_type]
 
-    def find(self, element_type: Union[str, Type[MessageElement]], index: int = 0) -> Union[bool, MessageElement]:
+    def find(self, element_type: Union[str, Type[TMElement]], index: int = 0) -> Union[bool, TMElement]:
         """
         当消息链内有指定元素时返回该元素
         无则返回False
@@ -102,7 +104,7 @@ class MessageChain(DataStructure):
         ele = self.findall(element_type)
         return False if not ele else ele[index]
 
-    def has(self, element_type: Union[str, Type[MessageElement]]) -> bool:
+    def has(self, element_type: Union[str, Type[TMElement]]) -> bool:
         """
         当消息链内有指定元素时返回True
         无则返回False
@@ -110,18 +112,18 @@ class MessageChain(DataStructure):
         ele = self.findall(element_type)
         return False if not ele else True
 
-    def pop(self, index: int) -> MessageElement:
+    def pop(self, index: int) -> TMElement:
         return self.__root__.pop(index)
 
-    def index(self, element_type: Union[str, Type[MessageElement]]) -> int:
+    def index(self, element_type: Union[str, Type[TMElement]]) -> int:
         ele = self.find(element_type)
         if ele:
             return self.__root__.index(ele)
         else:
             raise ValueError(f"{element_type} is not in this MessageChain")
 
-    def replace(self, element_type: Union[str, Type[MessageElement]],
-                new_element: MessageElement, counts: int = None) -> "MessageChain":
+    def replace(self, element_type: Union[str, Type[TMElement]],
+                new_element: TMElement, counts: int = None) -> "MessageChain":
         """替换消息链中的所有指定的消息元素类型为新的消息元素实例；不改变消息链本身
 
         Args:
@@ -164,7 +166,36 @@ class MessageChain(DataStructure):
                 ele.text = ele.text.replace(old_text, new_text, counts)
         return new_message
 
-    def remove(self, element_type: Union[str, Type[MessageElement]], counts: int = None):
+    def replace_type(self, element_type: Union[str, Type[TMElement]],
+                     new_element_type: Union[str, Type[TMElement]], counts: int = None):
+        """替换消息链中的所有指定的消息元素类型为新的消息元素类型, 不改变元素内容；不改变消息链本身
+
+        Args:
+            element_type : 要替换的元素的类型
+            new_element_type: 新的消息元素类型
+            counts: 替换的次数,不填写时默认为替换全部符合的元素
+        Returns:
+            MessageChain: 新的消息链
+        """
+        if isinstance(element_type, str):
+            element_type = MessageChain.search_element(element_type)
+        if isinstance(new_element_type, str):
+            new_element_type = MessageChain.search_element(new_element_type)
+        new_message = MessageChain(self.__root__)
+        if not counts:
+            for i, v in enumerate(self.__root__):
+                if type(v) is element_type:
+                    new_message.__root__[i].type = new_element_type.__name__
+        elif counts > 0:
+            for i, v in enumerate(self.__root__):
+                if type(v) is element_type:
+                    counts -= 1
+                    new_message.__root__[i].type = new_element_type.__name__
+                if counts == 0:
+                    break
+        return new_message
+
+    def remove(self, element_type: Union[str, Type[TMElement]], counts: int = None):
         """删除消息链中的所有指定的消息元素类型
 
         Args:
@@ -190,7 +221,7 @@ class MessageChain(DataStructure):
                 i += 1
         return self
 
-    def only_save(self, element_type: Union[str, Type[MessageElement]]):
+    def only_save(self, element_type: Union[str, Type[TMElement]]):
         """删除消息链中的所有非指定的消息元素类型
 
         Args:
@@ -203,7 +234,7 @@ class MessageChain(DataStructure):
         self.__root__ = [i for i in self.__root__ if type(i) is element_type]
         return self
 
-    def insert(self, index: int, element: MessageElement):
+    def insert(self, index: int, element: TMElement):
         """在指定位置插入一个消息元素实例
         Args:
             index: 插入的位置
@@ -214,7 +245,7 @@ class MessageChain(DataStructure):
         self.__root__.insert(index, element)
         return self
 
-    def append(self, element: MessageElement):
+    def append(self, element: TMElement):
         """在消息链尾部增加一个消息元素实例
 
         Args:
@@ -225,7 +256,7 @@ class MessageChain(DataStructure):
         self.__root__.append(element)
         return self
 
-    def extend(self, *elements: Union[MessageElement, List[MessageElement]]):
+    def extend(self, *elements: Union[TMElement, List[TMElement]]):
         element_list = []
         for ele in elements:
             if isinstance(ele, MessageElement):
@@ -252,16 +283,16 @@ class MessageChain(DataStructure):
     def __repr__(self) -> str:
         return fr"MessageChain({repr(self.__root__)})"
 
-    def __iter__(self) -> Iterable[MessageElement]:
+    def __iter__(self) -> Iterable[TMElement]:
         yield from self.__root__
 
-    def __getitem__(self, index) -> MessageElement:
+    def __getitem__(self, index) -> TMElement:
         return self.__root__[index]
 
     def __len__(self) -> int:
         return len(self.__root__)
 
-    def __contains__(self, item: Union[Type[MessageElement], str]) -> bool:
+    def __contains__(self, item: Union[Type[TMElement], str]) -> bool:
         """
         是否包含特定元素类型/字符串
         """

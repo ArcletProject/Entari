@@ -30,6 +30,8 @@ class BaseMonoBehavior(BaseBehavior):
 class Monomer(InteractiveObject):
     prefab_metadata = MonoMetaComponent
     prefab_behavior = BaseMonoBehavior
+    metadata: MonoMetaComponent
+    behavior: BaseMonoBehavior
 
     def __init__(
             self,
@@ -47,11 +49,16 @@ class Monomer(InteractiveObject):
         super(Monomer, self).__init__(data)
         self.metadata.state = IOStatus.ESTABLISHED
 
-    def add_tags(self, *tag: str):
-        self.metadata.add_tags(tag)
-
-    def action(self, method_name: str) -> Callable[[Any, Any], Coroutine]:
+    def action(self, method_name: str) -> Callable[..., Coroutine]:
         for func in [getattr(c, method_name, None) for c in self.all_components]:
             if not func:
                 continue
             return func
+
+    def set_parent(self, parent: "Monomer"):
+        parent.relation['children'].setdefault(self.metadata.identifier, self)
+        self.relation['parents'].setdefault(parent.metadata.identifier, parent)
+
+    def set_child(self, child: "Monomer"):
+        child.relation['parents'].setdefault(self.metadata.identifier, self)
+        self.relation['children'].setdefault(child.metadata.identifier, child)

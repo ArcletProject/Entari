@@ -5,28 +5,43 @@ A new abstract framework based on Cesloi
 
 main.py:
 ```python
+from arclet.edoves.builtin.mah.messages import Source
 from arclet.edoves.builtin.mah.module import MessageModule
+from arclet.edoves.builtin.commander import Commander
 from arclet.edoves.builtin.medium import Message
 from arclet.edoves.builtin.event.message import AllMessage
-from arclet.edoves.main import Edoves
+from arclet.edoves.main import Edoves, Monomer
 from arclet.edoves.builtin.client import AioHttpClient
 
 app = Edoves(
     debug=False,
     profile={
         "verify_token": "INITKEYWylsVdbr",
-        "port": "9090",
+        "port": "9080",
         "client": AioHttpClient,
-        "account": 3165388245
+        "account": 3542928737
     }
 )
 message_module = app.scene.activate_module(MessageModule)
-message_module.set_parent(app.self)
+commander = app.scene.activate_module(Commander)    
+
+
+@commander.command("print <content:str>")
+async def _(content: str, message: Message, sender: Monomer):
+    await message.set("This is commander test").send()
+    await message.set(f"I received content:{content} from {sender.metadata.name}").send()
+    if content == "all_group":
+        await message.set(f"{[k.metadata.name for k in message.purveyor.filter_parents('Group')]}").send()
+    if content == "friend":
+        await message.set(f"{[k.metadata.name for k in message.purveyor.filter_parents('Friend')]}").send()
 
 
 async def test_message_reaction(message: Message):
     if message.content.startswith("Hello"):
-        print("I received 'Hello World!'")
+        await message.purveyor.action("send_with")(
+            message, reply=True, quote=message.content.find(Source).id, type=message.type)
+        await message.set("I received 'Hello World!'").send()
+
 
 message_module.new_handler(AllMessage, test_message_reaction)
 app.run()

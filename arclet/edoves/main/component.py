@@ -1,4 +1,4 @@
-from typing import Set, TYPE_CHECKING, Type, Union, Iterable
+from typing import List, TYPE_CHECKING, Type, Union, Iterable
 
 from ..utilles import IOStatus
 from .typings import TProtocol
@@ -55,11 +55,15 @@ class Component:
 
 
 class MetadataComponent(Component):
-    tags: Set[str] = set()
+    tags: List[str]
     identifier: str
     protocol: TProtocol
     state: IOStatus
 
+    def __init__(self, io: "InteractiveObject"):
+        super().__init__(io)
+        self.tags = []
+
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:
-            self.tags.update(tags)
+            self.tags.extend(set(tags))
