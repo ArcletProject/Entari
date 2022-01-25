@@ -75,6 +75,7 @@ class MAHProtocol(NetworkProtocol):
                         sender.set_parent(self.scene.edoves.self)
                         self.scene.monomers.setdefault(sender.metadata.identifier, sender)
                     if sender.prime_tag == "Member":
+                        sender.set_parent(self.scene.edoves.self)
                         sender.metadata.update_data("alias", sender_data.get("remark"))
                     sender.set_prime_tag("Friend")
 
