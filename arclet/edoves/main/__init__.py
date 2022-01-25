@@ -118,23 +118,23 @@ class Edoves(Generic[TConfig]):
 
     def run(self):
         try:
-            # if not self.running:
-            #     self.running = True
-
-            # self.daemon_task = loop.create_task(self.running_task(), name="cesloi_web_task")
-            # while not self.bot_session.sessionKey:
-            #     loop.run_until_complete(asyncio.sleep(0.001))
-            # self.event_system.event_spread(ApplicationRunning(self))
-            self.running_task = self.event_system.loop.create_task(
+            running_task = self.event_system.loop.create_task(
                 self.scene.start_running(),
                 name="Edoves_Loop_Task"
             )
-            if self.running_task:
-                self.event_system.loop.run_until_complete(self.running_task)
-        # if self.daemon_task:
-        #     loop.run_until_complete(self.daemon_task)
+            if running_task:
+                self.event_system.loop.run_until_complete(running_task)
         except KeyboardInterrupt or asyncio.CancelledError:
             self.logger.warning("Interrupt detected, bot stopping ...")
-        # loop.run_until_complete(self.close())
+        self.event_system.loop.run_until_complete(self.scene.stop_running())
 
         self.logger.info("Edoves shutdown. Have a nice day!")
+
+    async def start(self):
+        try:
+            await self.scene.start_running()
+        except KeyboardInterrupt or asyncio.CancelledError:
+            self.logger.warning("Interrupt detected, bot stopping ...")
+        finally:
+            await self.scene.stop_running()
+            self.logger.info("Edoves shutdown. Have a nice day!")

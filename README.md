@@ -27,13 +27,13 @@ commander = app.scene.activate_module(Commander)
 
 
 @commander.command("print <content:str>")
-async def _(content: str, message: Message, sender: Monomer):
+async def _(content: str, message: Message, sender: Monomer, bot: Edoves):
     await message.set("This is commander test").send()
     await message.set(f"I received content:{content} from {sender.metadata.name}").send()
     if content == "all_group":
-        await message.set(f"{[k.metadata.name for k in message.purveyor.filter_parents('Group')]}").send()
+        await message.set(f"{[k.metadata.name for k in bot.self.filter_parents('Group')]}").send()
     if content == "friend":
-        await message.set(f"{[k.metadata.name for k in message.purveyor.filter_parents('Friend')]}").send()
+        await message.set(f"{[k.metadata.name for k in bot.self.filter_children('Friend')]}").send()
 
 
 async def test_message_reaction(message: Message):
