@@ -1,6 +1,5 @@
 import asyncio
-from inspect import isclass
-from typing import Type, Dict, Callable, Optional, Set, overload
+from typing import Type, Dict, Callable, Optional, Set
 from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
 from arclet.letoderea.utils import run_always_await
 
@@ -86,7 +85,7 @@ class ModuleBehavior(BaseBehavior):
     def is_invoke(self, method_name: str):
         return method_name in self.invoke_list
 
-    def new_handler(self, event_type: Type[BasicEvent], *reaction: Callable):
+    def add_handler(self, event_type: Type[BasicEvent], *reaction: Callable):
         handlers = self.get_component(MediumHandlers)
 
         def __wrapper(_reaction):
@@ -123,8 +122,8 @@ class BaseModule(InteractiveObject):
         super().__init__(metadata)
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):
-            for k, v in self.local_storage[self.__class__].items():
-                self.get_component(self.prefab_behavior).new_handler(k, *v)
+            for k, v in self.local_storage.pop(self.__class__).items():
+                self.get_component(self.prefab_behavior).add_handler(k, *v)
 
     @property
     def name(self):
@@ -142,22 +141,18 @@ class BaseModule(InteractiveObject):
         self.behavior = behavior(self)
 
     @classmethod
-    @overload
-    def new_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
-        ...
+    def inject_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
+        if not __module_self__.local_storage.get(__module_self__):
+            __module_self__.local_storage.setdefault(__module_self__, {})
+        __module_self__.local_storage[__module_self__].setdefault(event_type, reaction)
 
-    def new_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
-        if isclass(__module_self__):
-            if not __module_self__.local_storage.get(__module_self__):
-                __module_self__.local_storage.setdefault(__module_self__, {})
-            __module_self__.local_storage[__module_self__].setdefault(event_type, reaction)
-        elif isinstance(__module_self__, BaseModule):
-            try:
-                return __module_self__.behavior.new_handler(event_type, *reaction)
-            except AttributeError:
-                if not __module_self__.local_storage.get(__module_self__.__class__):
-                    __module_self__.local_storage.setdefault(__module_self__.__class__, {})
-                __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, reaction)
+    def add_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
+        try:
+            return __module_self__.behavior.add_handler(event_type, *reaction)
+        except AttributeError:
+            if not __module_self__.local_storage.get(__module_self__.__class__):
+                __module_self__.local_storage.setdefault(__module_self__.__class__, {})
+            __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, reaction)
 
     async def import_event(self, event: BasicEvent):
         await self.get_component(ModuleBehavior).handler_event(event)

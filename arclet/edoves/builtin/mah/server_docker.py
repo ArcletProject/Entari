@@ -34,7 +34,7 @@ class MAHBehavior(DockerBehavior):
             self.start_ev.set()
             self.data.protocol.scene.edoves.logger.info("MAHServerDocker start!")
 
-        self.io.new_handler(DockerOperate, wait_start)
+        self.io.add_handler(DockerOperate, wait_start)
 
     async def connect(self):
         self.logger.info("MAHServerDocker connecting...")

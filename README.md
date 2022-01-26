@@ -65,7 +65,7 @@ app = Edoves(
     }
 )
 message_module = app.scene.activate_module(MessageModule)
-message_module.new_handler(AllMessage, test_message_reaction)
+message_module.add_handler(AllMessage, test_message_reaction)
 app.run()
 ```
 edoves/builtin/mah/module.py:

@@ -46,4 +46,4 @@ class ChatLogModule(BaseModule):
 
     def __init__(self, protocol: TMProtocol):
         super().__init__(protocol)
-        self.new_handler(AllMessage, log_message)
+        self.add_handler(AllMessage, log_message)

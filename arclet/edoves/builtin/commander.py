@@ -1,8 +1,6 @@
-from inspect import isclass
-
 from arclet.alconna import Alconna
 from arclet.letoderea.handler import await_exec_target
-from typing import Callable, Dict, Type, overload
+from typing import Callable, Dict, Type
 
 from .event.message import AllMessage
 from .medium import Message
@@ -70,7 +68,7 @@ class Commander(BaseModule):
             for k, v in self.local_storage[self.__class__].items():
                 self.get_component(CommandParsers).parsers.setdefault(k, v)
 
-        @self.behavior.new_handler(AllMessage)
+        @self.behavior.add_handler(AllMessage)
         async def command_handler(message: Message, module: Commander):
             for cmd, psr in self.command_parsers.parsers.items():
                 result = psr.alconna.analyse_message(message.content)
@@ -85,17 +83,6 @@ class Commander(BaseModule):
                     )
                     break
 
-    @classmethod
-    @overload
-    def command(
-            __commander_self__,
-            command: str,
-            *option: str,
-            custom_types: Dict[str, Type] = None,
-            sep: str = " "
-    ):
-        ...
-
     def command(
             __commander_self__,
             command: str,
@@ -107,17 +94,12 @@ class Commander(BaseModule):
 
         def __wrapper(func):
             cmd = CommandParser(alc, func)
-            if isclass(__commander_self__):
-                if not __commander_self__.local_storage.get(__commander_self__):
-                    __commander_self__.local_storage.setdefault(__commander_self__, {})
-                __commander_self__.local_storage[__commander_self__].setdefault(alc.headers[0], cmd)
-            elif isinstance(__commander_self__, Commander):
-                try:
-                    __commander_self__.command_parsers.parsers.setdefault(alc.headers[0], cmd)
-                except AttributeError:
-                    if not __commander_self__.local_storage.get(__commander_self__.__class__):
-                        __commander_self__.local_storage.setdefault(__commander_self__.__class__, {})
-                    __commander_self__.local_storage[__commander_self__.__class__].setdefault(alc.headers[0], cmd)
+            try:
+                __commander_self__.command_parsers.parsers.setdefault(alc.headers[0], cmd)
+            except AttributeError:
+                if not __commander_self__.local_storage.get(__commander_self__.__class__):
+                    __commander_self__.local_storage.setdefault(__commander_self__.__class__, {})
+                __commander_self__.local_storage[__commander_self__.__class__].setdefault(alc.headers[0], cmd)
             return command
 
         return __wrapper
