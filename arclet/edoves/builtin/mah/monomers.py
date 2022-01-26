@@ -28,7 +28,7 @@ class MiraiMonoMetadata(MonoMetaComponent):
     joinTimestamp: Optional[int]
     lastSpeakTimestamp: Optional[int]
     mutetimeRemaining: Optional[int]
-    group: Optional[str]
+    group_id: Optional[str]
 
     def update_data(self, name: str, value: Any):
         if not self.__dict__.get(name):
@@ -53,8 +53,8 @@ class MiraiMonomer(Monomer):
             self.get_component(MiraiMonoMetadata).update_data(k, v)
 
     @property
-    def group(self):
-        return self.parents[self.metadata.group] if hasattr(self.metadata, "group") else None
+    def current_group(self):
+        return self.parents[self.metadata.group_id] if hasattr(self.metadata, "group_id") else None
 
     def avatar(self):
         return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'

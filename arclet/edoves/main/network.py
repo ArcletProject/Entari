@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
 from arclet.letoderea.utils import run_always_await
-from typing import Union, Any, Literal, Dict, AsyncGenerator, Type, Callable
+from typing import Union, Any, Literal, Dict, AsyncGenerator, Callable
 
 from yarl import URL
 
@@ -31,6 +31,10 @@ class NetworkResponse:
 
 
 class NetworkClient(metaclass=ABCMeta):
+
+    @abstractmethod
+    async def close(self):
+        """关闭连接"""
 
     @abstractmethod
     @asynccontextmanager

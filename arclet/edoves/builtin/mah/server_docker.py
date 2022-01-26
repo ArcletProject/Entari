@@ -102,8 +102,12 @@ class MAHBehavior(DockerBehavior):
                 self.logger.warning(f"detected a unknown message type: {ws_message.type}")
 
     async def quit(self):
-        await self.ws_conn.close()
-        self.logger.info("connection disconnected")
+        try:
+            await self.ws_conn.close()
+            await self.data.session.close()
+            self.logger.info("connection disconnected")
+        except AttributeError:
+            return
 
     async def session_handle(
             self,

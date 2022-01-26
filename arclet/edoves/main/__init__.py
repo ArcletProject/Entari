@@ -1,7 +1,6 @@
 import asyncio
 import time
 from typing import Dict, Generic, Optional, Union
-
 from arclet.letoderea import EventSystem
 import os
 import json
@@ -49,7 +48,7 @@ class Edoves(Generic[TConfig]):
     event_system: EventSystem
     logger: Logger.logger
     config: TConfig
-    scene: EdovesScene
+    __scene_list: Dict[TConfig, EdovesScene] = {}
     self: EdovesSelf
 
     def __init__(
@@ -81,7 +80,7 @@ class Edoves(Generic[TConfig]):
             raise DataMissing("配置文件缺失！")
 
         try:
-            self.scene = EdovesScene(self, self.config)
+            self.__scene_list.setdefault(self.config.__class__, EdovesScene(self, self.config))
             self.logger.info(f"{self.network_protocol.__class__.__name__} activate successful")
         except ValidationFailed:
             raise
@@ -111,6 +110,10 @@ class Edoves(Generic[TConfig]):
     @property
     def network_protocol(self) -> TNProtocol:
         return self.scene.network_protocol
+
+    @property
+    def scene(self):
+        return self.__scene_list[self.config.__class__]
 
     @property
     def identifier(self) -> str:

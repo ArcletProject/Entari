@@ -52,9 +52,11 @@ class InteractiveObject:
         return set(self.metadata.tags).issuperset(tag)
 
     def add_tags(self, *tag: str):
+        """为该IO添加tag"""
         self.metadata.add_tags(tag)
 
     def set_prime_tag(self, tag: str):
+        """设置首要tag"""
         if self.compare(tag):
             index = self.metadata.tags.index(tag)
             self.metadata.tags[0], self.metadata.tags[index] = self.metadata.tags[index], self.metadata.tags[0]
@@ -76,9 +78,11 @@ class InteractiveObject:
         return self.relation['children']
 
     def filter_parents(self, *tag):
+        """根据tag来对该IO的父级IO过滤"""
         return list(filter(lambda x: x.compare(*tag), self.parents.values()))
 
     def filter_children(self, *tag):
+        """根据tag来对该IO的子级IO过滤"""
         return list(filter(lambda x: x.compare(*tag), self.children.values()))
 
     def set_parent(self, parent: "InteractiveObject"):

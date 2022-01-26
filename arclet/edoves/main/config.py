@@ -12,6 +12,8 @@ class TemplateConfig(DataStructure):
     account: int
     host: str = "http://localhost"
     port: str
+    update_interval: float = 0.02
+    modules_path: str = "./modules"
 
     def get(self, key: str):
         return self.__dict__.get(key)

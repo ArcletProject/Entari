@@ -17,6 +17,9 @@ class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
     io: "BaseModule"
     protocol: TProtocol
     identifier: str = UNKNOWN
+    name: str
+    usage: str
+    description: str
 
 
 class MediumHandlers(Component):
@@ -125,7 +128,15 @@ class BaseModule(InteractiveObject):
 
     @property
     def name(self):
-        return self.__class__.__name__
+        return getattr(self.metadata, "name", self.__class__.__name__)
+
+    @property
+    def usage(self):
+        return getattr(self.metadata, "usage", None)
+
+    @property
+    def description(self):
+        return getattr(self.metadata, "description", None)
 
     def change_behavior(self, behavior: Type[prefab_behavior]):
         self.behavior = behavior(self)

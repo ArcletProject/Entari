@@ -13,6 +13,9 @@ class AioHttpClient(NetworkClient):
     def __init__(self):
         self.session = ClientSession()
 
+    async def close(self):
+        await self.session.close()
+
     @asynccontextmanager
     async def ensure_network(
             self,
@@ -22,11 +25,7 @@ class AioHttpClient(NetworkClient):
             timeout: float = 10.0,
             **kwargs: Any
     ):
-        # async with self.session.ws_connect(
-        #         url, timeout=timeout, **kwargs
-        # ) as resp:
-        #     yield NetworkResponse(get_connection=lambda: resp)
-        resp = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
+        resp: ClientWebSocketResponse = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
         yield NetworkResponse(get_connection=lambda: resp)
 
     @asynccontextmanager

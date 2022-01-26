@@ -1,5 +1,6 @@
 from typing import Dict, TYPE_CHECKING, List, Type
 
+from ...utilles import IOStatus
 from .monomers import MiraiMonomer
 from ..medium import Message
 from .chain import MessageChain
@@ -17,6 +18,8 @@ class MAHProtocol(NetworkProtocol):
     async def medium_transport(self, action: str):
         server = list(self.storage.values())[-1]
         medium = await self.get_medium()
+        if server.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
+            return
         if action.endswith("message"):
             rest = medium.get('rest')
             may_action = rest.get('type')
@@ -27,12 +30,12 @@ class MAHProtocol(NetworkProtocol):
                     action = "sendFriendMessage"
                 elif may_action.startswith("Group") and sender.compare("Member"):
                     if sender.parents:
-                        target = sender.metadata.group
+                        target = sender.metadata.group_id
                         action = "sendGroupMessage"
             else:
                 if sender.prime_tag == "Member":
                     if sender.parents:
-                        target = sender.metadata.group
+                        target = sender.metadata.group_id
                         action = "sendGroupMessage"
                 elif sender.prime_tag == "Friend":
                     action = "sendFriendMessage"
@@ -111,19 +114,19 @@ class MAHProtocol(NetworkProtocol):
                             group_data.get("name"),
                             group_data.get("id"),
                             **{
-                                "permission": sender_data.get("permission"),
+                                "permission": group_data.get("permission"),
                             }
                         )
                         self.scene.monomers.setdefault(group.metadata.identifier, group)
                     else:
-                        group.metadata.update_data("name", sender_data.get("name"))
-                        group.metadata.update_data("permission", sender_data.get("permission"))
+                        group.metadata.update_data("name", group_data.get("name"))
+                        group.metadata.update_data("permission", group_data.get("permission"))
 
                     group.set_child(self.scene.edoves.self)
                     group.set_prime_tag("Group")
                     if sender_id not in group.children:
                         group.set_child(sender)
-                    sender.metadata.update_data("group", group.metadata.identifier)
+                    sender.metadata.update_data("group_id", group.metadata.identifier)
                 else:
                     if not (sender := self.scene.monomers.get(sender_id)):
                         sender = MiraiMonomer(
