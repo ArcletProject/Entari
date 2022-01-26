@@ -15,6 +15,11 @@ Edoves 是 `Arclet Project` 基于同项目下的 `Cesloi`的 **第二代** 框�
 
 **该框架目前处于快速迭代状态, API 可能会发生 _剧烈_ 变化, 可能还不适合进行生产性的开发与运维**
 
+## 安装
+```
+pip install --upgrade arclet-edoves
+```
+
 ## 特性
 + 主要部分
     - [x] `InteractiveObject`: 对`Unity3d`中`GameObject`的简易模仿
