@@ -8,7 +8,7 @@ from .typings import TProtocol, TMProtocol
 from ..utilles import IOStatus
 from ..utilles.security import UNKNOWN, IdentifierChecker
 from .behavior import BaseBehavior
-from .event import BasicEvent
+from .event import EdovesBasicEvent
 from .component import MetadataComponent, Component
 
 
@@ -24,7 +24,7 @@ class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
 class MediumHandlers(Component):
     io: "BaseModule"
 
-    def add_handler(self, event_type: Type[BasicEvent], handler: Subscriber):
+    def add_handler(self, event_type: Type[EdovesBasicEvent], handler: Subscriber):
         _may_delegate = getattr(
             self,
             event_type.__name__,
@@ -40,7 +40,7 @@ class MediumHandlers(Component):
         else:
             _may_delegate += handler
 
-    def remove_handler(self, event_type: Type[BasicEvent]):
+    def remove_handler(self, event_type: Type[EdovesBasicEvent]):
         delattr(
             self,
             event_type.__name__
@@ -85,7 +85,7 @@ class ModuleBehavior(BaseBehavior):
     def is_invoke(self, method_name: str):
         return method_name in self.invoke_list
 
-    def add_handler(self, event_type: Type[BasicEvent], *reaction: Callable):
+    def add_handler(self, event_type: Type[EdovesBasicEvent], *reaction: Callable):
         handlers = self.get_component(MediumHandlers)
 
         def __wrapper(_reaction):
@@ -96,7 +96,7 @@ class ModuleBehavior(BaseBehavior):
         for r in reaction:
             __wrapper(r)
 
-    async def handler_event(self, event: BasicEvent):
+    async def handler_event(self, event: EdovesBasicEvent):
         delegate: EventDelegate = self.get_component(MediumHandlers)[event.__class__.__name__]
         if not delegate:
             return
@@ -141,12 +141,12 @@ class BaseModule(InteractiveObject):
         self.behavior = behavior(self)
 
     @classmethod
-    def inject_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
+    def inject_handler(__module_self__, event_type: Type[EdovesBasicEvent], *reaction: Callable):
         if not __module_self__.local_storage.get(__module_self__):
             __module_self__.local_storage.setdefault(__module_self__, {})
         __module_self__.local_storage[__module_self__].setdefault(event_type, reaction)
 
-    def add_handler(__module_self__, event_type: Type[BasicEvent], *reaction: Callable):
+    def add_handler(__module_self__, event_type: Type[EdovesBasicEvent], *reaction: Callable):
         try:
             return __module_self__.behavior.add_handler(event_type, *reaction)
         except AttributeError:
@@ -154,5 +154,5 @@ class BaseModule(InteractiveObject):
                 __module_self__.local_storage.setdefault(__module_self__.__class__, {})
             __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, reaction)
 
-    async def import_event(self, event: BasicEvent):
+    async def import_event(self, event: EdovesBasicEvent):
         await self.get_component(ModuleBehavior).handler_event(event)

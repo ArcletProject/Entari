@@ -13,7 +13,9 @@
 
 Edoves 是 `Arclet Project` 基于同项目下的 `Cesloi`的 **第二代** 框架实现, 
 
-**该框架目前处于快速迭代状态, API 可能会发生 _剧烈_ 变化, 可能还不适合进行生产性的开发与运维**
+**该框架目前处于快速迭代状态, API 可能会发生 _剧烈_ 变化, 建议根据changelog选择合适的版本**
+
+### [文档](https://arcletproject.github.io/docs/edoves/tutorial)
 
 ## 安装
 ```
@@ -30,7 +32,9 @@ pip install --upgrade arclet-edoves
     - [x] `Component`: IO的主要属性, 负责实际的数据管理与事件响应
     - [x] `Medium`: 传输事件信息的载体
     - [x] `Protocol`: 调度`Medium`与`IO`
-    - [x] `Scene`: 对IO统一的生命周期管理
+    - [x] `Scene`: 对IO统一的生命周期管理, 间接支持多账号
++ 杂项
+    - [x] `NetworkClient`: 对网络端的抽象处理
 
 + 实现支持
     - [x] `Edoves for mirai-api-http` : 对 [ `mirai-api-http` ](https://github.com/project-mirai/mirai-api-http) 的支持.
@@ -41,22 +45,21 @@ pip install --upgrade arclet-edoves
 
 main.py:
 ```python
-from arclet.edoves.builtin.mah.actions import Reply
+from arclet.edoves.builtin.mah.actions import reply
 from arclet.edoves.builtin.mah.module import MessageModule
 from arclet.edoves.builtin.medium import Message
-from arclet.edoves.builtin.event.message import AllMessage
+from arclet.edoves.builtin.event.message import MessageReceived
 from arclet.edoves.builtin.client import AioHttpClient
 from arclet.edoves.main import Edoves
 
 
 async def test_message_reaction(message: Message):
     if message.content.startswith("Hello World"):
-        await Reply(message).execute()
+        await reply(message)
         await message.set("I received 'Hello World'!").send()
 
 
 app = Edoves(
-    debug=False,
     profile={
         "verify_token": "INITKEYWylsVdbr",
         "port": "9080",
@@ -65,23 +68,8 @@ app = Edoves(
     }
 )
 message_module = app.scene.activate_module(MessageModule)
-message_module.add_handler(AllMessage, test_message_reaction)
+message_module.add_handler(MessageReceived, test_message_reaction)
 app.run()
-```
-edoves/builtin/mah/module.py:
-```python
-from arclet.edoves.main.module import BaseModule, ModuleMetaComponent
-from arclet.edoves.builtin.mah import VERIFY_CODE
-
-
-class MessageModuleData(ModuleMetaComponent):
-    identifier = VERIFY_CODE
-
-
-class MessageModule(BaseModule):
-    prefab_metadata = MessageModuleData
-
-
 ```
 
 ## 相关项目

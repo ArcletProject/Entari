@@ -3,7 +3,7 @@ from ..main.monomer import Monomer
 from ..main.module import BaseModule, ModuleMetaComponent
 from ..main.typings import TMProtocol
 from ..utilles.security import EDOVES_DEFAULT
-from .event.message import AllMessage
+from .event.message import MessageReceived
 
 
 def log_message(module: BaseModule, message: Message, purveyor: Monomer):
@@ -46,4 +46,4 @@ class ChatLogModule(BaseModule):
 
     def __init__(self, protocol: TMProtocol):
         super().__init__(protocol)
-        self.add_handler(AllMessage, log_message)
+        self.add_handler(MessageReceived, log_message)

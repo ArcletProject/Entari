@@ -8,7 +8,7 @@ class BaseMedium:
     type: str
     content: TMeta
 
-    __metadata__ = "type", "content", "purveyor"
+    __metadata__ = ["type", "content", "purveyor"]
 
     @classmethod
     def create(cls, purveyor: Monomer, content_type: Type, medium_type: Optional[str] = None):

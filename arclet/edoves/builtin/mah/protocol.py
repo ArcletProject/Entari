@@ -20,44 +20,86 @@ class MAHProtocol(NetworkProtocol):
         medium = await self.get_medium()
         if server.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
             return
-        if action.endswith("message"):
-            rest = medium.get('rest')
-            may_action = rest.get('type')
+        if action.startswith("message"):
             target = medium.get("target")
+            if action.endswith("send"):
+                sender = self.scene.monomer_protocol.storage.get(target)
+                rest = medium.get('rest')
+                source_type = rest.get('type')
+                if source_type:
+                    if source_type.startswith("Friend") and sender.compare("Friend"):
+                        action = "sendFriendMessage"
+                    elif source_type.startswith("Group") and sender.compare("Member"):
+                        if sender.parents:
+                            target = sender.metadata.group_id
+                            action = "sendGroupMessage"
+                else:
+                    if sender.prime_tag == "Member":
+                        if sender.parents:
+                            target = sender.metadata.group_id
+                            action = "sendGroupMessage"
+                    elif sender.prime_tag == "Friend":
+                        action = "sendFriendMessage"
+                resp = await server.behavior.session_handle(
+                    "POST",
+                    action,
+                    {
+                        "sessionKey": server.metadata.session_key,
+                        "target": target,
+                        "messageChain": medium.get("content").dict()["__root__"],
+                        **(
+                            {"quote": rest.get("quote")} if medium.get("reply") else {}
+                        )
+
+                    }
+                )
+                self.scene.edoves.logger.info(
+                    f"{self.scene.edoves.self.metadata.identifier}: "
+                    f"{action.replace('send','').replace('Message','')}({target})"
+                    f" <- {medium.get('content').to_text()}"
+                )
+                return resp
+            if action.endswith("revoke"):
+                return await server.behavior.session_handle(
+                    "POST",
+                    "recall",
+                    {
+                        "sessionKey": server.metadata.session_key,
+                        "target": target,
+                    }
+                )
+        if action.startswith('nudge'):
+            rest = medium.get('rest')
+            source_type = rest.get('type')
+            subject = target = medium.get("target")
             sender = self.scene.monomer_protocol.storage.get(target)
-            if may_action:
-                if may_action.startswith("Friend") and sender.compare("Friend"):
-                    action = "sendFriendMessage"
-                elif may_action.startswith("Group") and sender.compare("Member"):
+            kind = sender.prime_tag
+            if source_type:
+                if source_type.startswith("Friend") and sender.compare("Friend"):
+                    kind = "Friend"
+                elif source_type.startswith("Group") and sender.compare("Member"):
                     if sender.parents:
-                        target = sender.metadata.group_id
-                        action = "sendGroupMessage"
+                        subject = sender.metadata.group_id
+                        kind = "Group"
             else:
                 if sender.prime_tag == "Member":
                     if sender.parents:
-                        target = sender.metadata.group_id
-                        action = "sendGroupMessage"
-                elif sender.prime_tag == "Friend":
-                    action = "sendFriendMessage"
-            resp = await server.behavior.session_handle(
+                        subject = sender.metadata.group_id
+                        kind = "Group"
+            await server.behavior.session_handle(
                 "POST",
-                action,
+                "sendNudge",
                 {
                     "sessionKey": server.metadata.session_key,
                     "target": target,
-                    "messageChain": medium.get("content").dict()["__root__"],
-                    **(
-                        {"quote": rest.get("quote")} if medium.get("reply") else {}
-                    )
-
+                    "subject": subject,
+                    "kind": kind
                 }
             )
             self.scene.edoves.logger.info(
                 f"{self.scene.edoves.self.metadata.identifier}: "
-                f"{action.replace('send','').replace('Message','')}({target})"
-                f" <- {medium.get('content').to_text()}"
+                f"{kind}({target}) <- Nudge"
             )
-            return resp
 
     async def parse_raw_data(self, data: Dict):
         ev_type: str = data.get("type")
@@ -138,7 +180,7 @@ class MAHProtocol(NetworkProtocol):
                         sender.set_parent(self.scene.edoves.self)
                         self.scene.monomers.setdefault(sender.metadata.identifier, sender)
                 await self.post_message(
-                    "AllMessage",
+                    "MessageReceived",
                     sender,
                     ev_type,
                     data.get("messageChain")

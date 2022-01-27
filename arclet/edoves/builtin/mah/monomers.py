@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 
 from ...main.monomer import Monomer, MonoMetaComponent
 from ..behavior import MessageBehavior
+from .chain import MessageChain
 from ...main.typings import TMonoProtocol
 
 
@@ -58,3 +59,14 @@ class MiraiMonomer(Monomer):
 
     def avatar(self):
         return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'
+
+    async def reply(self, *args):
+        self.metadata.protocol.scene.network_protocol.set_medium(
+            {
+                "target": self.metadata.identifier,
+                "reply": True,
+                "content": MessageChain.create(*args).replace_type("Text", "Plain")
+            }
+        )
+        resp_data = await self.metadata.protocol.scene.network_protocol.medium_transport("message_send")
+        return resp_data['messageId']

@@ -1,6 +1,10 @@
-from ...main.event import BasicEvent
+from ...main.event import EdovesBasicEvent
 from ..medium import Message
 
 
-class AllMessage(BasicEvent):
+class MessageReceived(EdovesBasicEvent):
+    medium: Message
+
+
+class MessageRevoke(EdovesBasicEvent):
     medium: Message

@@ -2,7 +2,7 @@ from arclet.alconna import Alconna
 from arclet.letoderea.handler import await_exec_target
 from typing import Callable, Dict, Type
 
-from .event.message import AllMessage
+from .event.message import MessageReceived
 from .medium import Message
 from ..main.module import BaseModule, ModuleMetaComponent, Component
 from ..main.typings import TMProtocol
@@ -68,7 +68,7 @@ class Commander(BaseModule):
             for k, v in self.local_storage[self.__class__].items():
                 self.get_component(CommandParsers).parsers.setdefault(k, v)
 
-        @self.behavior.add_handler(AllMessage)
+        @self.behavior.add_handler(MessageReceived)
         async def command_handler(message: Message, module: Commander):
             for cmd, psr in self.command_parsers.parsers.items():
                 result = psr.alconna.analyse_message(message.content)

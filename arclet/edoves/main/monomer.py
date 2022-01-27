@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from typing import Union, Optional, Callable, Any, Coroutine
+from typing import Union, Optional, Callable, Coroutine
 
 from .typings import TMonoProtocol
 from .interact import InteractiveObject
 from .component import MetadataComponent
 from .behavior import BaseBehavior
+from .action import ExecutiveAction
 from ..utilles import IOStatus
 
 
@@ -54,6 +55,10 @@ class Monomer(InteractiveObject):
             if not func:
                 continue
             return func
+
+    @staticmethod
+    async def execute(action: ExecutiveAction):
+        return await action.execute()
 
     def set_parent(self, parent: "Monomer"):
         parent.relation['children'].setdefault(self.metadata.identifier, self)

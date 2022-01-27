@@ -1,6 +1,6 @@
-from ...main.event import BasicEvent
+from ...main.event import EdovesBasicEvent
 from ..medium import JsonMedium
 
 
-class DockerOperate(BasicEvent):
+class DockerOperate(EdovesBasicEvent):
     medium: JsonMedium

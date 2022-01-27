@@ -6,15 +6,26 @@ from .medium import Message
 
 class MessageAction(ExecutiveAction):
     data: Message
-    action: str
 
     def __init__(self, action: str, message: Message):
-        super().__init__(message)
-        self.action = action
+        super().__init__(message, action)
 
     async def execute(self):
         return await self.target.action(self.action)(
             self.data
+        )
+
+
+class MessageRevoke(MessageAction):
+    message_id: int
+
+    def __init__(self, message: Message, target: int = None):
+        self.message_id = target
+        super().__init__("revoke", message)
+
+    async def execute(self):
+        return await self.target.action(self.action)(
+            self.data, target=self.message_id
         )
 
 

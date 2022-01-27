@@ -4,11 +4,13 @@ from asyncio import Event
 from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, Generic
 from arclet.letoderea.utils import search_event
 from .medium import BaseMedium
+
 from ..utilles.security import UNDEFINED, EDOVES_DEFAULT
 from ..utilles.data_source_info import DataSourceInfo
 from ..utilles import IOStatus
 from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
+from .context import ctx_module
 
 TM = TypeVar("TM", bound=BaseMedium)
 
@@ -83,12 +85,8 @@ class ModuleProtocol(AbstractProtocol):
         medium = await self.get_medium(event_type, medium_type)
         for m in self.storage.values():
             if m.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT):
-                await m.import_event(
-                    search_event(event_type)(
-                        medium=medium,
-                        module=m
-                    )
-                )
+                with ctx_module.use(m):
+                    await m.import_event(search_event(event_type)(medium=medium))
 
 
 class MonomerProtocol(AbstractProtocol):

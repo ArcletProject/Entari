@@ -1,21 +1,24 @@
 from arclet.letoderea.entities.event import StructuredEvent
-from typing import TYPE_CHECKING
 from .medium import BaseMedium
-
-if TYPE_CHECKING:
-    from .module import BaseModule
+from .context import ctx_module, ctx_edoves
 
 
-class BasicEvent(StructuredEvent):
+class EdovesBasicEvent(StructuredEvent):
     medium: BaseMedium
-    module: "BaseModule"
+
+    def medium_vars(self):
+        return {k: v for k, v in self.medium.__dict__.items()}
 
     def get_params(self):
         return self.param_export(
-            edoves=self.medium.purveyor.metadata.protocol.scene.edoves,
-            module_protocol=self.medium.purveyor.metadata.protocol.scene.module_protocol,
-            network_protocl=self.medium.purveyor.metadata.protocol,
-            module=self.module,
+            edoves=ctx_edoves.get(),
+            module=ctx_module.get(),
             **{self.medium.__class__.__name__: self.medium},
-            **{k: v for k, v in self.medium.__dict__.items()}
+            **self.medium_vars()
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"Event:{self.__class__.__name__}; "
+            f"{' '.join([f'{k}={v.__repr__()}' for k, v in self.medium_vars().items()])}>"
         )
