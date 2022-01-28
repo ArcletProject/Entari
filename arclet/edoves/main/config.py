@@ -2,6 +2,7 @@ from typing import Type, Optional
 from ..utilles import DataStructure
 from .server_docker import BaseServerDocker, NetworkClient
 from .typings import TNProtocol
+from yarl import URL
 
 
 class TemplateConfig(DataStructure):
@@ -19,8 +20,9 @@ class TemplateConfig(DataStructure):
         return self.__dict__.get(key)
 
     def url(self, api: str, **kwargs: str):
-        return self.connection_url() + f"/{api}" + \
-               (("?" + "&".join([f"{k}={v}" for k, v in kwargs.items()])) if kwargs else "")
+        if not kwargs:
+            return self.connection_url() / api
+        return (self.connection_url() / api).with_query(kwargs)
 
     def connection_url(self):
-        return self.host + ":" + self.port
+        return URL(self.host + ":" + self.port)

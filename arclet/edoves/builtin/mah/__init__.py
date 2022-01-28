@@ -11,3 +11,4 @@ VERIFY_CODE = MIRAI_API_HTTP_DEFAULT
 class MAHConfig(TemplateConfig):
     protocol: Type[MAHProtocol] = MAHProtocol
     server_docker: Type[MAHServerDocker] = MAHServerDocker
+    modules_path = "./modules/mah"

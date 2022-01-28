@@ -2,23 +2,18 @@ from ...main.event import EdovesBasicEvent
 from ..medium import Notice
 
 
-class NoticeSelf(EdovesBasicEvent):
+class NoticeMe(EdovesBasicEvent):
     medium: Notice
 
 
-class MonomerStatusChanged(EdovesBasicEvent):
+class MonomerMetadataUpdate(EdovesBasicEvent):
     action: str
     medium: Notice
 
 
-class MonomerMetadataChanged(EdovesBasicEvent):
-    action: str
+class RelationshipSolution(EdovesBasicEvent):
     medium: Notice
 
 
-class RelationCreate(EdovesBasicEvent):
-    medium: Notice
-
-
-class RelationDestroy(EdovesBasicEvent):
+class RelationshipDissolution(EdovesBasicEvent):
     medium: Notice

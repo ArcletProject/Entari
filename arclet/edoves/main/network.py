@@ -1,7 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
-from arclet.letoderea.utils import run_always_await
-from typing import Union, Any, Literal, Dict, AsyncGenerator, Callable
+from typing import Union, Any, Literal, Dict, AsyncGenerator
 
 from yarl import URL
 
@@ -14,27 +13,76 @@ HTTP_METHODS = Union[
 ]
 
 
-class NetworkResponse:
-    activity_handlers: Dict[str, Callable]
+class NetworkResponse(metaclass=ABCMeta):
+    url: URL
 
-    def __init__(
-            self,
-            **kwargs
-    ):
-        self.activity_handlers = kwargs
+    @abstractmethod
+    async def read(self) -> bytes:
+        ...
 
-    async def execute(self, target: str):
-        handler = self.activity_handlers.get(target)
-        if handler is None:
-            raise NotImplementedError(f"No handler for exec_func {target}")
-        return await run_always_await(handler)
+    @abstractmethod
+    async def cookies(self) -> Dict[str, str]:
+        ...
+
+    @abstractmethod
+    async def headers(self) -> Dict[str, str]:
+        ...
+
+    @abstractmethod
+    async def close(self):
+        ...
+
+    @property
+    @abstractmethod
+    def status(self) -> int:
+        ...
+
+    @abstractmethod
+    def raise_for_status(self):
+        ...
+
+
+class NetworkConnection(metaclass=ABCMeta):
+    server_mode: bool
+
+    @abstractmethod
+    async def accept(self) -> None:
+        pass
+
+    @abstractmethod
+    async def send(self, data: bytes) -> None:
+        ...
+
+    @abstractmethod
+    async def receive(self) -> bytes:
+        ...
+
+    @abstractmethod
+    async def ping(self) -> None:
+        ...
+
+    @abstractmethod
+    async def pong(self) -> None:
+        ...
+
+    @abstractmethod
+    async def close(self, code: int = 1000, message: bytes = b'') -> None:
+        ...
+
+    @abstractmethod
+    def status(self) -> int:
+        ...
+
+    @abstractmethod
+    def raise_for_code(self):
+        ...
 
 
 class NetworkClient(metaclass=ABCMeta):
 
     @abstractmethod
     async def close(self):
-        """关闭连接"""
+        """关闭可能存在的连接"""
 
     @abstractmethod
     @asynccontextmanager
@@ -45,7 +93,7 @@ class NetworkClient(metaclass=ABCMeta):
             method: str = "GET",
             timeout: float = 10.0,
             **kwargs: Any
-    ) -> AsyncGenerator[NetworkResponse, None]:
+    ) -> AsyncGenerator[NetworkConnection, None]:
         raise NotImplementedError
 
     @abstractmethod

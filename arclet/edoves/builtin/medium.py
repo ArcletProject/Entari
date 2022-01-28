@@ -38,15 +38,18 @@ class Message(BaseMedium):
 
 class Notice(BaseMedium):
     operator: Optional[Monomer]
-    content: Dict[str, TData]
+    content: Dict[str, TData]  # 子类请使用TypedDict或Literal代替str来固定meta
 
     __metadata__ = [*BaseMedium.__metadata__, "operator"]
 
-    def __getattr__(self, item):
-        return self.content.get(item)
+    def get_data(self, key: str):
+        return self.content.get(key)
 
-    def __setattr__(self, key, value):
-        if key in self.__metadata__:
-            super().__setattr__(self, key, value)
-        self.content[key] = value
+    # def __getattr__(self, item):
+    #     return self.content.get(item)
+    #
+    # def __setattr__(self, key, value):
+    #     if key in self.__metadata__:
+    #         super().__setattr__(self, key, value)
+    #     self.content[key] = value
 

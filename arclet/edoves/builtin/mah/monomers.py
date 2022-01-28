@@ -10,6 +10,7 @@ from ...main.typings import TMonoProtocol
 class Permission(str, Enum):
     """描述群成员在群组中的权限"""
 
+    UNKNOWN = "NONE"  # 未知或未给
     Member = "MEMBER"  # 普通成员
     Administrator = "ADMINISTRATOR"  # 管理员
     Owner = "OWNER"  # 群主
@@ -30,11 +31,6 @@ class MiraiMonoMetadata(MonoMetaComponent):
     lastSpeakTimestamp: Optional[int]
     mutetimeRemaining: Optional[int]
     group_id: Optional[str]
-
-    def update_data(self, name: str, value: Any):
-        if not self.__dict__.get(name):
-            setattr(self, name, value)
-        self.__dict__[name] = value
 
 
 class MiraiMonomer(Monomer):
@@ -61,7 +57,7 @@ class MiraiMonomer(Monomer):
         return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'
 
     async def reply(self, *args):
-        self.metadata.protocol.scene.network_protocol.set_medium(
+        await self.metadata.protocol.set_medium(
             {
                 "target": self.metadata.identifier,
                 "reply": True,

@@ -1,42 +1,44 @@
 from ..main.monomer import BaseMonoBehavior
-from ..main.protocol import NetworkProtocol
+from ..main.protocol import NetworkProtocol, MonomerProtocol
 from .medium import Message
 
 
 class MessageBehavior(BaseMonoBehavior):
-    protocol: NetworkProtocol
+    n_protocol: NetworkProtocol
+    m_protocol: MonomerProtocol
 
     def activate(self):
-        self.protocol = self.io.metadata.protocol.scene.network_protocol
+        self.n_protocol = self.io.metadata.protocol.scene.network_protocol
+        self.m_protocol = self.io.metadata.protocol
 
     async def revoke(self, medium: Message, target: int = None):
-        self.protocol.set_medium(
+        await self.m_protocol.set_medium(
             {
                 "target": target if target else medium.content.find("Source").id
             }
         )
-        await self.protocol.medium_transport("message_revoke")
+        await self.n_protocol.medium_transport("message_revoke")
 
     async def nudge(self, target: str, **rest):
-        self.protocol.set_medium(
+        await self.m_protocol.set_medium(
             {
                 "target": target,
                 "rest": rest
             }
         )
-        await self.protocol.medium_transport("nudge_send")
+        await self.n_protocol.medium_transport("nudge_send")
 
     async def send_with(self, medium: Message, reply: bool = False, nudge: bool = False, **rest):
         if nudge:
-            self.protocol.set_medium(
+            await self.m_protocol.set_medium(
                 {
                     "target": medium.purveyor.metadata.identifier,
                     "rest": rest
                 }
             )
-            await self.protocol.medium_transport("nudge_send")
+            await self.n_protocol.medium_transport("nudge_send")
 
-        self.protocol.set_medium(
+        await self.m_protocol.set_medium(
             {
                 "target": medium.purveyor.metadata.identifier,
                 "reply": reply,
@@ -44,12 +46,14 @@ class MessageBehavior(BaseMonoBehavior):
                 "rest": rest
             }
         )
-        resp_data = await self.protocol.medium_transport("message_send")
+        resp_data = await self.n_protocol.medium_transport("message_send")
         return resp_data.get('messageId')
 
 
 class MonoMetaBehavior(BaseMonoBehavior):
-    protocol: NetworkProtocol
+    n_protocol: NetworkProtocol
+    m_protocol: MonomerProtocol
 
     def activate(self):
-        self.protocol = self.io.metadata.protocol.scene.network_protocol
+        self.n_protocol = self.io.metadata.protocol.scene.network_protocol
+        self.m_protocol = self.io.metadata.protocol

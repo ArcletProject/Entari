@@ -1,5 +1,6 @@
 import asyncio
-from typing import Type, Dict, Callable, Optional, Set
+from typing import Type, Dict, Callable, Optional, Set, List, TypedDict
+from arclet.letoderea.utils import Condition_T
 from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
 from arclet.letoderea.utils import run_always_await
 
@@ -21,35 +22,41 @@ class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
     description: str
 
 
+class _Handler(TypedDict):
+    delegate: EventDelegate
+    condition: List[Condition_T]
+
+
 class MediumHandlers(Component):
     io: "BaseModule"
+    storage: Dict[Type[EdovesBasicEvent], _Handler]
 
-    def add_handler(self, event_type: Type[EdovesBasicEvent], handler: Subscriber):
-        _may_delegate = getattr(
+    def __init__(self, io: "BaseModule"):
+        super(MediumHandlers, self).__init__(io)
+        self.storage = {}
+
+    def add_handlers(
             self,
-            event_type.__name__,
-            None
-        )
+            event_type: Type[EdovesBasicEvent],
+            handlers: List[Subscriber],
+            conditions: Optional[List[Condition_T]] = None
+    ):
+        _may_delegate = self.storage.get(event_type)
         if not _may_delegate:
             delegate = EventDelegate(event_type)
-            delegate += handler
-            self.__setattr__(
-                event_type.__name__,
-                delegate
-            )
+            delegate += handlers
+            self.storage.setdefault(event_type, {'delegate': delegate, 'condition': conditions})
         else:
-            _may_delegate += handler
+            _may_delegate['delegate'] += handlers
+            _may_delegate['condition'].extend(conditions)
 
     def remove_handler(self, event_type: Type[EdovesBasicEvent]):
-        delattr(
-            self,
-            event_type.__name__
-        )
+        del self.storage[event_type]
 
     def __repr__(self):
         return (
             f"[{self.__class__.__name__}: " +
-            f"{' '.join([f'{k}={v}' for k, v in self.__dict__.items() if isinstance(v, EventDelegate)])}]"
+            f"{' '.join([f'{k}={v}' for k, v in self.storage.items()])}]"
         )
 
 
@@ -85,23 +92,37 @@ class ModuleBehavior(BaseBehavior):
     def is_invoke(self, method_name: str):
         return method_name in self.invoke_list
 
-    def add_handler(self, event_type: Type[EdovesBasicEvent], *reaction: Callable):
+    def add_handlers(
+            self, event_type: Type[EdovesBasicEvent],
+            *reaction: Callable,
+            condition: Optional[List[Condition_T]] = None
+    ):
         handlers = self.get_component(MediumHandlers)
 
         def __wrapper(_reaction):
-            handlers.add_handler(event_type, Subscriber(_reaction))
+            if isinstance(_reaction, Callable):
+                handlers.add_handlers(event_type, [Subscriber(_reaction)], conditions=condition)
+            else:
+                handlers.add_handlers(
+                    event_type,
+                    [Subscriber(_r) for _r in _reaction],
+                    conditions=condition
+                )
 
         if not reaction:
             return __wrapper
-        for r in reaction:
-            __wrapper(r)
+        __wrapper(reaction)
 
     async def handler_event(self, event: EdovesBasicEvent):
-        delegate: EventDelegate = self.get_component(MediumHandlers)[event.__class__.__name__]
-        if not delegate:
+        handler = self.get_component(MediumHandlers).storage.get(event.__class__)
+        if not handler:
             return
         self.io.metadata.state = IOStatus.PROCESSING
-        await delegate.executor(event)
+        if handler['condition']:
+            if not all([condition.judge(event) for condition in handler['condition']]):
+                self.io.metadata.state = IOStatus.ESTABLISHED
+                return
+        await handler['delegate'].executor(event)
         self.io.metadata.state = IOStatus.ESTABLISHED
 
 
@@ -123,7 +144,7 @@ class BaseModule(InteractiveObject):
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):
             for k, v in self.local_storage.pop(self.__class__).items():
-                self.get_component(self.prefab_behavior).add_handler(k, *v)
+                self.get_component(self.prefab_behavior).add_handlers(k, *v[0], condition=v[1])
 
     @property
     def name(self):
@@ -141,18 +162,28 @@ class BaseModule(InteractiveObject):
         self.behavior = behavior(self)
 
     @classmethod
-    def inject_handler(__module_self__, event_type: Type[EdovesBasicEvent], *reaction: Callable):
+    def inject_handler(
+            __module_self__,
+            event_type: Type[EdovesBasicEvent],
+            *reaction: Callable,
+            condition: Optional[List[Condition_T]] = None
+    ):
         if not __module_self__.local_storage.get(__module_self__):
             __module_self__.local_storage.setdefault(__module_self__, {})
-        __module_self__.local_storage[__module_self__].setdefault(event_type, reaction)
+        __module_self__.local_storage[__module_self__].setdefault(event_type, [reaction, condition])
 
-    def add_handler(__module_self__, event_type: Type[EdovesBasicEvent], *reaction: Callable):
+    def add_handler(
+            __module_self__,
+            event_type: Type[EdovesBasicEvent],
+            *reaction: Callable,
+            condition: Optional[List[Condition_T]] = None
+    ):
         try:
-            return __module_self__.behavior.add_handler(event_type, *reaction)
+            return __module_self__.behavior.add_handlers(event_type, *reaction, condition=condition)
         except AttributeError:
             if not __module_self__.local_storage.get(__module_self__.__class__):
                 __module_self__.local_storage.setdefault(__module_self__.__class__, {})
-            __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, reaction)
+            __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, [reaction, condition])
 
     async def import_event(self, event: EdovesBasicEvent):
         await self.get_component(ModuleBehavior).handler_event(event)

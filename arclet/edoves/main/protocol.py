@@ -1,8 +1,9 @@
 import asyncio
 from abc import ABCMeta, abstractmethod
 from asyncio import Event
-from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, Generic
+from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict
 from arclet.letoderea.utils import search_event
+from .event import EdovesBasicEvent
 from .medium import BaseMedium
 
 from ..utilles.security import UNDEFINED, EDOVES_DEFAULT
@@ -60,14 +61,16 @@ class AbstractProtocol(metaclass=ABCMeta):
             event_type: Optional[str] = None,
             medium_type: Optional[Type[TM]] = None
     ) -> Union[TM, TData]:
-        if not self.medium:
+        if not self.medium_ev.is_set():
             await self.medium_ev.wait()
         self.medium_ev.clear()
         if medium_type and not isinstance(self.medium, medium_type):
-            return medium_type.create(self.scene.edoves.self, Dict, event_type)(self.medium)
+            return medium_type().create(self.scene.edoves.self, self.medium, event_type)
         return self.medium
 
-    def set_medium(self, medium: Union[TM, TData]):
+    async def set_medium(self, medium: Union[TM, TData]):
+        if self.medium_ev.is_set():
+            await self.medium_ev.wait()
         self.medium = medium
         self.medium_ev.set()
 
@@ -81,12 +84,25 @@ class ModuleProtocol(AbstractProtocol):
     storage: Dict[Type["BaseModule"], "BaseModule"]
     medium: BaseMedium
 
-    async def broadcast_medium(self, event_type: str, medium_type: Optional[Type[TM]] = None):
-        medium = await self.get_medium(event_type, medium_type)
-        for m in self.storage.values():
-            if m.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT):
-                with ctx_module.use(m):
-                    await m.import_event(search_event(event_type)(medium=medium))
+    async def broadcast_medium(
+            self,
+            event_type: Union[str, Type[EdovesBasicEvent]],
+            medium_type: Optional[Type[TM]] = None,
+            **kwargs
+    ):
+        evt = event_type.__class__.__name__ if not isinstance(event_type, str) else event_type
+        medium = await self.get_medium(evt, medium_type)
+        m_list = list(self.storage.values())
+        for m in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT), m_list):
+            with ctx_module.use(m):
+                if isinstance(event_type, str):
+                    self.scene.edoves.event_system.loop.create_task(
+                        m.import_event(search_event(event_type)(medium=medium, **kwargs))
+                    )
+                else:
+                    self.scene.edoves.event_system.loop.create_task(
+                        m.import_event(event_type(medium=medium, **kwargs))
+                    )
 
 
 class MonomerProtocol(AbstractProtocol):
@@ -108,8 +124,8 @@ class NetworkProtocol(ModuleProtocol):
         super().__init__(scene, self.source_information.instance_identifier)
 
     @abstractmethod
-    async def parse_raw_data(self, data: TData):
-        """将server端传入的原始数据封装"""
+    async def parse_raw_data(self):
+        """将server端传入的原始medium处理"""
         raise NotImplementedError
 
     @abstractmethod

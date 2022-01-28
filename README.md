@@ -35,6 +35,7 @@ pip install --upgrade arclet-edoves
     - [x] `Scene`: 对IO统一的生命周期管理, 间接支持多账号
 + 杂项
     - [x] `NetworkClient`: 对网络端的抽象处理
+    - [x] `Filter`: 对事件内容的限制操作
 
 + 实现支持
     - [x] `Edoves for mirai-api-http` : 对 [ `mirai-api-http` ](https://github.com/project-mirai/mirai-api-http) 的支持.

@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Optional, Callable, Coroutine
+from typing import Union, Optional, Callable, Coroutine, Any
 
 from .typings import TMonoProtocol
 from .interact import InteractiveObject
@@ -14,6 +14,11 @@ class MonoMetaComponent(MetadataComponent):
     protocol: TMonoProtocol
     name: str
     alias: str
+
+    def update_data(self, name: str, value: Any):
+        if not self.__dict__.get(name):
+            setattr(self, name, value)
+        self.__dict__[name] = value
 
 
 class BaseMonoBehavior(BaseBehavior):

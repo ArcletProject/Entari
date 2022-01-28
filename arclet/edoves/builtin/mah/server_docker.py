@@ -7,7 +7,7 @@ from ...main.server_docker import BaseServerDocker, DockerBehavior, BaseDockerMe
 from ...utilles.logger import Logger
 from ...utilles import IOStatus, error_check, DatetimeEncoder
 from ...utilles.security import MIRAI_API_HTTP_DEFAULT
-from ..client import AioHttpClient, ClientWebSocketResponse
+from ..client import AioHttpClient, AiohttpWSConnection
 from .protocol import MAHProtocol
 from ..event.network import DockerOperate
 
@@ -21,7 +21,7 @@ class MAHDockerMeta(BaseDockerMetaComponent):
 
 class MAHBehavior(DockerBehavior):
     data: MAHDockerMeta
-    ws_conn: ClientWebSocketResponse
+    ws_conn: AiohttpWSConnection
     start_ev: Event
     logger: Logger.logger
 
@@ -34,7 +34,11 @@ class MAHBehavior(DockerBehavior):
             self.start_ev.set()
             self.data.protocol.scene.edoves.logger.info("MAHServerDocker start!")
 
-        self.io.add_handler(DockerOperate, wait_start)
+        def quit_listen(operate: MAHDockerMeta.medium_type):
+            if operate.content.get('stop'):
+                self.data.state = IOStatus.CLOSE_WAIT
+
+        self.io.add_handler(DockerOperate, wait_start, quit_listen)
 
     async def connect(self):
         self.logger.info("MAHServerDocker connecting...")
@@ -45,8 +49,7 @@ class MAHBehavior(DockerBehavior):
                     verifyKey=str(self.data.protocol.config.verify_token)
                 )
         ) as resp:
-            connection = await resp.execute("get_connection")
-            self.ws_conn = connection
+            self.ws_conn = resp
             self.logger.info("MAHServerDocker connected.")
 
     async def start(self):
@@ -77,7 +80,8 @@ class MAHBehavior(DockerBehavior):
                 received_data: dict = json.loads(ws_message.data)
                 if self.data.session_key:
                     try:
-                        await self.data.protocol.parse_raw_data(received_data.get('data'))
+                        await self.data.protocol.set_medium(received_data.get('data'))
+                        await self.data.protocol.parse_raw_data()
                     except Exception as e:
                         self.logger.exception(f"receive_data has error {e}")
                 else:
@@ -126,7 +130,7 @@ class MAHBehavior(DockerBehavior):
             async with self.data.session.get(
                 self.data.protocol.config.url(action, **content)
             ) as response:
-                resp_json: dict = await response.execute("get_json")
+                resp_json: dict = await response.read_json()
 
         elif method in ("POST", "Update"):
             if not isinstance(content, str):
@@ -134,7 +138,7 @@ class MAHBehavior(DockerBehavior):
             async with self.data.session.post(
                     self.data.protocol.config.url(action), data=content
             ) as response:
-                resp_json: dict = await response.execute("get_json")
+                resp_json: dict = await response.read_json()
 
         else:  # MULTIPART
             if isinstance(content, FormData):
@@ -152,13 +156,13 @@ class MAHBehavior(DockerBehavior):
             async with self.data.session.post(
                     self.data.protocol.config.url(action), data=form
             ) as response:
-                resp_json: dict = await response.execute("get_json")
-        if "content" in resp_json:
-            resp = resp_json["content"]
+                resp_json: dict = await response.read_json()
+        if "data" in resp_json:
+            resp = resp_json["data"]
         else:
             resp = resp_json
 
-        error_check(resp)
+        error_check(resp_json.get('code'))
         return resp
 
 

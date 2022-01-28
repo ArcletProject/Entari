@@ -74,13 +74,13 @@ class IOStatus(int, Enum):
     """激活成功, 可以接受medium"""
     ESTABLISHED = 26366521
 
-    """请求app端发送medium"""
+    """主动请求medium, 优先级高于ESTABLISHED"""
     MEDIUM_WAIT = 2452720
 
-    """正在处理medium"""
+    """正在处理medium, 无法接受medium"""
     PROCESSING = 5572535
 
-    """请求从Protocol中载出"""
+    """主动请求从Protocol中载出"""
     CLOSE_WAIT = 3078491
 
     """该IO已载出"""

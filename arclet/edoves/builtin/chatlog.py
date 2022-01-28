@@ -12,8 +12,8 @@ def log_message(module: BaseModule, message: Message, purveyor: Monomer):
         edoves.logger.log(
             module.metadata.log_level,
             module.metadata.group_message_log_format.format(
-                group_name=list(purveyor.parents.values())[0].metadata.name,
-                group_id=list(purveyor.parents.values())[0].metadata.identifier,
+                group_name=purveyor.current_group.metadata.name,
+                group_id=purveyor.current_group.metadata.identifier,
                 member_id=purveyor.metadata.identifier,
                 member_name=purveyor.metadata.name,
                 bot_id=edoves.self.metadata.identifier,
@@ -36,7 +36,7 @@ class ChatLogData(ModuleMetaComponent):
     identifier: str = EDOVES_DEFAULT
     log_level: str = "INFO"
     group_message_log_format: str = (
-        "{bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}" )
+        "{bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}")
     friend_message_log_format: str = "{bot_id}: [{friend_name}({friend_id})] -> {message_string}"
     other_client_message_log_format: str = "{bot_id}: [{platform_name}({platform_id})] -> {message_string}"
 

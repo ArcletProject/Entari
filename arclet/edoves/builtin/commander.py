@@ -68,8 +68,8 @@ class Commander(BaseModule):
             for k, v in self.local_storage[self.__class__].items():
                 self.get_component(CommandParsers).parsers.setdefault(k, v)
 
-        @self.behavior.add_handler(MessageReceived)
-        async def command_handler(message: Message, module: Commander):
+        @self.behavior.add_handlers(MessageReceived)
+        async def command_message_handler(message: Message, module: Commander):
             for cmd, psr in self.command_parsers.parsers.items():
                 result = psr.alconna.analyse_message(message.content)
                 if result.matched:

@@ -28,7 +28,7 @@ class EdovesMainBehavior(BaseMonoBehavior):
         start_time = time.time()
         self.edoves.logger.info("Edoves Application Starting...")
         self.edoves.logger.info("this is start!")
-        self.edoves.network_protocol.set_medium({"start": True})
+        await self.edoves.network_protocol.set_medium({"start": True})
         await self.edoves.network_protocol.broadcast_medium("DockerOperate", JsonMedium)
         self.edoves.logger.info(f"Edoves Application Started with {time.time() - start_time:.2}s")
 
