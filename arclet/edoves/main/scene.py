@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 from inspect import isclass, getmembers
+import shelve
 from pathlib import Path
 from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union
 from .protocol import ModuleProtocol, MonomerProtocol
@@ -50,8 +51,34 @@ class EdovesScene(Generic[TNProtocol]):
 
     def clean_up(self):
         self.modules.clear()
-        self.monomers.clear()
         self.dockers.clear()
+        self.save_snap()
+
+    def save_snap(self):
+        path = Path("./edoves_cache")
+        if not path.exists():
+            path.mkdir()
+        relation_table = {}
+        for i, m in self.monomers.items():
+            relation_table[i] = {'parents': list(m.parents.keys()), 'children': list(m.children.keys())}
+        monomers = {k: v for k, v in self.monomers.items() if k != str(self.config.account)}
+        with shelve.open("./edoves_cache/monomerSnap.db") as db:
+            db['rtable'] = relation_table
+            db['monomer'] = monomers
+
+    def load_snap(self):
+        try:
+            with shelve.open("./edoves_cache/monomerSnap.db") as db:
+                self.monomer_protocol.storage.update(db['monomer'])
+                r_table = db['rtable']
+                for i, r in r_table.items():
+                    m = self.monomers.get(i)
+                    for ri in r['parents']:
+                        m.set_parent(self.monomers[ri])
+                    for ri in r['children']:
+                        m.set_child(self.monomers[ri])
+        except KeyError:
+            pass
 
     def activate_module(self, module_type: Type[TMde]) -> Optional[TMde]:
         """激活单个模块并返回
@@ -120,19 +147,30 @@ class EdovesScene(Generic[TNProtocol]):
                     pass
 
     async def start_running(self):
+        self.load_snap()
+        self.running = True
         all_io: Dict[str, "InteractiveObject"] = {
-            **self.module_protocol.storage,
+
             **self.monomer_protocol.storage,
-            **self.network_protocol.storage
+            **self.network_protocol.storage,
+            **self.module_protocol.storage,
         }
-        for k, v in all_io.items():
+        tasks = []
+        for i, v in enumerate(all_io.values()):
             if v.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                 continue
-            try:
-                await v.behavior.start()
-            except NotImplementedError:
-                self.edoves.logger.warning(f"{k}'s behavior start failed")
-        self.running = True
+            tasks.append(asyncio.create_task(v.behavior.start(), name=f"IO_Start @AllIO[{i}]"))
+
+        try:
+            results = await asyncio.gather(*tasks)
+            for task in results:
+                if task and task.exception() == NotImplementedError:
+                    self.edoves.logger.warning(f"{task}'s behavior start failed")
+        except TimeoutError:
+            await self.stop_running()
+            return
+        await asyncio.sleep(0.001)
+        self.edoves.logger.info(f"{len(all_io)} InteractiveObjects' start completed")
         while self.running:
             await asyncio.sleep(self.config.update_interval)
             all_io: Dict[str, "InteractiveObject"] = {

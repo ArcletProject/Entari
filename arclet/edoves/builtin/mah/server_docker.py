@@ -14,7 +14,7 @@ from ..event.network import DockerOperate
 
 class MAHDockerMeta(BaseDockerMetaComponent):
     protocol: MAHProtocol
-    identifier: str = MIRAI_API_HTTP_DEFAULT
+    verify_code: str = MIRAI_API_HTTP_DEFAULT
     session: AioHttpClient
     session_key: str = None
 
@@ -23,10 +23,12 @@ class MAHBehavior(DockerBehavior):
     data: MAHDockerMeta
     ws_conn: AiohttpWSConnection
     start_ev: Event
+    conn_ev: Event
     logger: Logger.logger
 
     def activate(self):
         self.start_ev = Event()
+        self.conn_ev = Event()
 
         async def wait_start(operate: MAHDockerMeta.medium_type):
             while not operate.content.get("start"):
@@ -51,14 +53,28 @@ class MAHBehavior(DockerBehavior):
         ) as resp:
             self.ws_conn = resp
             self.logger.info("MAHServerDocker connected.")
+            self.conn_ev.set()
 
     async def start(self):
         self.logger = self.data.protocol.scene.edoves.logger
         await self.start_ev.wait()
-        try:
-            await self.connect()
-        except Exception as e:
-            self.logger.warning(e)
+        retry_count = 0
+        while not self.conn_ev.is_set():
+            if retry_count >= self.data.protocol.scene.config.ensure_retries:
+                self.logger.warning("MAHServerDocker connect failed")
+                raise TimeoutError
+            try:
+                try:
+                    await self.connect()
+                except Exception as e:
+                    self.logger.warning(e)
+                    await self.quit()
+                    self.logger.warning("MAHServerDocker stopped")
+                    await asyncio.sleep(5.0)
+                    self.logger.info("MAHServerDocker restarting...")
+                    retry_count += 1
+            except asyncio.CancelledError:
+                await self.quit()
 
     async def update(self):
         try:

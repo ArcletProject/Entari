@@ -1,7 +1,7 @@
 import inspect
 from typing import Optional
 from ..main.action import ExecutiveAction
-from .medium import Message
+from .medium import Message, Request
 
 
 class MessageAction(ExecutiveAction):
@@ -51,3 +51,49 @@ class MessageSendDirectly(MessageSend):
         return await self.target.action(self.action)(
             self.data, type=self.data.type
         )
+
+
+class RequestAction(ExecutiveAction):
+    data: Request
+    msg: str
+
+    def __init__(self, action: str, request: Request, msg: str):
+        super().__init__(request, action)
+        self.msg = msg
+
+    async def execute(self):
+        return await self.target.action(self.action)(
+            self.data, msg=self.msg
+        )
+
+
+class RequestAccept(RequestAction):
+    def __init__(self, request: Optional[Request] = None, msg: Optional[str] = ""):
+        if not request:
+            try:
+                lcs = inspect.currentframe().f_back.f_back.f_locals
+                for v in lcs.values():
+                    if isinstance(v, Request):
+                        request = v
+            except AttributeError:
+                raise ValueError
+            else:
+                if not Request:
+                    raise ValueError
+        super().__init__("accept", request, msg)
+
+
+class RequestReject(RequestAction):
+    def __init__(self, request: Optional[Request] = None, msg: Optional[str] = ""):
+        if not request:
+            try:
+                lcs = inspect.currentframe().f_back.f_back.f_locals
+                for v in lcs.values():
+                    if isinstance(v, Request):
+                        request = v
+            except AttributeError:
+                raise ValueError
+            else:
+                if not Request:
+                    raise ValueError
+        super().__init__("accept", request, msg)

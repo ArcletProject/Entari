@@ -1,9 +1,9 @@
 from ..main.monomer import BaseMonoBehavior
 from ..main.protocol import NetworkProtocol, MonomerProtocol
-from .medium import Message
+from .medium import Message, Request
 
 
-class MessageBehavior(BaseMonoBehavior):
+class MediumHandleBehavior(BaseMonoBehavior):
     n_protocol: NetworkProtocol
     m_protocol: MonomerProtocol
 
@@ -49,11 +49,26 @@ class MessageBehavior(BaseMonoBehavior):
         resp_data = await self.n_protocol.medium_transport("message_send")
         return resp_data.get('messageId')
 
+    async def request_accept(self, medium: Request, msg: str = None):
+        await self.m_protocol.set_medium(
+            {
+                "event": medium.type,
+                "operate": 0,
+                "eventId": medium.event,
+                "msg": msg,
+                "content": medium.content
+            }
+        )
+        await self.n_protocol.medium_transport("accept")
 
-class MonoMetaBehavior(BaseMonoBehavior):
-    n_protocol: NetworkProtocol
-    m_protocol: MonomerProtocol
-
-    def activate(self):
-        self.n_protocol = self.io.metadata.protocol.scene.network_protocol
-        self.m_protocol = self.io.metadata.protocol
+    async def request_reject(self, medium: Request, msg: str = None):
+        await self.m_protocol.set_medium(
+            {
+                "event": medium.type,
+                "operate": 1,
+                "eventId": medium.event,
+                "msg": msg,
+                "content": medium.content
+            }
+        )
+        await self.n_protocol.medium_transport("reject")

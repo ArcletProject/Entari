@@ -45,11 +45,13 @@ class Notice(BaseMedium):
     def get_data(self, key: str):
         return self.content.get(key)
 
-    # def __getattr__(self, item):
-    #     return self.content.get(item)
-    #
-    # def __setattr__(self, key, value):
-    #     if key in self.__metadata__:
-    #         super().__setattr__(self, key, value)
-    #     self.content[key] = value
+
+class Request(BaseMedium):
+    event: str
+    content: Dict[str, TData]
+
+    __metadata__ = [*BaseMedium.__metadata__, "event"]
+
+    def get_data(self, key: str):
+        return self.content.get(key)
 

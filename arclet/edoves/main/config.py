@@ -15,6 +15,7 @@ class TemplateConfig(DataStructure):
     port: str
     update_interval: float = 0.02
     modules_path: str = "./modules"
+    ensure_retries: int = 5
 
     def get(self, key: str):
         return self.__dict__.get(key)

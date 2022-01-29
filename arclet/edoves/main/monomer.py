@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from typing import Union, Optional, Callable, Coroutine, Any
+import inspect
 
 from .typings import TMonoProtocol
 from .interact import InteractiveObject
@@ -65,10 +66,19 @@ class Monomer(InteractiveObject):
     async def execute(action: ExecutiveAction):
         return await action.execute()
 
-    def set_parent(self, parent: "Monomer"):
-        parent.relation['children'].setdefault(self.metadata.identifier, self)
-        self.relation['parents'].setdefault(parent.metadata.identifier, parent)
+    def __getstate__(self):
+        return {
+            "metadata": {k: v for k, v in self.metadata.__dict__.items() if k not in ("io", "protocol")},
+            "behavior": self.prefab_behavior
+        }
 
-    def set_child(self, child: "Monomer"):
-        child.relation['parents'].setdefault(self.metadata.identifier, self)
-        self.relation['children'].setdefault(child.metadata.identifier, child)
+    def __setstate__(self, state):
+        f = inspect.currentframe()
+        lcs = f.f_back.f_back.f_locals
+        self.__init__(
+            lcs['self'].monomer_protocol,
+            state['metadata']['name'],
+            state['metadata']['identifier'],
+            state['metadata']['alias']
+        )
+        self.add_tags(*state['metadata']['tags'])

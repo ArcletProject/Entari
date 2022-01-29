@@ -19,10 +19,10 @@ def generate_identifier(extremal_data_source_id: str):
     return str(h % 0x1ffffff)
 
 
-class IdentifierChecker(type):
+class VerifyCodeChecker(type):
     def __init__(cls, name, bases, dic):
-        if "identifier" not in cls.__annotations__ or cls.__annotations__["identifier"] != str:
+        if "verify_code" not in cls.__annotations__ or cls.__annotations__["verify_code"] != str:
             raise ValueError
-        if not cls.__dict__.get("identifier"):
+        if not cls.__dict__.get("verify_code"):
             raise ValueError
         super().__init__(name, bases, dic)

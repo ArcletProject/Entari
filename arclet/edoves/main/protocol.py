@@ -30,12 +30,12 @@ class AbstractProtocol(metaclass=ABCMeta):
     storage: Dict[Type["InteractiveObject"], "InteractiveObject"]
     __identifier: str = UNDEFINED
 
-    def __init__(self, scene: "EdovesScene", identifier: str = None):
+    def __init__(self, scene: "EdovesScene", verify_code: str = None):
         self.scene = scene
-        if not identifier and self.__identifier == UNDEFINED:
+        if not verify_code and self.__identifier == UNDEFINED:
             raise ValidationFailed
         else:
-            self.__identifier = identifier
+            self.__identifier = verify_code
         self.storage = {}
         self.medium_ev: Event = asyncio.Event()
 
@@ -47,12 +47,12 @@ class AbstractProtocol(metaclass=ABCMeta):
     def current(self):
         return list(self.storage.values())[-1]
 
-    def verify(self, other: Union[str, "InteractiveObject"]):
-        if other.metadata.identifier == EDOVES_DEFAULT:
-            return
-        if isinstance(other, str) and other != self.__identifier:
+    def verify(self, other: Union[str, "BaseModule"]):
+        if isinstance(other, str) and other != self.identifier:
             raise ValidationFailed
-        if other.metadata.identifier != self.__identifier:
+        if other.metadata.verify_code == EDOVES_DEFAULT:
+            return
+        if other.metadata.verify_code != self.identifier:
             other.metadata.state = IOStatus.CLOSED
             raise ValidationFailed
 

@@ -16,7 +16,7 @@ class BaseDockerMetaComponent(ModuleMetaComponent):
     protocol: TNProtocol
     medium_type: Type[JsonMedium] = JsonMedium
     session: NetworkClient
-    identifier: str = UNKNOWN
+    verify_code: str = UNKNOWN
 
 
 class DockerBehavior(ModuleBehavior):

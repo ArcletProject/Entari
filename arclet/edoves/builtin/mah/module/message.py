@@ -3,7 +3,8 @@ from ....builtin.mah import VERIFY_CODE
 
 
 class MessageModuleData(ModuleMetaComponent):
-    identifier = VERIFY_CODE
+    verify_code = VERIFY_CODE
+    identifier = "BuiltinMessageModule"
 
 
 class MessageModule(BaseModule):

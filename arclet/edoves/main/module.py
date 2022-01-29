@@ -5,18 +5,18 @@ from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
 from arclet.letoderea.utils import run_always_await
 
 from .interact import InteractiveObject
-from .typings import TProtocol, TMProtocol
+from .protocol import ModuleProtocol
 from ..utilles import IOStatus
-from ..utilles.security import UNKNOWN, IdentifierChecker
+from ..utilles.security import UNKNOWN, VerifyCodeChecker
 from .behavior import BaseBehavior
 from .event import EdovesBasicEvent
 from .component import MetadataComponent, Component
 
 
-class ModuleMetaComponent(MetadataComponent, metaclass=IdentifierChecker):
+class ModuleMetaComponent(MetadataComponent, metaclass=VerifyCodeChecker):
     io: "BaseModule"
-    protocol: TProtocol
-    identifier: str = UNKNOWN
+    protocol: ModuleProtocol
+    verify_code: str = UNKNOWN
     name: str
     usage: str
     description: str
@@ -137,9 +137,11 @@ class BaseModule(InteractiveObject):
 
     __slots__ = ["handlers"]
 
-    def __init__(self, protocol: TMProtocol):
+    def __init__(self, protocol: ModuleProtocol):
         metadata = self.prefab_metadata(self)
         metadata.protocol = protocol
+        if not getattr(metadata, "identifier", None):
+            metadata.identifier = str(self.__class__)
         super().__init__(metadata)
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):

@@ -86,12 +86,44 @@ class InteractiveObject:
         return list(filter(lambda x: x.compare(*tag), self.children.values()))
 
     def set_parent(self, parent: "InteractiveObject"):
-        parent.relation['children'].setdefault(self.__class__.__name__, self)
-        self.relation['parents'].setdefault(parent.__class__.__name__, parent)
+        parent.relation['children'].setdefault(self.metadata.identifier, self)
+        self.relation['parents'].setdefault(parent.metadata.identifier, parent)
 
     def set_child(self, child: "InteractiveObject"):
-        child.relation['parents'].setdefault(self.__class__.__name__, self)
-        self.relation['children'].setdefault(child.__class__.__name__, child)
+        child.relation['parents'].setdefault(self.metadata.identifier, self)
+        self.relation['children'].setdefault(child.metadata.identifier, child)
+
+    def find_parent(self, *tag: str):
+        p_table = set()
+
+        def __parent_generator(parent: "InteractiveObject"):
+            for _i, _p in parent.parents.items():
+                if _i in p_table:
+                    continue
+                p_table.add(_i)
+                yield _p
+                if _p.parents:
+                    yield from __parent_generator(_p)
+
+        for p in __parent_generator(self):
+            if p.compare(*tag):
+                return p
+
+    def find_child(self, *tag: str):
+        c_table = set()
+
+        def __child_generator(child: "InteractiveObject"):
+            for _i, _c in child.children.items():
+                if _i in c_table:
+                    continue
+                c_table.add(_i)
+                yield _c
+                if _c.children:
+                    yield from __child_generator(_c)
+
+        for c in __child_generator(self):
+            if c.compare(*tag):
+                return c
 
     @property
     def all_components(self):

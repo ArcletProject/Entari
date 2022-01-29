@@ -3,6 +3,16 @@ from typing import List, Any
 from ..utilles.event_filter import EventFilter, EdovesBasicEvent
 
 
+class MediumTypeLimit(EventFilter):
+    mtype: str
+
+    def __init__(self, type: str):
+        self.mtype = type
+
+    def judge(self, event: EdovesBasicEvent) -> bool:
+        return any([event.medium.type == self.mtype, event.__class__.__name__ == self.mtype])
+
+
 class MonomerTagLimit(EventFilter):
     tags: List[str]
 

@@ -33,7 +33,8 @@ def log_message(module: BaseModule, message: Message, purveyor: Monomer):
 
 
 class ChatLogData(ModuleMetaComponent):
-    identifier: str = EDOVES_DEFAULT
+    verify_code: str = EDOVES_DEFAULT
+    identifier = "BuiltinChatLog"
     log_level: str = "INFO"
     group_message_log_format: str = (
         "{bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}")

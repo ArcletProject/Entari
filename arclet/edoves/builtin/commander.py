@@ -22,7 +22,8 @@ class CommandParser:
 
 
 class CommanderData(ModuleMetaComponent):
-    identifier = EDOVES_DEFAULT
+    verify_code = EDOVES_DEFAULT
+    identifier = "BuiltinCommander"
     name = "Command of Edoves"
     description = "Based on Edoves and Arclet-Alconna"
 

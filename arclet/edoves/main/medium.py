@@ -10,10 +10,12 @@ class BaseMedium:
 
     __metadata__ = ["type", "content", "purveyor"]
 
-    def create(self, purveyor: Monomer, content: Any, medium_type: Optional[str] = None):
+    def create(self, purveyor: Monomer, content: Any, medium_type: Optional[str] = None, **kwargs):
         self.purveyor = purveyor
         self.type = medium_type or self.__class__.__name__
         self.content = content
+        for k, v in kwargs.items():
+            setattr(self, k, v)
         return self
 
     def action(self, method_name: str) -> Callable[..., Coroutine]:

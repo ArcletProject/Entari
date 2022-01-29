@@ -66,4 +66,4 @@ class MetadataComponent(Component):
 
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:
-            self.tags.extend(set(tags))
+            self.tags.extend(set(tags).difference(self.tags))

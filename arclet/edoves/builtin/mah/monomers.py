@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional, Dict, Any
 
 from ...main.monomer import Monomer, MonoMetaComponent
-from ..behavior import MessageBehavior
+from ..behavior import MediumHandleBehavior
 from .chain import MessageChain
 from ...main.typings import TMonoProtocol
 
@@ -35,7 +35,7 @@ class MiraiMonoMetadata(MonoMetaComponent):
 
 class MiraiMonomer(Monomer):
     prefab_metadata = MiraiMonoMetadata
-    prefab_behavior = MessageBehavior
+    prefab_behavior = MediumHandleBehavior
 
     def __init__(
             self,
