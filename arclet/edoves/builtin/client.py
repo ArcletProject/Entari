@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Union, Dict, Any, Optional
 import json
-from aiohttp import ClientSession, ClientWebSocketResponse, ClientResponse, WSMessage
+from aiohttp import ClientSession, ClientWebSocketResponse, ClientResponse, WSMessage, FormData
 from yarl import URL
 
 from ..main.network import NetworkClient, HTTP_METHODS, NetworkResponse, NetworkConnection
@@ -128,7 +128,7 @@ class AioHttpClient(NetworkClient):
     @asynccontextmanager
     async def post(
             self, url: Union[str, URL],
-            data: Union[str, bytes],
+            data: Union[str, bytes, FormData],
             headers: Dict[str, str] = None,
             **kwargs: Any
     ):

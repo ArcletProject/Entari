@@ -11,6 +11,7 @@ from ..utilles.security import UNKNOWN, VerifyCodeChecker
 from .behavior import BaseBehavior
 from .event import EdovesBasicEvent
 from .component import MetadataComponent, Component
+from .context import ctx_monomer
 
 
 class ModuleMetaComponent(MetadataComponent, metaclass=VerifyCodeChecker):
@@ -122,7 +123,8 @@ class ModuleBehavior(BaseBehavior):
             if not all([condition.judge(event) for condition in handler['condition']]):
                 self.io.metadata.state = IOStatus.ESTABLISHED
                 return
-        await handler['delegate'].executor(event)
+        with ctx_monomer.use(event.medium.purveyor):
+            await handler['delegate'].executor(event)
         self.io.metadata.state = IOStatus.ESTABLISHED
 
 

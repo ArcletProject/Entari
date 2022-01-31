@@ -17,16 +17,26 @@ class JsonMedium(BaseMedium):
 
 
 class Message(BaseMedium):
+    id: str
     content: MessageChain
+
+    __metadata__ = [*BaseMedium.__metadata__, "id"]
 
     def __init__(
             self,
             *elements: Union[Iterable[MessageElement], MessageElement, str],
             target: Monomer = None
     ):
+        self.id = ""
         self.content = MessageChain.create(*elements)
         self.purveyor = target
         self.type = "Message"
+
+    def create(self, purveyor: Monomer, content: MessageChain, medium_type: Optional[str] = None, **kwargs):
+        super(Message, self).create(purveyor, content, medium_type, **kwargs)
+        self.id = str(self.content.find("Source").id)
+        self.content.remove("Source")
+        return self
 
     def set(self, *elements: Union[Iterable[MessageElement], MessageElement, str]):
         self.content = MessageChain.create(*elements)
@@ -54,4 +64,3 @@ class Request(BaseMedium):
 
     def get_data(self, key: str):
         return self.content.get(key)
-

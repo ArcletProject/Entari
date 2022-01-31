@@ -11,7 +11,7 @@
 [![PyPI](https://img.shields.io/pypi/v/arclet-edoves)](https://pypi.org/project/arclet-edoves)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/arclet-edoves)](https://www.python.org/)
 
-Edoves 是 `Arclet Project` 基于同项目下的 `Cesloi`的 **第二代** 框架实现, 
+Edoves 是 `Arclet Project` 基于同项目下的 `Cesloi` 的 **第二代** 框架实现, 采取了模块化设计, 最大程度上简化了交互操作
 
 **该框架目前处于快速迭代状态, API 可能会发生 _剧烈_ 变化, 建议根据changelog选择合适的版本**
 
@@ -50,6 +50,7 @@ from arclet.edoves.builtin.mah.module import MessageModule
 from arclet.edoves.builtin.medium import Message
 from arclet.edoves.builtin.event.message import MessageReceived
 from arclet.edoves.builtin.client import AioHttpClient
+from arclet.edoves.builtin.mah import MAHConfig
 from arclet.edoves.main import Edoves
 
 
@@ -58,8 +59,15 @@ async def test_message_reaction(message: Message):
         await message.set("I received 'Hello World'!").send()
 
 
-app = Edoves(profile={"verify_token": "INITKEYWylsVdbr", "account": 3542928737, "port": "9080", "client": AioHttpClient})
-app.scene.activate_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
+app = Edoves(
+    configs={
+        "MAH-default": (
+            MAHConfig,
+            {"verify_token": "INITKEYWylsVdbr", "port": "9080", "client": AioHttpClient, "account": 3542928737}
+        )
+    }
+)
+app["MAH-default"].activate_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
 app.run()
 ```
 

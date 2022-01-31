@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional, Dict, Any
 
 from ...main.monomer import Monomer, MonoMetaComponent
-from ..behavior import MediumHandleBehavior
+from ..behavior import MiddlewareBehavior
 from .chain import MessageChain
 from ...main.typings import TMonoProtocol
 
@@ -24,7 +24,7 @@ class Equipment(str, Enum):
     MacOS = "MACOS"  # mac电脑
 
 
-class MiraiMonoMetadata(MonoMetaComponent):
+class MEMetadata(MonoMetaComponent):
     specialTitle: Optional[str]
     permission: Permission
     joinTimestamp: Optional[int]
@@ -33,9 +33,9 @@ class MiraiMonoMetadata(MonoMetaComponent):
     group_id: Optional[str]
 
 
-class MiraiMonomer(Monomer):
-    prefab_metadata = MiraiMonoMetadata
-    prefab_behavior = MediumHandleBehavior
+class MahEntity(Monomer):
+    prefab_metadata = MEMetadata
+    prefab_behavior = MiddlewareBehavior
 
     def __init__(
             self,
@@ -47,7 +47,7 @@ class MiraiMonomer(Monomer):
     ):
         super().__init__(protocol, nickname, identifier, remark)
         for k, v in data.items():
-            self.get_component(MiraiMonoMetadata).update_data(k, v)
+            self.get_component(MEMetadata).update_data(k, v)
 
     @property
     def current_group(self):

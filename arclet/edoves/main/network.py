@@ -1,8 +1,17 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Union, Any, Literal, Dict, AsyncGenerator
-
 from yarl import URL
+from enum import Enum
+
+
+class NetworkStatus(int, Enum):
+    CONNECTING = 31481592
+    CONNECTED = 25123303
+    TIMEOUT = 17139413
+    RETRYING = 6232756
+    DISMISS = 9786292
+
 
 HTTP_METHODS = Union[
     Literal["get"],

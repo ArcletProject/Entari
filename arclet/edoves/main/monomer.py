@@ -66,12 +66,6 @@ class Monomer(InteractiveObject):
     async def execute(action: ExecutiveAction):
         return await action.execute()
 
-    def __getstate__(self):
-        return {
-            "metadata": {k: v for k, v in self.metadata.__dict__.items() if k not in ("io", "protocol")},
-            "behavior": self.prefab_behavior
-        }
-
     def __setstate__(self, state):
         f = inspect.currentframe()
         lcs = f.f_back.f_back.f_locals

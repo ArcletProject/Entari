@@ -1,5 +1,5 @@
-from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List
 from inspect import isclass
+from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List
 from .component import Component, MetadataComponent
 from .behavior import BaseBehavior
 from ..utilles import IOStatus
@@ -12,7 +12,19 @@ class Relationship(TypedDict):
     children: Dict[str, "InteractiveObject"]
 
 
-class InteractiveObject:
+class InteractiveMeta(type):
+    __check_tags__ = []
+
+    def __instancecheck__(self, instance):
+        if super(InteractiveMeta, self).__instancecheck__(instance):
+            if self.__check_tags__:
+                tag = self.__check_tags__.pop(0)
+                if not instance.compare(*tag):
+                    return False
+            return True
+
+
+class InteractiveObject(metaclass=InteractiveMeta):
     prefab_behavior: Type[BaseBehavior] = BaseBehavior
     prefab_metadata: Type[MetadataComponent] = MetadataComponent
     _components: Dict[str, Component]
@@ -167,3 +179,19 @@ class InteractiveObject:
             f"<{self.__class__.__name__}; "
             f"{', '.join([f'{k}={v}' for k, v in self._components.items()])}>"
         )
+
+    def __getstate__(self):
+        return {
+            "metadata": {k: v for k, v in self.metadata.__dict__.items() if k not in ("io", "protocol")},
+            "behavior": self.prefab_behavior
+        }
+
+    def __eq__(self, other: "InteractiveObject"):
+        return self.__getstate__() == other.__getstate__()
+
+    def __hash__(self):
+        return hash(tuple(self.__getstate__().items()))
+
+    def __class_getitem__(cls, item):
+        cls.__check_tags__.append([item] if isinstance(item, str) else [*item])
+        return cls

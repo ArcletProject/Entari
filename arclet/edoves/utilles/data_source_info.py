@@ -19,3 +19,7 @@ class DataSourceInfo(DataStructure):
     @property
     def instance_identifier(self):
         return self.__identifier
+
+    @property
+    def info(self):
+        return f"{self.platform}/{self.name}:<{self.version}>"

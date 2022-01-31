@@ -3,7 +3,7 @@ from abc import abstractmethod
 
 from aiohttp import FormData
 
-from .network import NetworkClient, HTTP_METHODS
+from .network import NetworkClient, HTTP_METHODS, NetworkStatus
 from ..builtin.medium import JsonMedium
 from .typings import TNProtocol
 from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
@@ -17,6 +17,7 @@ class BaseDockerMetaComponent(ModuleMetaComponent):
     medium_type: Type[JsonMedium] = JsonMedium
     session: NetworkClient
     verify_code: str = UNKNOWN
+    state: Union[IOStatus, NetworkStatus]
 
 
 class DockerBehavior(ModuleBehavior):

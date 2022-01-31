@@ -7,26 +7,28 @@ from .event.message import MessageReceived
 
 
 def log_message(module: BaseModule, message: Message, purveyor: Monomer):
-    edoves = module.metadata.protocol.scene.edoves
+    scene = module.metadata.protocol.scene
     if purveyor.prime_tag == "Member":
-        edoves.logger.log(
+        scene.edoves.logger.log(
             module.metadata.log_level,
             module.metadata.group_message_log_format.format(
+                scene_name=scene.scene_name,
                 group_name=purveyor.current_group.metadata.name,
                 group_id=purveyor.current_group.metadata.identifier,
                 member_id=purveyor.metadata.identifier,
                 member_name=purveyor.metadata.name,
-                bot_id=edoves.self.metadata.identifier,
+                bot_id=scene.protagonist.metadata.identifier,
                 message_string=message.content.to_text().__repr__(),
             ),
         )
     elif purveyor.prime_tag == "Friend":
-        edoves.logger.log(
+        scene.edoves.logger.log(
             module.metadata.log_level,
             module.metadata.friend_message_log_format.format(
+                scene_name=scene.scene_name,
                 friend_id=purveyor.metadata.identifier,
                 friend_name=purveyor.metadata.name,
-                bot_id=edoves.self.metadata.identifier,
+                bot_id=scene.protagonist.metadata.identifier,
                 message_string=message.content.to_text().__repr__(),
             ),
         )
@@ -37,9 +39,9 @@ class ChatLogData(ModuleMetaComponent):
     identifier = "BuiltinChatLog"
     log_level: str = "INFO"
     group_message_log_format: str = (
-        "{bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}")
-    friend_message_log_format: str = "{bot_id}: [{friend_name}({friend_id})] -> {message_string}"
-    other_client_message_log_format: str = "{bot_id}: [{platform_name}({platform_id})] -> {message_string}"
+        "{scene_name} >>> {bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}")
+    friend_message_log_format: str = "{scene_name} >>> {bot_id}: [{friend_name}({friend_id})] -> {message_string}"
+    other_client_message_log_format: str = "{scene_name} >>> {bot_id}: [{platform_name}({platform_id})] -> {message_string}"
 
 
 class ChatLogModule(BaseModule):

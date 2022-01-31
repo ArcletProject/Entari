@@ -1,5 +1,5 @@
 from typing import Union, List
-from .monomers import MiraiMonoMetadata
+from .monomers import MEMetadata
 from ..filter import MonomerTagLimit, EdovesBasicEvent
 
 
@@ -27,5 +27,5 @@ class GroupLimit(MonomerTagLimit):
     def judge(self, event: EdovesBasicEvent) -> bool:
         if self.ids:
             return event.medium.purveyor.prime_tag == self.tags[0] \
-                   and event.medium.purveyor.get_component(MiraiMonoMetadata).group_id in self.ids
+                   and event.medium.purveyor.get_component(MEMetadata).group_id in self.ids
         return event.medium.purveyor.prime_tag == self.tags[0]

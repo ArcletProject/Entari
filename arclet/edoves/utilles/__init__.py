@@ -68,26 +68,26 @@ class MetasChecker(type):
 class IOStatus(int, Enum):
     """描述IO的状态"""
 
-    """等待载入Protocol中"""
     ACTIVATE_WAIT = 411831
+    """等待载入Protocol中"""
 
-    """激活成功, 可以接受medium"""
     ESTABLISHED = 26366521
+    """激活成功, 可以接受medium"""
 
-    """主动请求medium, 优先级高于ESTABLISHED"""
     MEDIUM_WAIT = 2452720
+    """主动请求medium, 优先级高于ESTABLISHED"""
 
-    """正在处理medium, 无法接受medium"""
     PROCESSING = 5572535
+    """正在处理medium, 无法接受medium"""
 
-    """主动请求从Protocol中载出"""
     CLOSE_WAIT = 3078491
+    """主动请求从Protocol中载出"""
 
-    """该IO已载出"""
     CLOSED = 17080094
+    """该IO已载出"""
 
-    """未知状态"""
     UNKNOWN = 17156595
+    """未知状态"""
 
 
 code_exceptions_mapping: Dict[int, Type[Exception]] = {

@@ -1,14 +1,11 @@
-from typing import Dict, TYPE_CHECKING, List, Type, Optional
+from typing import Dict, TYPE_CHECKING, Type, Any, cast
 
 from ...utilles import IOStatus
-from .monomers import MiraiMonomer
-from ..medium import Message, Notice, Request
-from .chain import MessageChain
+from .monomers import MahEntity
 from ...utilles.data_source_info import DataSourceInfo
 from ...main.protocol import NetworkProtocol
 
 if TYPE_CHECKING:
-    from ...main.monomer import Monomer
     from .server_docker import MAHServerDocker
 
 
@@ -16,8 +13,8 @@ class MAHProtocol(NetworkProtocol):
     storage: Dict[Type["MAHServerDocker"], "MAHServerDocker"]
 
     async def medium_transport(self, action: str):
-        server = list(self.storage.values())[-1]
-        medium = await self.scene.monomer_protocol.get_medium()
+        server = self.current
+        medium = cast(Dict, await self.scene.monomer_protocol.get_medium())
         if server.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
             return
         if action.startswith("message"):
@@ -54,7 +51,7 @@ class MAHProtocol(NetworkProtocol):
                     }
                 )
                 self.scene.edoves.logger.info(
-                    f"{self.scene.edoves.self.metadata.identifier}: "
+                    f"{self.scene.protagonist.metadata.identifier}: "
                     f"{action.replace('send', '').replace('Message', '')}({target})"
                     f" <- {medium.get('content').to_text()}"
                 )
@@ -97,7 +94,7 @@ class MAHProtocol(NetworkProtocol):
                 }
             )
             self.scene.edoves.logger.info(
-                f"{self.scene.edoves.self.metadata.identifier}: "
+                f"{self.scene.protagonist.metadata.identifier}: "
                 f"{kind}({target}) <- Nudge"
             )
         if action in ('accept', 'reject'):
@@ -114,6 +111,126 @@ class MAHProtocol(NetworkProtocol):
                     "message": medium.get('msg')
                 }
             )
+        if action.startswith("relationship"):
+            if action.endswith('remove'):
+                target = medium.get("target")
+                relationship = medium.get("relationship")
+                if relationship == "Friend":
+                    self.scene.protagonist.children.pop(target.metadata.identifier)
+                    if not target.compare("Member"):
+                        self.scene.monomers.pop(target.metadata.identifier)
+                    await server.behavior.session_handle(
+                        "POST",
+                        "deletaFriend",
+                        {
+                            "sessionKey": server.metadata.session_key,
+                            "target": target.metadata.identifier,
+                        }
+                    )
+                if relationship == "Member":
+                    group_id = target.metadata.group_id
+                    target.parents[group_id].children.pop(target.metadata.identifier)
+                    target.parents.pop(group_id)
+                    if not target.compare('Friend') and not target.parents:
+                        self.scene.monomers.pop(target.metadata.identifier)
+                    await server.behavior.session_handle(
+                        "POST",
+                        "kick",
+                        {
+                            "sessionKey": server.metadata.session_key,
+                            "target": group_id,
+                            "memberId": target.metadata.identifier
+                        }
+                    )
+                if relationship == "Group":
+                    self.scene.protagonist.children.pop(target.metadata.identifier)
+                    if not target.compare("Member"):
+                        self.scene.monomers.pop(target.metadata.identifier)
+                    await server.behavior.session_handle(
+                        "POST",
+                        "quit",
+                        {
+                            "sessionKey": server.metadata.session_key,
+                            "target": target.metadata.identifier,
+                        }
+                    )
+            elif action.endswith('get'):
+                relationship = medium.get('relationship')
+                target = medium.get('target')
+                rest = medium.get('rest')
+                if relationship == "Member":
+                    group = rest.get('group')
+                    info = await server.behavior.session_handle(
+                        "GET",
+                        "memberInfo",
+                        {
+                            "sessionKey": server.metadata.session_key,
+                            "target": group.metadata.identifier,
+                            "memberId": target
+                        }
+                    )
+                    member = self.include_member(info)
+                    if member.metadata.identifier not in group.children:
+                        group.set_child(member)
+                    member.metadata.update_data("group_id", group.metadata.identifier)
+                    return member
+                if relationship == "Friend":
+                    profile = await server.behavior.session_handle(
+                        "GET",
+                        "friendProfile",
+                        {"sessionKey": server.metadata.session_key, "target": target}
+                    )
+                    profile.setdefault("id", target)
+                    friend = self.include_friend(profile)
+                    return friend
+        if action == "change_monomer_status":
+            target = medium.get("target")
+            status = medium.get("status")
+            rest = medium.get("rest")
+            if status == "mute":
+                is_mute = rest.get("mute")
+                if target.prime_tag == "Member":
+                    if is_mute:
+                        mute_time: int = rest.get("mute_time") or 60
+                        await server.behavior.session_handle(
+                            "POST",
+                            "mute",
+                            {
+                                "sessionKey": server.metadata.session_key,
+                                "target": target.metadata.group_id,
+                                "memberId": target.metadata.identifier,
+                                "time": mute_time
+                            }
+                        )
+                    else:
+                        await server.behavior.session_handle(
+                            "POST",
+                            "unmute",
+                            {
+                                "sessionKey": server.metadata.session_key,
+                                "target": target.metadata.group_id,
+                                "memberId": target.metadata.identifier
+                            }
+                        )
+                elif target.prime_tag == "Group":
+                    if is_mute:
+                        await server.behavior.session_handle(
+                            "POST",
+                            "muteAll",
+                            {
+                                "sessionKey": server.metadata.session_key,
+                                "target": target.metadata.identifier
+                            }
+                        )
+                    else:
+                        await server.behavior.session_handle(
+                            "POST",
+                            "unmuteAll",
+                            {
+                                "sessionKey": server.metadata.session_key,
+                                "target": target.metadata.identifier
+                            }
+                        )
 
     async def parse_raw_data(self):
         data: Dict = await self.get_medium()
@@ -132,15 +249,7 @@ class MAHProtocol(NetworkProtocol):
                     group.set_child(sender)
                 sender.metadata.update_data("group_id", group.metadata.identifier)
             else:
-                if not (sender := self.scene.monomers.get(str(sender_data.get('id')))):
-                    sender = MiraiMonomer(
-                        self.scene.monomer_protocol,
-                        sender_data.get("nickname"),
-                        str(sender_data.get('id')),
-                        sender_data.get("remark")
-                    )
-                    sender.set_parent(self.scene.edoves.self)
-                    self.scene.monomers.setdefault(sender.metadata.identifier, sender)
+                sender = self.include_temporary_monomer(sender_data.get("nickname"), str(sender_data.get('id')))
             await self.post_message(
                 "MessageReceived",
                 sender,
@@ -153,7 +262,7 @@ class MAHProtocol(NetworkProtocol):
             operator = self.scene.monomers.get(operator_id)
             subject = data.pop('subject')
             if subject['kind'] == "Group":
-                if not operator or not getattr(operator.metadata, "group_id"):
+                if not operator or not getattr(operator.metadata, "group_id", None):
                     info = await server.behavior.session_handle(
                         "GET",
                         "memberInfo",
@@ -187,10 +296,10 @@ class MAHProtocol(NetworkProtocol):
         elif ev_type.startswith("Bot"):
             if ev_type == "BotGroupPermissionChangeEvent":
                 group = self.include_group(data.pop('group'))
-                self.scene.edoves.self.metadata.update_data("group_id", group.metadata.identifier)
+                self.scene.protagonist.metadata.update_data("group_id", group.metadata.identifier)
                 await self.post_notice(
                     "MonomerStatusUpdate",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     data
                 )
@@ -203,7 +312,7 @@ class MAHProtocol(NetworkProtocol):
                 operator.metadata.update_data("group_id", group.metadata.identifier)
                 await self.post_notice(
                     "MonomerStatusUpdate",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     data,
                     operator=operator,
@@ -211,10 +320,10 @@ class MAHProtocol(NetworkProtocol):
                 )
             elif ev_type == "BotJoinGroupEvent":
                 group = self.include_group(data.pop('group'))
-                self.scene.edoves.self.metadata.update_data("group_id", group.metadata.identifier)
+                self.scene.protagonist.metadata.update_data("group_id", group.metadata.identifier)
                 await self.post_notice(
                     "RelationshipSetup",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     data,
                     relationship="Group"
@@ -223,7 +332,7 @@ class MAHProtocol(NetworkProtocol):
                 group = self.exclude_group(data.pop('group'))
                 await self.post_notice(
                     "RelationshipTerminate",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     {"group": group},
                     relationship="Group"
@@ -234,7 +343,7 @@ class MAHProtocol(NetworkProtocol):
                 operator.metadata.update_data("group_id", group.metadata.identifier)
                 await self.post_notice(
                     "RelationshipSevered",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     {"group": group},
                     operator=operator,
@@ -243,7 +352,7 @@ class MAHProtocol(NetworkProtocol):
             else:
                 await self.post_notice(
                     "NoticeMe",
-                    self.scene.edoves.self,
+                    self.scene.protagonist,
                     ev_type,
                     {}
                 )
@@ -378,10 +487,13 @@ class MAHProtocol(NetworkProtocol):
                     )
                 else:
                     operator_data = data.pop('operator')
-                    operator = self.include_member(operator_data)
-                    if operator.metadata.identifier not in group.children:
-                        group.set_child(group)
-                    operator.metadata.update_data("group_id", group.metadata.identifier)
+                    if not operator_data:
+                        operator = self.scene.protagonist
+                    else:
+                        operator = self.include_member(operator_data)
+                        if operator.metadata.identifier not in group.children:
+                            group.set_child(group)
+                        operator.metadata.update_data("group_id", group.metadata.identifier)
                     await self.post_notice(
                         "MonomerStatusUpdate",
                         member,
@@ -392,7 +504,7 @@ class MAHProtocol(NetworkProtocol):
                         action=ev_type.replace('Member', '').replace('Event', '')
                     )
         elif ev_type.endswith("RequestEvent"):
-            friend = self.temp_monomer(data.pop('nick'), data.pop('fromId'))
+            friend = self.include_temporary_monomer(data.pop('nick'), data.pop('fromId'))
             await self.post_request(
                 "RequestReceived",
                 friend,
@@ -401,53 +513,54 @@ class MAHProtocol(NetworkProtocol):
                 str(data.pop("eventId"))
             )
 
-    def temp_monomer(self, name: str, identifier: str):
-        friend = MiraiMonomer(
+    def include_temporary_monomer(self, name: str, identifier: str, alias: str = ""):
+        friend = MahEntity(
             self.scene.monomer_protocol,
             name,
             identifier,
+            alias
         )
-        friend.set_parent(self.scene.edoves.self)
+        friend.set_parent(self.scene.protagonist)
         return friend
 
-    def include_friend(self, friend_data):
+    def include_friend(self, friend_data: Dict[str, Any]):
         friend_id = str(friend_data.get('id'))
         if not (friend := self.scene.monomers.get(friend_id)):
-            friend = MiraiMonomer(
+            friend = MahEntity(
                 self.scene.monomer_protocol,
                 friend_data.get("nickname"),
                 friend_id,
                 friend_data.get("remark")
             )
-            friend.set_parent(self.scene.edoves.self)
+            friend.set_parent(self.scene.protagonist)
             self.scene.monomers.setdefault(friend.metadata.identifier, friend)
         if friend.prime_tag == "Member":
-            friend.set_parent(self.scene.edoves.self)
+            friend.set_parent(self.scene.protagonist)
             friend.metadata.update_data("name", friend_data.get("nickname"))
             friend.metadata.update_data("alias", friend_data.get("remark"))
         friend.set_prime_tag("Friend")
         return friend
 
-    def exclude_friend(self, friend_data):
+    def exclude_friend(self, friend_data: Dict[str, Any]):
         friend_id = str(friend_data.get('id'))
         if not (friend := self.scene.monomers.get(friend_id)):
-            friend = MiraiMonomer(
+            friend = MahEntity(
                 self.scene.monomer_protocol,
                 friend_data.get("nickname"),
                 friend_id,
                 friend_data.get("remark")
             )
         else:
-            self.scene.edoves.self.children.pop(friend.metadata.identifier)
+            self.scene.protagonist.children.pop(friend.metadata.identifier)
             if not friend.compare("Member"):
                 self.scene.monomers.pop(friend.metadata.identifier)
         friend.set_prime_tag("Friend")
         return friend
 
-    def include_member(self, member_data):
+    def include_member(self, member_data: Dict[str, Any]):
         member_id = str(member_data.get('id'))
         if not (member := self.scene.monomers.get(member_id)):
-            member = MiraiMonomer(
+            member = MahEntity(
                 self.scene.monomer_protocol,
                 member_data.get("memberName"),
                 member_id,
@@ -473,10 +586,10 @@ class MAHProtocol(NetworkProtocol):
         member.set_prime_tag("Member")
         return member
 
-    def exclude_member(self, member_data, group_id: str):
+    def exclude_member(self, member_data: Dict[str, Any], group_id: str):
         member_id = str(member_data.get('id'))
         if not (member := self.scene.monomers.get(member_id)):
-            member = MiraiMonomer(
+            member = MahEntity(
                 self.scene.monomer_protocol,
                 member_data.get("memberName"),
                 member_id,
@@ -496,10 +609,10 @@ class MAHProtocol(NetworkProtocol):
         member.set_prime_tag("Member")
         return member
 
-    def include_group(self, group_data):
+    def include_group(self, group_data: Dict[str, Any]):
         group_id = str(group_data.get('id'))
         if not (group := self.scene.monomers.get(group_id)):
-            group = MiraiMonomer(
+            group = MahEntity(
                 self.scene.monomer_protocol,
                 group_data.get("name"),
                 group_id,
@@ -508,17 +621,17 @@ class MAHProtocol(NetworkProtocol):
                 }
             )
             self.scene.monomers.setdefault(group.metadata.identifier, group)
-            group.set_child(self.scene.edoves.self)
+            group.set_child(self.scene.protagonist)
         else:
             group.metadata.update_data("name", group_data.get("name"))
             group.metadata.update_data("permission", group_data.get("permission"))
         group.set_prime_tag("Group")
         return group
 
-    def exclude_group(self, group_data):
+    def exclude_group(self, group_data: Dict[str, Any]):
         group_id = str(group_data.get('id'))
         if not (group := self.scene.monomers.get(group_id)):
-            group = MiraiMonomer(
+            group = MahEntity(
                 self.scene.monomer_protocol,
                 group_data.get("name"),
                 group_id,
@@ -528,7 +641,7 @@ class MAHProtocol(NetworkProtocol):
             )
         else:
             self.scene.monomers.pop(group.metadata.identifier)
-            self.scene.edoves.self.parents.pop(group.metadata.identifier)
+            self.scene.protagonist.parents.pop(group.metadata.identifier)
 
             for i, m in group.children.items():
                 if m.compare("Friend"):
@@ -537,50 +650,9 @@ class MAHProtocol(NetworkProtocol):
         group.set_prime_tag("Group")
         return group
 
-    async def post_message(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: List[Dict[str, str]],
-            **kwargs
-    ):
-        await self.scene.module_protocol.set_medium(
-            Message().create(purveyor, MessageChain.parse_obj(content), medium_type)
-        )
-        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
-
-    async def post_notice(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: Dict[str, str],
-            operator: Optional["Monomer"] = None,
-            **kwargs
-    ):
-        notice = Notice().create(purveyor, content, medium_type)
-        if operator:
-            notice.operator = operator
-        await self.scene.module_protocol.set_medium(notice)
-        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
-
-    async def post_request(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: Dict[str, str],
-            event_id: str,
-            **kwargs
-    ):
-        request = Request().create(purveyor, content, medium_type, event=event_id)
-        await self.scene.module_protocol.set_medium(request)
-        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
-
     source_information = DataSourceInfo(
         platform="Tencent",
         name="mirai-api-http",
-        version="default"
+        version="Default"
     )
     medium_type = Dict

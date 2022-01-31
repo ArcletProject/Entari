@@ -32,6 +32,8 @@ class ContextModel(Generic[T]):
 if TYPE_CHECKING:
     from . import Edoves
     from .module import BaseModule
+    from .monomer import Monomer
 
 ctx_edoves: "ContextModel[Edoves]" = ContextModel("edoves")
 ctx_module: "ContextModel[BaseModule]" = ContextModel("module")
+ctx_monomer: "ContextModel[Monomer]" = ContextModel("purveyor")

@@ -1,9 +1,9 @@
-from ..main.monomer import BaseMonoBehavior
+from ..main.monomer import BaseMonoBehavior, Monomer
 from ..main.protocol import NetworkProtocol, MonomerProtocol
 from .medium import Message, Request
 
 
-class MediumHandleBehavior(BaseMonoBehavior):
+class MiddlewareBehavior(BaseMonoBehavior):
     n_protocol: NetworkProtocol
     m_protocol: MonomerProtocol
 
@@ -14,7 +14,7 @@ class MediumHandleBehavior(BaseMonoBehavior):
     async def revoke(self, medium: Message, target: int = None):
         await self.m_protocol.set_medium(
             {
-                "target": target if target else medium.content.find("Source").id
+                "target": target if target else medium.id
             }
         )
         await self.n_protocol.medium_transport("message_revoke")
@@ -30,13 +30,7 @@ class MediumHandleBehavior(BaseMonoBehavior):
 
     async def send_with(self, medium: Message, reply: bool = False, nudge: bool = False, **rest):
         if nudge:
-            await self.m_protocol.set_medium(
-                {
-                    "target": medium.purveyor.metadata.identifier,
-                    "rest": rest
-                }
-            )
-            await self.n_protocol.medium_transport("nudge_send")
+            await self.nudge(medium.purveyor.metadata.identifier, **rest)
 
         await self.m_protocol.set_medium(
             {
@@ -72,3 +66,32 @@ class MediumHandleBehavior(BaseMonoBehavior):
             }
         )
         await self.n_protocol.medium_transport("reject")
+
+    async def relationship_remove(self, target: Monomer):
+        await self.m_protocol.set_medium(
+            {
+                "relationship": target.prime_tag,
+                "target": target,
+            }
+        )
+        await self.n_protocol.medium_transport("relationship_remove")
+
+    async def relationship_get(self, target: str, relationship: str, **rest):
+        await self.m_protocol.set_medium(
+            {
+                "relationship": relationship,
+                "target": target,
+                "rest": rest
+            }
+        )
+        return await self.n_protocol.medium_transport("relationship_get")
+
+    async def change_monomer_status(self, target: Monomer, status: str, **rest):
+        await self.m_protocol.set_medium(
+            {
+                "target": target,
+                "status": status,
+                "rest": rest,
+            }
+        )
+        await self.n_protocol.medium_transport("change_monomer_status")

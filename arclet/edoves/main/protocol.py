@@ -1,10 +1,12 @@
 import asyncio
 from abc import ABCMeta, abstractmethod
 from asyncio import Event
-from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict
+from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, cast, List
 from arclet.letoderea.utils import search_event
 from .event import EdovesBasicEvent
 from .medium import BaseMedium
+from ..builtin.medium import Message, Notice, Request
+from ..message.chain import MessageChain
 
 from ..utilles.security import UNDEFINED, EDOVES_DEFAULT
 from ..utilles.data_source_info import DataSourceInfo
@@ -65,7 +67,7 @@ class AbstractProtocol(metaclass=ABCMeta):
             await self.medium_ev.wait()
         self.medium_ev.clear()
         if medium_type and not isinstance(self.medium, medium_type):
-            return medium_type().create(self.scene.edoves.self, self.medium, event_type)
+            return medium_type().create(self.scene.protagonist, self.medium, event_type)
         return self.medium
 
     async def set_medium(self, medium: Union[TM, TData]):
@@ -91,7 +93,7 @@ class ModuleProtocol(AbstractProtocol):
             **kwargs
     ):
         evt = event_type.__class__.__name__ if not isinstance(event_type, str) else event_type
-        medium = await self.get_medium(evt, medium_type)
+        medium = cast(BaseMedium, await self.get_medium(evt, medium_type))
         m_list = list(self.storage.values())
         for m in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_WAIT), m_list):
             with ctx_module.use(m):
@@ -132,3 +134,49 @@ class NetworkProtocol(ModuleProtocol):
     async def medium_transport(self, action: str):
         """将来自其他模块的medium传出给server"""
         raise NotImplementedError
+
+    @abstractmethod
+    def include_temporary_monomer(self, name: str, identifier: str, alias: str = ""):
+        """临时增加一个Monomer, 不会保存在Protocol中"""
+        raise NotImplementedError
+
+    async def post_message(
+            self,
+            ev_type: str,
+            purveyor: "Monomer",
+            medium_type: str,
+            content: List[Dict[str, str]],
+            **kwargs
+    ):
+        await self.scene.module_protocol.set_medium(
+            Message().create(purveyor, MessageChain.parse_obj(content), medium_type)
+        )
+        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
+
+    async def post_notice(
+            self,
+            ev_type: str,
+            purveyor: "Monomer",
+            medium_type: str,
+            content: Dict[str, str],
+            operator: Optional["Monomer"] = None,
+            **kwargs
+    ):
+        notice = Notice().create(purveyor, content, medium_type)
+        if operator:
+            notice.operator = operator
+        await self.scene.module_protocol.set_medium(notice)
+        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
+
+    async def post_request(
+            self,
+            ev_type: str,
+            purveyor: "Monomer",
+            medium_type: str,
+            content: Dict[str, str],
+            event_id: str,
+            **kwargs
+    ):
+        request = Request().create(purveyor, content, medium_type, event=event_id)
+        await self.scene.module_protocol.set_medium(request)
+        await self.scene.module_protocol.broadcast_medium(ev_type, **kwargs)
