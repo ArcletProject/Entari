@@ -1,9 +1,9 @@
 from .medium import Message
+from .event.message import MessageReceived
 from ..main.monomer import Monomer
 from ..main.module import BaseModule, ModuleMetaComponent
-from ..main.typings import TMProtocol
-from ..utilles.security import EDOVES_DEFAULT
-from .event.message import MessageReceived
+from ..main.typings import TProtocol
+from ..main.utilles.security import EDOVES_DEFAULT
 
 
 def log_message(module: BaseModule, message: Message, purveyor: Monomer):
@@ -47,6 +47,6 @@ class ChatLogData(ModuleMetaComponent):
 class ChatLogModule(BaseModule):
     prefab_metadata = ChatLogData
 
-    def __init__(self, protocol: TMProtocol):
+    def __init__(self, protocol: TProtocol):
         super().__init__(protocol)
         self.add_handler(MessageReceived, log_message)

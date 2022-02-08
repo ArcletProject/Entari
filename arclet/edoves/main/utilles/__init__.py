@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Union, TYPE_CHECKING, Type, Generator, TypeVar, Dict, Any
 from pydantic import BaseModel, BaseConfig, Extra
 
-from arclet.edoves.main.exceptions import InvalidVerifyKey, AccountNotFound, InvalidSession, UnVerifiedSession, \
+from ..exceptions import InvalidVerifyKey, AccountNotFound, InvalidSession, UnVerifiedSession, \
     UnknownTarget, AccountMuted, MessageTooLong, InvalidArgument, UnknownError
 
 if TYPE_CHECKING:
@@ -65,6 +65,44 @@ class MetasChecker(type):
         return obj
 
 
+class SceneStatus(str, Enum):
+    """指示 Scene 状态的枚举类"""
+
+    STOPPED = "stopped"
+    """已停止"""
+
+    STARTING = "starting"
+    """正在启动"""
+
+    RUNNING = "running"
+    """正常运行"""
+
+    STOPPING = "stopping"
+    """刚开始关闭"""
+
+    CLEANUP = "cleanup"
+    """清理残留任务"""
+
+
+class MediumStatus(str, Enum):
+    """指示 Medium 状态的枚举类"""
+
+    CREATED = "created"
+    """已创建"""
+
+    POSTING = "posting"
+    """正在发布"""
+
+    HANDLING = "handling"
+    """正在处理"""
+
+    FINISHED = "finished"
+    """已完成"""
+
+    FAILED = "failed"
+    """失败"""
+
+
 class IOStatus(int, Enum):
     """描述IO的状态"""
 
@@ -72,13 +110,16 @@ class IOStatus(int, Enum):
     """等待载入Protocol中"""
 
     ESTABLISHED = 26366521
-    """激活成功, 可以接受medium"""
+    """激活成功, 可以传入medium"""
 
-    MEDIUM_WAIT = 2452720
-    """主动请求medium, 优先级高于ESTABLISHED"""
+    MEDIUM_GET_WAIT = 10161266
+    """主动请求传入medium, 优先级高于ESTABLISHED"""
 
     PROCESSING = 5572535
     """正在处理medium, 无法接受medium"""
+
+    MEDIUM_POST_WAIT = 585033
+    """主动请求传出medium, 优先级低于ESTABLISHED"""
 
     CLOSE_WAIT = 3078491
     """主动请求从Protocol中载出"""

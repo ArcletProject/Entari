@@ -1,6 +1,6 @@
 from typing import List, TYPE_CHECKING, Type, Union, Iterable
 
-from ..utilles import IOStatus
+from .utilles import IOStatus
 from .typings import TProtocol
 
 if TYPE_CHECKING:
@@ -67,3 +67,9 @@ class MetadataComponent(Component):
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:
             self.tags.extend(set(tags).difference(self.tags))
+
+    def remove_tags(self, tags: Iterable[str]):
+        if self.is_enable:
+            for t in tags:
+                if t in self.tags:
+                    self.tags.remove(t)

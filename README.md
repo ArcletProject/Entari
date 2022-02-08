@@ -46,11 +46,11 @@ pip install --upgrade arclet-edoves
 
 main.py:
 ```python
-from arclet.edoves.builtin.mah.module import MessageModule
+from arclet.edoves.mah.module import MessageModule
+from arclet.edoves.mah import MAHConfig
 from arclet.edoves.builtin.medium import Message
 from arclet.edoves.builtin.event.message import MessageReceived
-from arclet.edoves.builtin.client import AioHttpClient
-from arclet.edoves.builtin.mah import MAHConfig
+from arclet.edoves.builtin.client import AiohttpClient
 from arclet.edoves.main import Edoves
 
 
@@ -63,7 +63,7 @@ app = Edoves(
     configs={
         "MAH-default": (
             MAHConfig,
-            {"verify_token": "INITKEYWylsVdbr", "port": "9080", "client": AioHttpClient, "account": 3542928737}
+            {"verify_token": "INITKEYWylsVdbr", "port": "9080", "client": AiohttpClient, "account": 3542928737}
         )
     }
 )

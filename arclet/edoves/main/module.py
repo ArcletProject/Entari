@@ -1,22 +1,22 @@
 import asyncio
 from typing import Type, Dict, Callable, Optional, Set, List, TypedDict
-from arclet.letoderea.utils import Condition_T
+from arclet.letoderea.utils import Condition_T, search_event
 from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
 from arclet.letoderea.utils import run_always_await
 
 from .interact import InteractiveObject
-from .protocol import ModuleProtocol
-from ..utilles import IOStatus
-from ..utilles.security import UNKNOWN, VerifyCodeChecker
+from .typings import TProtocol
+from .medium import BaseMedium
+from .utilles import IOStatus
+from .utilles.security import UNKNOWN, VerifyCodeChecker
 from .behavior import BaseBehavior
 from .event import EdovesBasicEvent
 from .component import MetadataComponent, Component
-from .context import ctx_monomer
+from .context import ctx_monomer, ctx_module
 
 
 class ModuleMetaComponent(MetadataComponent, metaclass=VerifyCodeChecker):
     io: "BaseModule"
-    protocol: ModuleProtocol
     verify_code: str = UNKNOWN
     name: str
     usage: str
@@ -25,7 +25,7 @@ class ModuleMetaComponent(MetadataComponent, metaclass=VerifyCodeChecker):
 
 class _Handler(TypedDict):
     delegate: EventDelegate
-    condition: List[Condition_T]
+    conditions: List[Condition_T]
 
 
 class MediumHandlers(Component):
@@ -46,10 +46,10 @@ class MediumHandlers(Component):
         if not _may_delegate:
             delegate = EventDelegate(event_type)
             delegate += handlers
-            self.storage.setdefault(event_type, {'delegate': delegate, 'condition': conditions})
+            self.storage.setdefault(event_type, _Handler(delegate=delegate, conditions=conditions))
         else:
             _may_delegate['delegate'] += handlers
-            _may_delegate['condition'].extend(conditions)
+            _may_delegate['conditions'].extend(conditions)
 
     def remove_handler(self, event_type: Type[EdovesBasicEvent]):
         del self.storage[event_type]
@@ -114,13 +114,29 @@ class ModuleBehavior(BaseBehavior):
             return __wrapper
         __wrapper(reaction)
 
+    async def handler_medium(
+            self,
+            medium: Optional[BaseMedium] = None,
+            medium_type: Optional[BaseMedium] = None,
+            **kwargs
+    ):
+        if not medium:
+            medium = await self.io.metadata.protocol.get_medium(medium_type, **kwargs)
+        event_type = kwargs.pop('event_type')
+        with ctx_module.use(self.io):
+            if isinstance(event_type, str):
+                await self.handler_event(search_event(event_type)(medium=medium, **kwargs))
+            else:
+                await self.handler_event(event_type(medium=medium, **kwargs))
+
     async def handler_event(self, event: EdovesBasicEvent):
+        self.io.metadata.protocol.scene.edoves.event_system.event_spread(event)
         handler = self.get_component(MediumHandlers).storage.get(event.__class__)
         if not handler:
             return
         self.io.metadata.state = IOStatus.PROCESSING
-        if handler['condition']:
-            if not all([condition.judge(event) for condition in handler['condition']]):
+        if handler['conditions']:
+            if not all([condition.judge(event) for condition in handler['conditions']]):
                 self.io.metadata.state = IOStatus.ESTABLISHED
                 return
         with ctx_monomer.use(event.medium.purveyor):
@@ -139,7 +155,7 @@ class BaseModule(InteractiveObject):
 
     __slots__ = ["handlers"]
 
-    def __init__(self, protocol: ModuleProtocol):
+    def __init__(self, protocol: TProtocol):
         metadata = self.prefab_metadata(self)
         metadata.protocol = protocol
         if not getattr(metadata, "identifier", None):
@@ -188,6 +204,3 @@ class BaseModule(InteractiveObject):
             if not __module_self__.local_storage.get(__module_self__.__class__):
                 __module_self__.local_storage.setdefault(__module_self__.__class__, {})
             __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, [reaction, condition])
-
-    async def import_event(self, event: EdovesBasicEvent):
-        await self.get_component(ModuleBehavior).handler_event(event)

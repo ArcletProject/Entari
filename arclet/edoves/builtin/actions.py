@@ -1,7 +1,8 @@
 import inspect
 from typing import Optional, Union, Any, TYPE_CHECKING
-from ..main.action import ExecutiveAction
 from .medium import Message, Request
+from ..main.action import ExecutiveAction
+
 
 if TYPE_CHECKING:
     from ..main.monomer import Monomer

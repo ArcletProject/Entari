@@ -1,6 +1,6 @@
 from typing import TypeVar, Union, Type, Optional
 from inspect import isclass
-from ..main.behavior import BaseBehavior
+from ..behavior import BaseBehavior
 
 TB = TypeVar("TB", bound=BaseBehavior)
 

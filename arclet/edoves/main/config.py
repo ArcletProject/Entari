@@ -1,20 +1,19 @@
-from typing import Type, Optional
-from ..utilles import DataStructure
-from .server_docker import BaseServerDocker, NetworkClient
-from .typings import TNProtocol
+from typing import Type
+from .utilles import DataStructure
+from .server_docker import NetworkClient
+from .typings import TProtocol
 from yarl import URL
 
 
 class TemplateConfig(DataStructure):
-    protocol: Type[TNProtocol]
-    server_docker: Optional[Type[BaseServerDocker]] = None
+    protocol: Type[TProtocol]
     client: Type[NetworkClient]
     verify_token: str
     account: int
     host: str = "http://localhost"
     port: str
     update_interval: float = 0.02
-    modules_path: str = "./modules"
+    modules_base_path: str = "./edoves_modules"
     ensure_retries: int = 5
 
     def get(self, key: str):

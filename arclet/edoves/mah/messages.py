@@ -1,17 +1,34 @@
 import json as JSON
 from xml import sax
 from enum import Enum
-from pathlib import Path
 from typing import Optional, TYPE_CHECKING, Union, List
-from ...message.element import MessageElement, DataStructure, Quote, Text, Image
-from pydantic import Field
+from arclet.edoves.main.message import MessageElement, DataStructure, Text, Image
+from pydantic import Field, validator
 
 if TYPE_CHECKING:
-    from ...message.chain import MessageChain
+    from arclet.edoves.main.message import MessageChain
 
 
 class Plain(Text):
     type: str = "Plain"
+
+
+class Quote(MessageElement):
+    """表示消息中回复其他消息/用户的部分, 通常包含一个完整的消息链(`origin` 属性)"""
+    type: str = "Quote"
+    id: int
+    groupId: int
+    senderId: int
+    targetId: int
+    origin: "MessageChain"
+
+    @validator("origin", pre=True, allow_reuse=True)
+    def _(cls, v):
+        from .chain import MessageChain
+        return MessageChain(v)
+
+    def to_serialization(self) -> str:
+        return f"[mirai:Quote:{{\"id\":{self.id},\"origin\":{self.origin}}}]"
 
 
 class Source(MessageElement):
@@ -128,25 +145,16 @@ class FlashImage(Image):
     """该消息元素用于承载消息中所附带的图片."""
     type = "FlashImage"
 
-    def __init__(
-            self,
-            imageId: Optional[str] = None,
-            url: Optional[str] = None,
-            path: Optional[Union[Path, str]] = None,
-            base64: Optional[str] = None,
-            data_bytes: Optional[bytes] = None,
-            **kwargs
-    ):
-        super().__init__(
-            imageId=imageId,
-            url=url,
-            base64=base64,
-            **kwargs
-        )
-        self.to_sendable(path, data_bytes)
-
     def to_text(self) -> str:
         return "[闪照]"
+
+    def to_image(self) -> "Image":
+        """将 FlashImage 转换为 Image
+
+        Returns:
+            Image: 转换后的 Image
+        """
+        return Image.parse_obj({**self.dict(), "type": "Image"})
 
 
 class MusicShare(MessageElement):
@@ -187,7 +195,7 @@ class Forward(MessageElement):
 
 
 def _update_forward_refs():
-    from ...message.chain import MessageChain
+    from arclet.edoves.main.message import MessageChain
 
     Quote.update_forward_refs(MessageChain=MessageChain)
     ForwardNode.update_forward_refs(MessageChain=MessageChain)

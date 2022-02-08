@@ -1,18 +1,17 @@
 from abc import abstractmethod
-from typing import Union, Optional, Callable, Coroutine, Any
+from typing import Union, Optional, Any
 import inspect
 
-from .typings import TMonoProtocol
+from .typings import TProtocol
 from .interact import InteractiveObject
 from .component import MetadataComponent
 from .behavior import BaseBehavior
-from .action import ExecutiveAction
-from ..utilles import IOStatus
+from .action import ExecActionWrapper
+from .utilles import IOStatus
 
 
 class MonoMetaComponent(MetadataComponent):
     io: "Monomer"
-    protocol: TMonoProtocol
     name: str
     alias: str
 
@@ -42,7 +41,7 @@ class Monomer(InteractiveObject):
 
     def __init__(
             self,
-            protocol: TMonoProtocol,
+            protocol: TProtocol,
             name: str,
             identifier: Optional[Union[int, str]] = None,
             alias: Optional[str] = None,
@@ -56,21 +55,15 @@ class Monomer(InteractiveObject):
         super(Monomer, self).__init__(data)
         self.metadata.state = IOStatus.ESTABLISHED
 
-    def action(self, method_name: str) -> Callable[..., Coroutine]:
-        for func in [getattr(c, method_name, None) for c in self.all_components]:
-            if not func:
-                continue
-            return func
-
-    @staticmethod
-    async def execute(action: ExecutiveAction):
-        return await action.execute()
+    @property
+    def execute(self):
+        return ExecActionWrapper(self)
 
     def __setstate__(self, state):
         f = inspect.currentframe()
         lcs = f.f_back.f_back.f_locals
         self.__init__(
-            lcs['self'].monomer_protocol,
+            lcs['self'].protocol,
             state['metadata']['name'],
             state['metadata']['identifier'],
             state['metadata']['alias']

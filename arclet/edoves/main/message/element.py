@@ -1,14 +1,13 @@
 import json
 from pathlib import Path
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union
 from base64 import b64decode, b64encode
-from pydantic import validator
 import aiohttp
 from abc import ABC
-from ..utilles import DataStructure
 
-if TYPE_CHECKING:
-    from .chain import MessageChain
+from pydantic import Field
+
+from ..utilles import DataStructure
 
 
 class MessageElement(ABC, DataStructure):
@@ -25,8 +24,31 @@ class MessageElement(ABC, DataStructure):
 
 
 class MediaElement(MessageElement):
+    id: Optional[str]
     url: Optional[str] = None
     base64: Optional[str] = None
+
+    def __init__(
+        self,
+        id: Optional[str] = None,
+        url: Optional[str] = None,
+        *,
+        path: Optional[Union[Path, str]] = None,
+        base64: Optional[str] = None,
+        data_bytes: Optional[bytes] = None,
+        **kwargs,
+    ) -> None:
+        data = {}
+
+        for key, value in kwargs.items():
+            if key.lower().endswith("id"):
+                data["id"] = value
+
+        data["id"] = data["id"] if "id" in data else id
+        data["url"] = url
+        data["base64"] = base64
+        super().__init__(**data, **kwargs)
+        self.to_sendable(path, data_bytes)
 
     async def get_bytes(self) -> bytes:
         if self.url and not self.base64:
@@ -50,24 +72,6 @@ class MediaElement(MessageElement):
             self.base64 = str(b64encode(path.read_bytes()), encoding='utf-8')
         elif data_bytes:
             self.base64 = str(b64encode(data_bytes), encoding='utf-8')
-
-
-class Quote(MessageElement):
-    """表示消息中回复其他消息/用户的部分, 通常包含一个完整的消息链(`origin` 属性)"""
-    type: str = "Quote"
-    id: int
-    groupId: int
-    senderId: int
-    targetId: int
-    origin: "MessageChain"
-
-    @validator("origin", pre=True, allow_reuse=True)
-    def _(cls, v):
-        from .chain import MessageChain
-        return MessageChain(v)
-
-    def to_serialization(self) -> str:
-        return f"[mirai:Quote:{{\"id\":{self.id},\"origin\":{self.origin}}}]"
 
 
 class Text(MessageElement):
@@ -118,25 +122,9 @@ class AtAll(MessageElement):
 
 class Voice(MediaElement):
     type = "Voice"
-    voiceId: Optional[str]
-    length: Optional[int]
+    id: Optional[str] = Field(None, alias="voiceId")
 
-    def __init__(
-            self,
-            voiceId: Optional[str] = None,
-            url: Optional[str] = None,
-            path: Optional[Union[Path, str]] = None,
-            base64: Optional[str] = None,
-            data_bytes: Optional[bytes] = None,
-            **kwargs
-    ):
-        super().__init__(
-            voiceId=voiceId,
-            url=url,
-            base64=base64,
-            **kwargs
-        )
-        self.to_sendable(path, data_bytes)
+    length: Optional[int]
 
     def to_text(self) -> str:
         return "[语音]"
@@ -145,27 +133,7 @@ class Voice(MediaElement):
 class Image(MediaElement):
     """该消息元素用于承载消息中所附带的图片."""
     type = "Image"
-    imageId: Optional[str] = None
-    url: Optional[str] = None
-    base64: Optional[str] = None
-
-    def __init__(
-            self,
-            imageId: Optional[str] = None,
-            url: Optional[str] = None,
-            path: Optional[Union[Path, str]] = None,
-            base64: Optional[str] = None,
-            data_bytes: Optional[bytes] = None,
-            **kwargs
-    ):
-        super().__init__(
-            imageId=imageId,
-            url=url,
-            base64=base64,
-            **kwargs
-        )
-        self.to_sendable(path, data_bytes)
+    id: Optional[str] = Field(None, alias="imageId")
 
     def to_text(self) -> str:
         return "[图片]"
-

@@ -1,5 +1,5 @@
-from ....main.module import BaseModule, ModuleMetaComponent
-from ....builtin.mah import VERIFY_CODE
+from arclet.edoves.main.module import BaseModule, ModuleMetaComponent
+from .. import VERIFY_CODE
 
 
 class MessageModuleData(ModuleMetaComponent):

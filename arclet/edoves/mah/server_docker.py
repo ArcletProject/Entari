@@ -1,22 +1,26 @@
 import asyncio
 import json
 from asyncio import Event
-from typing import Optional, Union, Dict, Any, Tuple
+from typing import Optional, Union, Dict, Any, Tuple, TYPE_CHECKING
 from aiohttp import FormData, WSMsgType
-from ...main.server_docker import BaseServerDocker, DockerBehavior, BaseDockerMetaComponent
-from ...utilles.logger import Logger
-from ...utilles import error_check, DatetimeEncoder, IOStatus
-from ...main.network import NetworkStatus
-from ...utilles.security import MIRAI_API_HTTP_DEFAULT
-from ..client import AioHttpClient, AiohttpWSConnection
-from .protocol import MAHProtocol
-from ..event.network import DockerOperate
+from arclet.edoves.main.server_docker import BaseServerDocker, DockerBehavior, BaseDockerMetaComponent
+from arclet.edoves.main.network import NetworkStatus
+from arclet.edoves.main.utilles import error_check, DatetimeEncoder, IOStatus
+from arclet.edoves.main.utilles.logger import Logger
+from arclet.edoves.main.utilles.security import MIRAI_API_HTTP_DEFAULT
+from arclet.edoves.builtin.medium import DictMedium
+from arclet.edoves.builtin.client import AiohttpClient, AiohttpWSConnection
+from arclet.edoves.builtin.event.network import DockerOperate
+
+
+if TYPE_CHECKING:
+    from .protocol import MAHProtocol
 
 
 class MAHDockerMeta(BaseDockerMetaComponent):
-    protocol: MAHProtocol
+    protocol: "MAHProtocol"
     verify_code: str = MIRAI_API_HTTP_DEFAULT
-    session: AioHttpClient
+    session: AiohttpClient
     session_key: str = None
 
 
@@ -34,8 +38,13 @@ class MAHBehavior(DockerBehavior):
             while not operate.content.get("start"):
                 await asyncio.sleep(0.01)
             self.start_ev.set()
-            self.data.protocol.scene.edoves.logger.info("MAHServerDocker start!")
+            self.data.protocol.scene.edoves.logger.info(
+                f"{self.data.protocol.scene.scene_name}: MAHServerDocker start!"
+            )
             self.data.state = NetworkStatus.CONNECTING
+            while self.data.state != NetworkStatus.CONNECTED:
+                await asyncio.sleep(0.01)
+            self.data.protocol.set_call(operate.mid, True)
 
         def quit_listen(operate: MAHDockerMeta.medium_type):
             if operate.content.get('stop'):
@@ -44,7 +53,7 @@ class MAHBehavior(DockerBehavior):
         self.io.add_handler(DockerOperate, wait_start, quit_listen)
 
     async def connect(self):
-        self.logger.info("MAHServerDocker connecting...")
+        self.logger.info(f"{self.data.protocol.scene.scene_name}: MAHServerDocker connecting...")
         async with self.data.session.ensure_network(
                 self.data.protocol.config.url(
                     "all",
@@ -53,7 +62,7 @@ class MAHBehavior(DockerBehavior):
                 )
         ) as resp:
             self.ws_conn = resp
-            self.logger.info("MAHServerDocker connected.")
+            self.logger.info(f"{self.data.protocol.scene.scene_name}: MAHServerDocker connected.")
             self.data.state = NetworkStatus.CONNECTED
 
     async def start(self):
@@ -62,17 +71,17 @@ class MAHBehavior(DockerBehavior):
         retry_count = 0
         while self.data.state in (NetworkStatus.CONNECTING, NetworkStatus.RETRYING):
             if retry_count >= self.data.protocol.scene.config.ensure_retries:
-                self.logger.warning("MAHServerDocker connect failed")
+                self.logger.warning(f"{self.data.protocol.scene.scene_name}: MAHServerDocker connect failed")
                 raise TimeoutError
             try:
                 try:
                     await self.connect()
                 except Exception as e:
-                    self.logger.warning(e)
+                    self.logger.warning(f"{self.data.protocol.scene.scene_name}: {e}")
                     await self.quit()
-                    self.logger.warning("MAHServerDocker stopped")
+                    self.logger.warning(f"{self.data.protocol.scene.scene_name}: MAHServerDocker stopped")
                     await asyncio.sleep(5.0)
-                    self.logger.info("MAHServerDocker restarting...")
+                    self.logger.info(f"{self.data.protocol.scene.scene_name}: MAHServerDocker restarting...")
                     self.data.state = NetworkStatus.RETRYING
                     retry_count += 1
             except asyncio.CancelledError:
@@ -86,14 +95,14 @@ class MAHBehavior(DockerBehavior):
             self.data.state = NetworkStatus.TIMEOUT
             try:
                 try:
-                    self.logger.debug("websocket: trying ping...")
+                    self.logger.debug(f"{self.data.protocol.scene.scene_name}: WSConnection trying ping...")
                     await self.ws_conn.ping()
                 except Exception as e:
-                    self.logger.exception(f"websocket: ping failed: {e!r}")
+                    self.logger.exception(f"{self.data.protocol.scene.scene_name}: WSConnection ping failed: {e!r}")
                 else:
                     return
             except asyncio.CancelledError:
-                self.logger.warning("websocket: cancelled, stop")
+                self.logger.warning(f"{self.data.protocol.scene.scene_name}: WSConnection cancelled, stop")
                 self.data.state = IOStatus.CLOSE_WAIT
         else:
             if ws_message.type is WSMsgType.TEXT:
@@ -101,10 +110,18 @@ class MAHBehavior(DockerBehavior):
                 if self.data.session_key:
                     try:
                         error_check(received_data['data'])
-                        await self.data.protocol.set_medium(received_data.get('data'))
-                        await self.data.protocol.parse_raw_data()
+                        await self.data.protocol.push_medium(
+                            DictMedium().create(
+                                self.data.protocol.scene.protagonist,
+                                received_data.get('data'),
+                                "DataReceived"
+                            )
+                        )
+                        await self.data.protocol.data_parser_dispatch("get")
                     except Exception as e:
-                        self.logger.exception(f"receive_data has error {e}")
+                        self.logger.error(
+                            f"{self.data.protocol.scene.scene_name}: WSConnection's data has error {e}"
+                        )
                 else:
                     if not received_data['syncId']:
                         data = received_data['data']
@@ -112,25 +129,34 @@ class MAHBehavior(DockerBehavior):
                             error_check(data)
                         self.data.session_key = data.get("session")
             elif ws_message.type is WSMsgType.CLOSE:
-                self.logger.info("websocket: server close connection.")
+                self.logger.info(f"{self.data.protocol.scene.scene_name}: server close WSConnection.")
                 self.data.state = IOStatus.CLOSE_WAIT
                 return
             elif ws_message.type is WSMsgType.CLOSED:
-                self.logger.info("websocket: connection has been closed.")
+                self.logger.info(
+                    f"{self.data.protocol.scene.scene_name}: WSConnection has been closed."
+                )
                 self.data.state = IOStatus.CLOSED
                 return
             elif ws_message.type is WSMsgType.PONG:
-                self.logger.debug("websocket: received pong from remote")
+                self.logger.debug(
+                    f"{self.data.protocol.scene.scene_name}: WSConnection received pong from remote"
+                )
             elif ws_message.type == WSMsgType.ERROR:
-                self.logger.warning("websocket: connection error: " + ws_message.data)
+                self.logger.warning(
+                    f"{self.data.protocol.scene.scene_name}: WSConnection error: " + ws_message.data
+                )
             else:
-                self.logger.warning(f"detected a unknown message type: {ws_message.type}")
+                self.logger.warning(
+                    f"{self.data.protocol.scene.scene_name}: "
+                    f"WSConnection detected a unknown message type: {ws_message.type}"
+                )
 
     async def quit(self):
         try:
             await self.ws_conn.close()
             await self.data.session.close()
-            self.logger.info("connection disconnected")
+            self.logger.info(f"{self.data.protocol.scene.scene_name}: WSConnection disconnected")
         except AttributeError:
             return
 
@@ -143,7 +169,7 @@ class MAHBehavior(DockerBehavior):
     ):
         content = content or {}
         if not self.data.session:
-            raise RuntimeError("Unable to get session!")
+            raise RuntimeError(f"{self.data.protocol.scene.scene_name}: Unable to get session!")
 
         if method in ("GET", "get"):
             if isinstance(content, str):
@@ -153,7 +179,7 @@ class MAHBehavior(DockerBehavior):
             ) as response:
                 resp_json: dict = await response.read_json()
 
-        elif method in ("POST", "Update"):
+        elif method in ("POST", "Update", "post"):
             if not isinstance(content, str):
                 content = json.dumps(content, cls=DatetimeEncoder)
             async with self.data.session.post(
@@ -190,3 +216,4 @@ class MAHBehavior(DockerBehavior):
 class MAHServerDocker(BaseServerDocker):
     prefab_metadata = MAHDockerMeta
     prefab_behavior = MAHBehavior
+    metadata: MAHDockerMeta

@@ -1,6 +1,6 @@
 from typing import List, Any
 
-from ..utilles.event_filter import EventFilter, EdovesBasicEvent
+from ..main.utilles.event_filter import EventFilter, EdovesBasicEvent
 
 
 class MediumTypeLimit(EventFilter):

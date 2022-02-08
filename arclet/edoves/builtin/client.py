@@ -77,7 +77,7 @@ class AiohttpWSConnection(NetworkConnection):
         await self.response.close(code=code, message=message)
 
 
-class AioHttpClient(NetworkClient):
+class AiohttpClient(NetworkClient):
     session: ClientSession
 
     def __init__(self):

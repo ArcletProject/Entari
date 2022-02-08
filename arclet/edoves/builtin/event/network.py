@@ -1,10 +1,10 @@
 from ...main.event import EdovesBasicEvent
-from ..medium import JsonMedium
+from ..medium import DictMedium
 
 
 class DockerOperate(EdovesBasicEvent):
-    medium: JsonMedium
+    medium: DictMedium
 
 
 class DockerStart(EdovesBasicEvent):
-    medium: JsonMedium
+    medium: DictMedium

@@ -3,10 +3,11 @@ import json as JSON
 
 from ..main.typings import TData
 from ..main.medium import BaseMedium, Monomer
-from ..message.chain import MessageChain, MessageElement
+from ..main.message.chain import MessageChain, MessageElement
 
 
-class JsonMedium(BaseMedium):
+class DictMedium(BaseMedium):
+    """基础的Medium，用于存储字典数据。"""
     content: Dict[str, TData]
 
     def json_loads(self, json: Union[dict, str]):
@@ -22,27 +23,20 @@ class Message(BaseMedium):
 
     __metadata__ = [*BaseMedium.__metadata__, "id"]
 
-    def __init__(
-            self,
-            *elements: Union[Iterable[MessageElement], MessageElement, str],
-            target: Monomer = None
-    ):
+    def __init__(self, *elements: Union[Iterable[MessageElement], MessageElement, str], target: Monomer = None):
+        super().__init__()
         self.id = ""
         self.content = MessageChain.create(*elements)
         self.purveyor = target
         self.type = "Message"
 
-    def create(self, purveyor: Monomer, content: MessageChain, medium_type: Optional[str] = None, **kwargs):
-        super(Message, self).create(purveyor, content, medium_type, **kwargs)
-        self.id = str(self.content.find("Source").id)
-        self.content.remove("Source")
-        return self
-
     def set(self, *elements: Union[Iterable[MessageElement], MessageElement, str]):
         self.content = MessageChain.create(*elements)
         return self
 
-    async def send(self):
+    async def send(self, target: Optional[Union[int, str, Monomer]] = None):
+        if target:
+            return await self.action("send_with")(self, target)
         return await self.action("send_with")(self)
 
 

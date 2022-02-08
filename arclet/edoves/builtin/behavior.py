@@ -1,97 +1,144 @@
+from typing import Optional, Union
 from ..main.monomer import BaseMonoBehavior, Monomer
-from ..main.protocol import NetworkProtocol, MonomerProtocol
-from .medium import Message, Request
+from ..main.protocol import AbstractProtocol
+from .medium import Message, Request, DictMedium
 
 
 class MiddlewareBehavior(BaseMonoBehavior):
-    n_protocol: NetworkProtocol
-    m_protocol: MonomerProtocol
+    protocol: AbstractProtocol
 
     def activate(self):
-        self.n_protocol = self.io.metadata.protocol.scene.network_protocol
-        self.m_protocol = self.io.metadata.protocol
+        self.protocol = self.io.metadata.protocol
 
-    async def revoke(self, medium: Message, target: int = None):
-        await self.m_protocol.set_medium(
-            {
-                "target": target if target else medium.id
-            }
+    async def revoke(self, medium: Message, target_message_id: int = None):
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "target": target_message_id if target_message_id else medium.id
+                },
+                "MessageRevoke"
+            )
         )
-        await self.n_protocol.medium_transport("message_revoke")
+        await self.protocol.data_parser_dispatch("post")
 
-    async def nudge(self, target: str, **rest):
-        await self.m_protocol.set_medium(
-            {
-                "target": target,
-                "rest": rest
-            }
+    async def nudge(self, target: Union[str, Monomer], **rest):
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "target": target if isinstance(target, str) else target.metadata.identifier,
+                    "rest": rest
+                },
+                "NudgeSend"
+            )
         )
-        await self.n_protocol.medium_transport("nudge_send")
+        await self.protocol.data_parser_dispatch("post")
 
-    async def send_with(self, medium: Message, reply: bool = False, nudge: bool = False, **rest):
+    async def send_with(
+            self,
+            medium: Message,
+            target: Optional[Monomer] = None,
+            reply: bool = False,
+            nudge: bool = False,
+            **rest
+    ):
+        target = target or medium.purveyor
         if nudge:
-            await self.nudge(medium.purveyor.metadata.identifier, **rest)
+            await self.nudge(target.metadata.identifier, **rest)
 
-        await self.m_protocol.set_medium(
-            {
-                "target": medium.purveyor.metadata.identifier,
-                "reply": reply,
-                "content": medium.content.replace_type("Text", "Plain").to_sendable(),
-                "rest": rest
-            }
+        resp = await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "target": target.metadata.identifier,
+                    "reply": reply,
+                    "content": medium.content.replace_type("Text", "Plain").to_sendable().dict()["__root__"],
+                    "rest": rest
+                },
+                "MessageSend"
+            )
         )
-        resp_data = await self.n_protocol.medium_transport("message_send")
-        return resp_data.get('messageId')
+        await self.protocol.data_parser_dispatch("post")
+        resp_data: DictMedium = await resp.wait_response()
+        self.protocol.scene.edoves.logger.info(
+            f"{self.protocol.scene.protagonist.metadata.identifier}: "
+            f"{resp_data.type}({resp_data.content['id']})"
+            f" <- {medium.content.to_text()}"
+        )
+        return resp_data.content.get('messageId')
 
     async def request_accept(self, medium: Request, msg: str = None):
-        await self.m_protocol.set_medium(
-            {
-                "event": medium.type,
-                "operate": 0,
-                "eventId": medium.event,
-                "msg": msg,
-                "content": medium.content
-            }
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "event": medium.type,
+                    "operate": 0,
+                    "eventId": medium.event,
+                    "msg": msg,
+                    "content": medium.content
+                },
+                "Accept"
+            )
         )
-        await self.n_protocol.medium_transport("accept")
+        await self.protocol.data_parser_dispatch("post")
 
     async def request_reject(self, medium: Request, msg: str = None):
-        await self.m_protocol.set_medium(
-            {
-                "event": medium.type,
-                "operate": 1,
-                "eventId": medium.event,
-                "msg": msg,
-                "content": medium.content
-            }
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "event": medium.type,
+                    "operate": 1,
+                    "eventId": medium.event,
+                    "msg": msg,
+                    "content": medium.content
+                },
+                "Reject"
+            )
         )
-        await self.n_protocol.medium_transport("reject")
+        await self.protocol.data_parser_dispatch("post")
 
-    async def relationship_remove(self, target: Monomer):
-        await self.m_protocol.set_medium(
-            {
-                "relationship": target.prime_tag,
-                "target": target,
-            }
+    async def relationship_remove(self, target: Union[str, Monomer],  relationship: str = None):
+        target = await self.relationship_get(target, relationship) if isinstance(target, str) else target
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "relationship": target.prime_tag,
+                    "target": target,
+                },
+                "RelationshipRemove"
+            )
         )
-        await self.n_protocol.medium_transport("relationship_remove")
+        await self.protocol.data_parser_dispatch("post")
 
     async def relationship_get(self, target: str, relationship: str, **rest):
-        await self.m_protocol.set_medium(
-            {
-                "relationship": relationship,
-                "target": target,
-                "rest": rest
-            }
+        resp = await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "relationship": relationship,
+                    "target": target,
+                    "rest": rest
+                },
+                "RelationshipGet"
+            )
         )
-        return await self.n_protocol.medium_transport("relationship_get")
+        await self.protocol.data_parser_dispatch("post")
+        return await resp.wait_response()
 
     async def change_monomer_status(self, target: Monomer, status: str, **rest):
-        await self.m_protocol.set_medium(
-            {
-                "target": target,
-                "status": status,
-                "rest": rest,
-            }
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "target": target,
+                    "status": status,
+                    "rest": rest,
+                },
+                "ChangeMonomerStatus"
+            )
         )
-        await self.n_protocol.medium_transport("change_monomer_status")
+        await self.protocol.data_parser_dispatch("post")

@@ -1,4 +1,5 @@
 from random import Random
+import re
 
 UNKNOWN = "17156595"
 UNDEFINED = "30502508"
@@ -26,3 +27,10 @@ class VerifyCodeChecker(type):
         if not cls.__dict__.get("verify_code"):
             raise ValueError
         super().__init__(name, bases, dic)
+
+
+def check_scene(scene: str):
+    if scene == "":
+        raise ValueError("Scene的名字不能为空")
+    if re.match(r"^[-`~?/.,<>;\':\"|!@#$%^&*()_+=\[\]}{]+.*$", scene):
+        raise ValueError("该Scene的名字含有非法字符")

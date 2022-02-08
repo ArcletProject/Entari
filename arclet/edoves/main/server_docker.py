@@ -4,17 +4,16 @@ from abc import abstractmethod
 from aiohttp import FormData
 
 from .network import NetworkClient, HTTP_METHODS, NetworkStatus
-from ..builtin.medium import JsonMedium
-from .typings import TNProtocol
+from ..builtin.medium import DictMedium
+from .typings import TProtocol
 from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
-from ..utilles import IOStatus
-from ..utilles.security import UNKNOWN
+from .utilles import IOStatus
+from .utilles.security import UNKNOWN
 
 
 class BaseDockerMetaComponent(ModuleMetaComponent):
     io: "BaseServerDocker"
-    protocol: TNProtocol
-    medium_type: Type[JsonMedium] = JsonMedium
+    medium_type: Type[DictMedium] = DictMedium
     session: NetworkClient
     verify_code: str = UNKNOWN
     state: Union[IOStatus, NetworkStatus]
@@ -55,12 +54,14 @@ class DockerBehavior(ModuleBehavior):
             raise NotImplementedError
 
 
-class BaseServerDocker(BaseModule, Generic[TNProtocol]):
+class BaseServerDocker(BaseModule):
     prefab_metadata = BaseDockerMetaComponent
     prefab_behavior = DockerBehavior
+    behavior: DockerBehavior
+    metadata: BaseDockerMetaComponent
 
-    def __init__(self, protocol: TNProtocol, client: NetworkClient):
+    def __init__(self, protocol: TProtocol, client: NetworkClient):
         super().__init__(protocol)
         data = self.get_component(BaseDockerMetaComponent)
-        data.state = IOStatus.MEDIUM_WAIT
+        data.state = IOStatus.MEDIUM_GET_WAIT
         data.session = client

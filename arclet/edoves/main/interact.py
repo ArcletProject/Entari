@@ -1,8 +1,8 @@
 from inspect import isclass
-from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List
+from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List, Callable, Coroutine
 from .component import Component, MetadataComponent
 from .behavior import BaseBehavior
-from ..utilles import IOStatus
+from .utilles import IOStatus
 
 TC = TypeVar("TC", bound=Component)
 
@@ -37,10 +37,13 @@ class InteractiveObject(metaclass=InteractiveMeta):
     __ignore__ = ["_components", "relation"]
 
     def __new__(cls, *args, **kwargs):
+        __anno = {}
+        for a in [m.__annotations__ for m in cls.__mro__[-2::-1]]:
+            __anno.update(a)
         for __k in cls.__slots__:
             if __k in cls.__ignore__:
                 continue
-            if not issubclass(cls.__annotations__[__k], Component):
+            if not issubclass(__anno[__k], Component):
                 raise ValueError
         return super().__new__(cls)
 
@@ -66,6 +69,10 @@ class InteractiveObject(metaclass=InteractiveMeta):
     def add_tags(self, *tag: str):
         """为该IO添加tag"""
         self.metadata.add_tags(tag)
+
+    def remove_tags(self, *tag: str):
+        """移除该IO的tag"""
+        self.metadata.remove_tags(tag)
 
     def set_prime_tag(self, tag: str):
         """设置首要tag"""
@@ -162,6 +169,12 @@ class InteractiveObject(metaclass=InteractiveMeta):
         for __i in self.relation['children'].values():
             if __c := __i.get_component(__t):
                 return __c
+
+    def action(self, method_name: str) -> Callable[..., Coroutine]:
+        for func in [getattr(c, method_name, None) for c in self.all_components]:
+            if not func:
+                continue
+            return func
 
     def __getattr__(self, item):
         if item in self.__ignore__:

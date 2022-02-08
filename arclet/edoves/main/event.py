@@ -13,6 +13,7 @@ class EdovesBasicEvent(StructuredEvent):
         return self.param_export(
             edoves=ctx_edoves.get(),
             module=ctx_module.get(),
+            protocol=self.medium.purveyor.metadata.protocol,
             **{self.medium.__class__.__name__: self.medium},
             **self.medium_vars()
         )

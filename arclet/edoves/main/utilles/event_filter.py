@@ -1,5 +1,5 @@
 from arclet.letoderea.entities.condition import EventCondition, abstractmethod
-from ..main.event import EdovesBasicEvent
+from ..event import EdovesBasicEvent
 
 
 class EventFilter(EventCondition):

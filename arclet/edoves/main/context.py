@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Generic, Union, TypeVar, TYPE_CHECKING
 
-from arclet.edoves.utilles import T
+from arclet.edoves.main.utilles import T
 
 D = TypeVar("D")
 

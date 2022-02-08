@@ -1,9 +1,10 @@
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from .component import Component
 
 if TYPE_CHECKING:
     from .interact import InteractiveObject
+    from .medium import BaseMedium
 
 
 class BaseBehavior(Component, metaclass=ABCMeta):
@@ -18,6 +19,16 @@ class BaseBehavior(Component, metaclass=ABCMeta):
             await self.on_enable()
         else:
             await self.on_disable()
+
+    async def handler_medium(
+            self,
+            medium: Optional["BaseMedium"] = None,
+            medium_type: Optional["BaseMedium"] = None,
+            **kwargs
+    ):
+        if not medium:
+            await self.io.metadata.protocol.get_medium(medium_type, **kwargs)
+        pass
 
     @abstractmethod
     def activate(self):

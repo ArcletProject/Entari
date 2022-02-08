@@ -5,8 +5,8 @@ from typing import Callable, Dict, Type
 from .event.message import MessageReceived
 from .medium import Message
 from ..main.module import BaseModule, ModuleMetaComponent, Component
-from ..main.typings import TMProtocol
-from ..utilles.security import EDOVES_DEFAULT
+from ..main.typings import TProtocol
+from ..main.utilles.security import EDOVES_DEFAULT
 
 
 class CommandParser:
@@ -62,7 +62,7 @@ class Commander(BaseModule):
 
     __slots__ = ["command_parsers"]
 
-    def __init__(self, protocol: TMProtocol):
+    def __init__(self, protocol: TProtocol):
         super().__init__(protocol)
         self.command_parsers = CommandParsers(self)
         if self.local_storage.get(self.__class__):
@@ -79,7 +79,8 @@ class Commander(BaseModule):
                             **result.all_matched_args,
                             "message": message,
                             "sender": message.purveyor,
-                            "edoves": module.metadata.protocol.scene.edoves
+                            "edoves": module.metadata.protocol.scene.edoves,
+                            "scene": module.metadata.protocol.scene
                         }
                     )
                     break
