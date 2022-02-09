@@ -3,4 +3,5 @@ pydantic>=1.8.2
 yarl
 loguru
 arclet-letoderea>=0.2.6
-arclet-alconna>=0.5.7
+arclet-alconna>=0.5.8
+importlib-metadata

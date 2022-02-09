@@ -26,13 +26,17 @@ pip install --upgrade arclet-edoves
 + 主要部分
     - [x] `InteractiveObject`: 对`Unity3d`中`GameObject`的简易模仿
         - [x] `Monomer`: 代表逻辑关系的IO
+          - [ ] `PremissonGroup` 存储权限相关信息
         - [x] `Module`: 负责处理事件的IO
             - [x] `ServerDocker`: 负责网络会话交互
             - [x] `Commander`: 基于 `Arclet Alconna` 的指令触发系统
+        - [x] `DataParser`: 负责低层级的数据处理
     - [x] `Component`: IO的主要属性, 负责实际的数据管理与事件响应
     - [x] `Medium`: 传输事件信息的载体
-    - [x] `Protocol`: 调度`Medium`与`IO`
-    - [x] `Scene`: 对IO统一的生命周期管理, 间接支持多账号
+    - [x] `Protocol`: 作为数据源与IO的转接层, 负责数据解析与`Medium`的调度
+    - [x] `Scene`: 对IO统一的生命周期管理, 是多账号功能的实现
+    - [x] `Server`: 对IO的管理, 包括`Scene`的管理
+    - [ ] `Premission`: 权限管理
 + 杂项
     - [x] `NetworkClient`: 对网络端的抽象处理
     - [x] `Filter`: 对事件内容的限制操作
@@ -67,7 +71,7 @@ app = Edoves(
         )
     }
 )
-app["MAH-default"].activate_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
+app["MAH-default"].require_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
 app.run()
 ```
 
