@@ -27,7 +27,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
             DictMedium().create(
                 self.io,
                 {
-                    "target": target if isinstance(target, str) else target.metadata.identifier,
+                    "target": target if isinstance(target, str) else target.metadata.pure_id,
                     "rest": rest
                 },
                 "NudgeSend"
@@ -45,15 +45,15 @@ class MiddlewareBehavior(BaseMonoBehavior):
     ):
         target = target or medium.purveyor
         if nudge:
-            await self.nudge(target.metadata.identifier, **rest)
+            await self.nudge(target.metadata.pure_id, **rest)
 
         resp = await self.protocol.push_medium(
             DictMedium().create(
                 self.io,
                 {
-                    "target": target.metadata.identifier,
+                    "target": target.metadata.pure_id,
                     "reply": reply,
-                    "content": medium.content.replace_type("Text", "Plain").to_sendable().dict()["__root__"],
+                    "content": medium.content.to_sendable(),
                     "rest": rest
                 },
                 "MessageSend"
@@ -62,7 +62,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
         await self.protocol.data_parser_dispatch("post")
         resp_data: DictMedium = await resp.wait_response()
         self.protocol.scene.edoves.logger.info(
-            f"{self.protocol.scene.protagonist.metadata.identifier}: "
+            f"{self.protocol.scene.protagonist.metadata.pure_id}: "
             f"{resp_data.type}({resp_data.content['id']})"
             f" <- {medium.content.to_text()}"
         )
@@ -139,6 +139,20 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "rest": rest,
                 },
                 "ChangeMonomerStatus"
+            )
+        )
+        await self.protocol.data_parser_dispatch("post")
+
+    async def change_monomer_metadata(self, target: Monomer, meta: str, **rest):
+        await self.protocol.push_medium(
+            DictMedium().create(
+                self.io,
+                {
+                    "target": target,
+                    "meta": meta,
+                    "rest": rest,
+                },
+                "ChangeMonomerMetadata"
             )
         )
         await self.protocol.data_parser_dispatch("post")

@@ -5,11 +5,20 @@ from .behavior import BaseBehavior
 from .utilles import IOStatus
 
 TC = TypeVar("TC", bound=Component)
+TI = TypeVar("TI")
 
 
 class Relationship(TypedDict):
-    parents: Dict[str, "InteractiveObject"]
-    children: Dict[str, "InteractiveObject"]
+    parents: List[str]
+    children: List[str]
+
+
+class IOManager:
+    storage: Dict[str, "InteractiveObject"] = {}
+
+    @classmethod
+    def filter(cls, item: Type[TI]) -> List[TI]:
+        return [i for i in cls.storage.values() if isinstance(i, item)]
 
 
 class InteractiveMeta(type):
@@ -53,7 +62,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
             behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None
     ):
         self._components = {}
-        self.relation = {"parents": {}, "children": {}}
+        self.relation = {"parents": [], "children": []}
         self.metadata = (
             metadata(self) if isclass(metadata) else metadata
         ) if metadata else self.prefab_metadata(self)
@@ -61,6 +70,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
         self.behavior = (
             behavior(self) if isclass(behavior) else behavior
         ) if behavior else self.prefab_behavior(self)
+        IOManager.storage[self.metadata.identifier] = self
 
     def compare(self, *tag: str):
         """对比输入的tag是否存在于该IO的tags中"""
@@ -90,36 +100,51 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
     @property
     def parents(self):
-        return self.relation['parents']
+        return [IOManager.storage[i] for i in self.relation['parents']]
 
     @property
     def children(self):
-        return self.relation['children']
+        return [IOManager.storage[i] for i in self.relation['children']]
+
+    def get_parent(self, pure_identifier: str) -> Optional["InteractiveObject"]:
+        may_parent = IOManager.storage.get(f"{pure_identifier}@{self.metadata.protocol.identifier}")
+        if may_parent and may_parent.metadata.identifier in self.relation['parents']:
+            return may_parent
+
+    def get_child(self, pure_identifier: str) -> Optional["InteractiveObject"]:
+        may_child = IOManager.storage.get(f"{pure_identifier}@{self.metadata.protocol.identifier}")
+        if may_child and may_child.metadata.identifier in self.relation['children']:
+            return may_child
 
     def filter_parents(self, *tag):
         """根据tag来对该IO的父级IO过滤"""
-        return list(filter(lambda x: x.compare(*tag), self.parents.values()))
+        return list(filter(lambda x: x.compare(*tag), self.parents))
 
     def filter_children(self, *tag):
         """根据tag来对该IO的子级IO过滤"""
-        return list(filter(lambda x: x.compare(*tag), self.children.values()))
+        return list(filter(lambda x: x.compare(*tag), self.children))
 
     def set_parent(self, parent: "InteractiveObject"):
-        parent.relation['children'].setdefault(self.metadata.identifier, self)
-        self.relation['parents'].setdefault(parent.metadata.identifier, parent)
+        parent.relation['children'].append(self.metadata.identifier)
+        self.relation['parents'].append(parent.metadata.identifier)
+        self.relation['parents'] = list(set(self.relation['parents']))
+        parent.relation['children'] = list(set(parent.relation['children']))
 
     def set_child(self, child: "InteractiveObject"):
-        child.relation['parents'].setdefault(self.metadata.identifier, self)
-        self.relation['children'].setdefault(child.metadata.identifier, child)
+        child.relation['parents'].append(self.metadata.identifier)
+        self.relation['children'].append(child.metadata.identifier)
+        self.relation['children'] = list(set(self.relation['children']))
+        child.relation['parents'] = list(set(child.relation['parents']))
 
     def find_parent(self, *tag: str):
         p_table = set()
 
         def __parent_generator(parent: "InteractiveObject"):
-            for _i, _p in parent.parents.items():
+            for _i in parent.relation['parents']:
                 if _i in p_table:
                     continue
                 p_table.add(_i)
+                _p = IOManager.storage[_i]
                 yield _p
                 if _p.parents:
                     yield from __parent_generator(_p)
@@ -132,10 +157,11 @@ class InteractiveObject(metaclass=InteractiveMeta):
         c_table = set()
 
         def __child_generator(child: "InteractiveObject"):
-            for _i, _c in child.children.items():
+            for _i in child.relation['children']:
                 if _i in c_table:
                     continue
                 c_table.add(_i)
+                _c = IOManager.storage[_i]
                 yield _c
                 if _c.children:
                     yield from __child_generator(_c)
@@ -161,12 +187,12 @@ class InteractiveObject(metaclass=InteractiveMeta):
         return result
 
     def get_component_in_parent(self, __t: Union[str, Type[TC]]) -> TC:
-        for __i in self.relation['parents'].values():
+        for __i in self.parents:
             if __c := __i.get_component(__t):
                 return __c
 
     def get_component_in_children(self, __t: Union[str, Type[TC]]) -> TC:
-        for __i in self.relation['children'].values():
+        for __i in self.children:
             if __c := __i.get_component(__t):
                 return __c
 

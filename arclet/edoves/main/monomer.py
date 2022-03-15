@@ -1,12 +1,11 @@
 from abc import abstractmethod
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, List
 import inspect
 
 from .typings import TProtocol
-from .interact import InteractiveObject
+from .interact import InteractiveObject, IOManager
 from .component import MetadataComponent
 from .behavior import BaseBehavior
-from .action import ExecActionWrapper
 from .utilles import IOStatus
 
 
@@ -43,21 +42,17 @@ class Monomer(InteractiveObject):
             self,
             protocol: TProtocol,
             name: str,
-            identifier: Optional[Union[int, str]] = None,
+            identifier: Union[int, str],
             alias: Optional[str] = None,
 
     ):
         data = self.prefab_metadata(self)
         data.protocol = protocol
-        data.identifier = str(identifier) or ""
+        data.identifier = f"{identifier}@{protocol.identifier}"
         data.name = name
         data.alias = alias or ""
         super(Monomer, self).__init__(data)
         self.metadata.state = IOStatus.ESTABLISHED
-
-    @property
-    def execute(self):
-        return ExecActionWrapper(self)
 
     def __setstate__(self, state):
         f = inspect.currentframe()
@@ -65,7 +60,35 @@ class Monomer(InteractiveObject):
         self.__init__(
             lcs['self'].protocol,
             state['metadata']['name'],
-            state['metadata']['identifier'],
+            state['metadata']['identifier'].split("@")[0],
             state['metadata']['alias']
         )
         self.add_tags(*state['metadata']['tags'])
+
+
+class _EntitySelect:
+
+    def __getitem__(self, item) -> List["Monomer"]:
+        monomers: List["Monomer"] = IOManager.filter(Monomer)
+        conditions = []
+        slices = list(item) if not isinstance(item, slice) else [item]
+        for sl in slices:
+            key, value = sl.start, str(sl.stop)
+            if key in ("id", "uid", "identifier"):
+                def _(monomer: "Monomer", _value=value):
+                    return monomer.metadata.pure_id == _value
+            elif key == "tag":
+                def _(monomer: "Monomer", _value=value):
+                    return monomer.prime_tag == _value
+            elif key == "type":
+                def _(monomer: "Monomer", _value=value):
+                    return monomer.__class__.__name__ == _value
+            else:
+                def _(monomer: "Monomer", _key=key, _value=value):
+                    return getattr(monomer.metadata, _key, None) == _value
+
+            conditions.append(_)
+        return list(filter(lambda x: all([condition(x) for condition in conditions]), monomers))
+
+
+at_mono = _EntitySelect()

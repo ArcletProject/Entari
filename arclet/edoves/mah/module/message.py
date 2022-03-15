@@ -4,7 +4,7 @@ from .. import VERIFY_CODE
 
 class MessageModuleData(ModuleMetaComponent):
     verify_code = VERIFY_CODE
-    identifier = "BuiltinMessageModule"
+    name = "BuiltinMessageModule"
 
 
 class MessageModule(BaseModule):

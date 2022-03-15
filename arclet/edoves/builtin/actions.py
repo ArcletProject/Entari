@@ -19,11 +19,12 @@ class GetMonomer(ExecutiveAction):
         super().__init__("relationship_get")
 
     async def execute(self):
-        entity = self.target.metadata.protocol.storage.get(self.mono_id)
+        entity = self.target.metadata.protocol.scene.monomer_map.get(self.mono_id)
         if not entity:
             return await self.target.action(self.action)(
                 self.mono_id, self.rs, **self.rest
             )
+        entity.metadata.update_data("group_id", self.target.metadata.group_id)
         return entity
 
 
@@ -49,12 +50,11 @@ class MessageAction(ExecutiveAction):
 
     def __init__(self, action: str, message: Message):
         super().__init__(action)
-        self.target = message.purveyor
         self.data = message
 
     async def execute(self):
         return await self.target.action(self.action)(
-            self.data
+            self.data, target=self.target
         )
 
 

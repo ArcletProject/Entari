@@ -22,15 +22,15 @@ def generate_identifier(extremal_data_source_id: str):
 
 class VerifyCodeChecker(type):
     def __init__(cls, name, bases, dic):
-        if "verify_code" not in cls.__annotations__ or cls.__annotations__["verify_code"] != str:
-            raise ValueError
-        if not cls.__dict__.get("verify_code"):
-            raise ValueError
+        if "verify_code" not in cls.__annotations__:
+            raise ValueError("You must define 'verify_code' in your class")
+        if not cls.__dict__.get("verify_code") or not isinstance(cls.__dict__.get("verify_code"), str):
+            raise ValueError("verify_code must be a string")
         super().__init__(name, bases, dic)
 
 
-def check_scene(scene: str):
-    if scene == "":
+def check_name(name: str):
+    if name == "":
         raise ValueError("Scene的名字不能为空")
-    if re.match(r"^[-`~?/.,<>;\':\"|!@#$%^&*()_+=\[\]}{]+.*$", scene):
+    if re.match(r"^[-`~?/.,<>;\':\"|!@#$%^&*()_+=\[\]}{]+.*$", name):
         raise ValueError("该Scene的名字含有非法字符")

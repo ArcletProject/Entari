@@ -4,7 +4,6 @@ import traceback
 from asyncio import AbstractEventLoop
 
 import loguru
-import time
 
 
 def loguru_excepthook(cls, val, tb, *_, **__):
@@ -40,7 +39,7 @@ def replace_traceback(loop: AbstractEventLoop = None):
 
 
 info_format = (
-    '<green>{time:YYYY-MM-DD HH:mm:ss.SS}</green> | <level>{level: <8}</level> | '
+    '<green>{time:YYYY-MM-DD HH:mm:ss.S}</green> | <level>{level: <8}</level> | '
     '<cyan>{name}</cyan> - <level>{message}</level>'
 )
 debug_format = (
@@ -57,7 +56,7 @@ class Logger:
         self.logger.remove()
         self.logger.add(
             os.path.join(
-                os.getcwd(), 'logs', 'bot_running_log_' + time.strftime("%Y-%m-%d", time.localtime()) + '.log'
+                os.getcwd(), 'logs', 'edoves_latest.log'
             ),
             format=log_format,
             level=level,

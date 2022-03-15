@@ -160,9 +160,9 @@ class MessageChain(DataStructure):
             MessageChain: 新的消息链
         """
         new_message = MessageChain(self.__root__)
-        from arclet.cesloi.message.element import Plain
+        from .element import Text
         for ele in new_message:
-            if isinstance(ele, Plain):
+            if isinstance(ele, Text):
                 ele.text = ele.text.replace(old_text, new_text, counts)
         return new_message
 
@@ -280,6 +280,9 @@ class MessageChain(DataStructure):
             self.__root__ += other
             return self
 
+    def __str__(self):
+        return self.to_text()
+
     def __repr__(self) -> str:
         return fr"MessageChain({repr(self.__root__)})"
 
@@ -297,7 +300,7 @@ class MessageChain(DataStructure):
         是否包含特定元素类型/字符串
         """
         if isinstance(item, str):
-            return item in self.find("Plain").to_text()
+            return item in self.find("Text").to_text()
         else:
             return self.has(item)
 

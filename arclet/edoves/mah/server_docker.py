@@ -120,7 +120,7 @@ class MAHBehavior(DockerBehavior):
                         await self.data.protocol.data_parser_dispatch("get")
                     except Exception as e:
                         self.logger.error(
-                            f"{self.data.protocol.scene.scene_name}: WSConnection's data has error {e}"
+                            f"{self.data.protocol.scene.scene_name}: WSConnection's data has error: {e}"
                         )
                 else:
                     if not received_data['syncId']:
@@ -128,6 +128,7 @@ class MAHBehavior(DockerBehavior):
                         if data['code']:
                             error_check(data)
                         self.data.session_key = data.get("session")
+                        await self.data.protocol.ensure_self()
             elif ws_message.type is WSMsgType.CLOSE:
                 self.logger.info(f"{self.data.protocol.scene.scene_name}: server close WSConnection.")
                 self.data.state = IOStatus.CLOSE_WAIT
@@ -191,7 +192,7 @@ class MAHBehavior(DockerBehavior):
             if isinstance(content, FormData):
                 form = content
             elif isinstance(content, dict):
-                form = FormData()
+                form = FormData(quote_fields=False)
                 for k, v in content.items():
                     v: Union[str, bytes, Tuple[Any, dict]]
                     if isinstance(v, tuple):

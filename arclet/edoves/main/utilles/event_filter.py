@@ -1,10 +1,9 @@
-from arclet.letoderea.entities.condition import EventCondition, abstractmethod
+from arclet.letoderea.entities.auxiliary import BaseAuxiliary
+from typing import Type
 from ..event import EdovesBasicEvent
 
 
-class EventFilter(EventCondition):
+class EventFilter(BaseAuxiliary):
     """用以对传入的事件进行预处理, 比如限定medium内容"""
-
-    @abstractmethod
-    def judge(self, event: EdovesBasicEvent) -> bool:
-        ...
+    target_event: Type[EdovesBasicEvent]
+    pass

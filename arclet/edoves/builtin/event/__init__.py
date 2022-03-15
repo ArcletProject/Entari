@@ -1,6 +1,6 @@
 from ...main.event import EdovesBasicEvent
 from ..medium import Request
-from .message import MessageReceived, MessageRevoke
+from .message import MessageReceived, MessageRevoked
 from .network import DockerOperate
 from .lifecycle import StartRunning, StopRunning
 from .notice import NoticeMe, MonomerStatusUpdate, MonomerMetadataUpdate, RelationshipSetup, RelationshipSevered, \

@@ -9,8 +9,9 @@ class MediumTypeLimit(EventFilter):
     def __init__(self, type: str):
         self.mtype = type
 
-    def judge(self, event: EdovesBasicEvent) -> bool:
-        return any([event.medium.type == self.mtype, event.__class__.__name__ == self.mtype])
+        @self.set_aux("before_parse", "judge")
+        def judge(event: EdovesBasicEvent) -> bool:
+            return any([event.medium.type == self.mtype, event.__class__.__name__ == self.mtype])
 
 
 class MonomerTagLimit(EventFilter):
@@ -19,10 +20,11 @@ class MonomerTagLimit(EventFilter):
     def __init__(self, *monomer_tag: str):
         self.tags = list(monomer_tag)
 
-    def judge(self, event: EdovesBasicEvent) -> bool:
-        if len(self.tags) > 1:
-            return event.medium.purveyor.compare(*self.tags)
-        return event.medium.purveyor.prime_tag == self.tags[0]
+        @self.set_aux("before_parse", "judge")
+        def judge(event: EdovesBasicEvent) -> bool:
+            if len(self.tags) > 1:
+                return event.medium.purveyor.compare(*self.tags)
+            return event.medium.purveyor.prime_tag == self.tags[0]
 
 
 class MonomerMetaLimit(EventFilter):
@@ -34,10 +36,11 @@ class MonomerMetaLimit(EventFilter):
             self.path.insert(0, '')
         self.value = value
 
-    def judge(self, event: EdovesBasicEvent) -> bool:
-        if self.path[0] == '':
-            return event.medium.purveyor.__getattribute__(self.path[1]) == self.value
-        if self.path[0] == 'metadata':
-            return event.medium.purveyor.metadata.__getitem__(self.path[1]) == self.value
-        if self.path[0] == 'behavior':
-            return event.medium.purveyor.behavior.__getitem__(self.path[1]) == self.value
+        @self.set_aux("before_parse", "judge")
+        def judge(event: EdovesBasicEvent) -> bool:
+            if self.path[0] == '':
+                return event.medium.purveyor.__getattribute__(self.path[1]) == self.value
+            if self.path[0] == 'metadata':
+                return event.medium.purveyor.metadata.__getitem__(self.path[1]) == self.value
+            if self.path[0] == 'behavior':
+                return event.medium.purveyor.behavior.__getitem__(self.path[1]) == self.value

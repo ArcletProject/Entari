@@ -1,18 +1,20 @@
 import asyncio
 import importlib
+from contextlib import contextmanager
 from inspect import isclass, getmembers
 import shelve
 from os import PathLike
 from pathlib import Path
-from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, Coroutine
+from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, Coroutine, List
 from .monomer import MonoMetaComponent, Monomer
+from .context import current_scene
 from ..builtin.behavior import MiddlewareBehavior
 from ..builtin.medium import DictMedium
 from .utilles import IOStatus, SceneStatus
 from .typings import TProtocol, TConfig
 from .exceptions import ValidationFailed
 from .module import BaseModule
-from .interact import InteractiveObject
+from .interact import InteractiveObject, IOManager
 
 TMde = TypeVar("TMde", bound=BaseModule)
 
@@ -37,7 +39,7 @@ class EdovesMainBehavior(MiddlewareBehavior):
         await connected.wait_response()
 
     def activate(self):
-        self.io.metadata.protocol.scene.monomers.setdefault(self.io.metadata.identifier, self.io)
+        self.io.metadata.protocol.scene.monomers.append(self.io.metadata.pure_id)
         self.loop = self.io.metadata.protocol.scene.edoves.event_system.loop
         self.io.add_tags("bot", self.io.metadata.protocol.source_information.name, "app")
 
@@ -53,8 +55,8 @@ class EdovesScene(Generic[TProtocol]):
     edoves: "Edoves"
     protocol: TProtocol
     config: TConfig
-    modules: Dict[str, BaseModule]
-    monomers: Dict[str, Monomer]
+    modules: List[str]
+    monomers: List[str]
     status: SceneStatus
 
     def __init__(
@@ -63,15 +65,16 @@ class EdovesScene(Generic[TProtocol]):
             edoves: "Edoves",
             config: TConfig
     ):
-        self.modules = {}
-        self.monomers = {}
+        self.modules = []  # 不存储protocol的标识符
+        self.monomers = []  # 不存储protocol的标识符
         self.status = SceneStatus.STOPPED
         self.__name = name
         self.edoves = edoves
         self.config = config
         self.protocol = config.protocol(self, config)
         self.cache_path = f"./edoves_cache/{self.protocol.source_information.name}/{self.scene_name}/"
-        self.require_modules(path=config.modules_base_path)
+        with self.context() as self_scene:
+            self_scene.require_modules(path=config.modules_base_path)
 
         self.protagonist = EdovesSelf(
             self.protocol,
@@ -101,37 +104,67 @@ class EdovesScene(Generic[TProtocol]):
 
     @property
     def all_io(self) -> Dict[str, "InteractiveObject"]:
-        return {**self.monomers, "server": self.protocol.docker, **self.modules}
+        return {**self.monomer_map, "server": self.protocol.docker, **self.module_map}
+
+    @contextmanager
+    def context(self):
+        token = current_scene.set(self)
+        yield self
+        current_scene.reset(token)
+
+    @classmethod
+    def current(cls) -> "EdovesScene":
+        return cast(EdovesScene, current_scene.get())
+
+    @property
+    def monomer_map(self) -> Dict[str, "Monomer"]:
+        """带有protocol标识符"""
+        return {
+            mono.metadata.identifier: mono
+            for mono in IOManager.filter(Monomer)
+            if mono.metadata.pure_id in self.monomers
+        }
+
+    @property
+    def module_map(self) -> Dict[str, "BaseModule"]:
+        """带有protocol标识符"""
+        return {
+            module.metadata.identifier: module
+            for module in IOManager.filter(BaseModule)
+            if module.metadata.pure_id in self.modules
+        }
 
     def save_snap(self):
         path = Path(self.cache_path)
         if not path.exists():
             path.mkdir()
         relation_table = {}
-        for i, m in self.monomers.items():
-            relation_table[i] = {'parents': list(m.parents.keys()), 'children': list(m.children.keys())}
-        monomers = {k: v for k, v in self.monomers.items() if k != str(self.config.account)}
+        monomers = self.monomer_map
+        for i, m in monomers.items():
+            relation_table[i] = {'parents': m.relation['parents'], 'children': m.relation['children']}
+        monomer = {k.split('@')[0]: v for k, v in monomers.items() if k.split('@')[0] != str(self.config.account)}
         with shelve.open(f"{self.cache_path}/monomerSnap.db") as db:
             db['rtable'] = relation_table
-            db['monomer'] = monomers
+            db['monomer'] = monomer
         self.edoves.logger.debug(f"{self.scene_name}: save monomerSnap.db in {self.cache_path}")
 
     def load_snap(self):
         try:
             db = shelve.open(f"{self.cache_path}/monomerSnap.db")
             try:
-                self.monomers.update(cast(Dict, db['monomer']))
+                monomers = cast(Dict, db['monomer'])
+                self.monomers.extend(list(monomers.keys()))
                 r_table = db['rtable']
             except (KeyError, ModuleNotFoundError):
                 db.close()
                 Path(f"{self.cache_path}/monomerSnap.db").unlink()
                 return
             for i, r in r_table.items():
-                m = self.monomers.get(i)
+                m = self.monomer_map.get(i)
                 for ri in r['parents']:
-                    m.set_parent(self.monomers[ri])
+                    m.set_parent(self.monomer_map.get(ri))
                 for ri in r['children']:
-                    m.set_child(self.monomers[ri])
+                    m.set_child(self.monomer_map.get(ri))
             db.close()
             self.edoves.logger.debug(f"{self.scene_name}: load monomerSnap.db in {self.cache_path}")
         except FileNotFoundError:
@@ -163,13 +196,14 @@ class EdovesScene(Generic[TProtocol]):
         """
         _name = module_type.__qualname__
         _path = module_type.__module__ + '.' + _name
-        if m := self.modules.get(_path):
+        _id = f"{_path}@{self.protocol.identifier}"
+        if m := self.module_map.get(_id):
             return m
         try:
             new_module = module_type(self.protocol)
             if new_module.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                 return
-            self.modules.setdefault(_path, new_module)
+            self.modules.append(_path)
             self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
             return new_module
         except ValidationFailed:
@@ -191,9 +225,10 @@ class EdovesScene(Generic[TProtocol]):
         for mt in module_type:
             _name = module_type.__qualname__
             _path = module_type.__module__ + '.' + _name
+            _id = f"{_path}@{self.protocol.identifier}"
             try:
                 nm = mt(self.protocol)
-                self.modules.setdefault(_path, nm)
+                self.modules.append(_path)
                 if nm.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                     return
                 self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
@@ -207,7 +242,7 @@ class EdovesScene(Generic[TProtocol]):
             path = path if isinstance(path, Path) else Path(path)
             if path.is_dir():
                 for p in path.iterdir():
-                    if p.suffix == ".py" and p.stem not in ignore:
+                    if p.suffix in (".py", "") and p.stem not in ignore:
                         self.require(".".join(p.parts[:-1:1]) + "." + p.stem)
             elif path.is_file():
                 self.require(".".join(path.parts[:-1:1]) + "." + path.stem)

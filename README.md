@@ -10,6 +10,7 @@
 [![Licence](https://img.shields.io/github/license/ArcletProject/Edoves)](https://github.com/ArcletProject/Edoves/blob/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/arclet-edoves)](https://pypi.org/project/arclet-edoves)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/arclet-edoves)](https://www.python.org/)
+![Edoves](https://img.shields.io/badge/Arclet-Edoves-2564c2.svg)
 
 Edoves 是 `Arclet Project` 基于同项目下的 `Cesloi` 的 **第二代** 框架实现, 采取了模块化设计, 最大程度上简化了交互操作
 

@@ -2,6 +2,7 @@ from typing import cast
 
 from arclet.edoves.builtin.medium import DictMedium
 from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
+from arclet.edoves.main.utilles import IOStatus
 from ...monomers import MahEntity
 from ...protocol import MAHProtocol
 
@@ -35,7 +36,7 @@ class RelationshipOperateBehavior(ParserBehavior):
             elif ev_type.endswith('Kick'):
                 operator_data = data.content.pop('operator')
                 operator = protocol.include_member(operator_data)
-                if operator.metadata.identifier not in group.children:
+                if not group.get_child(operator.metadata.pure_id):
                     group.set_child(group)
                 operator.metadata.update_data("group_id", group.metadata.identifier)
                 await protocol.post_notice(
@@ -48,7 +49,7 @@ class RelationshipOperateBehavior(ParserBehavior):
                 )
         else:
             member = protocol.include_member(member_data)
-            if member.metadata.identifier not in group.children:
+            if not group.get_child(member.metadata.pure_id):
                 group.set_child(member)
             member.metadata.update_data("group_id", group.metadata.identifier)
 
@@ -68,22 +69,26 @@ class RelationshipOperateBehavior(ParserBehavior):
             relationship = data.content.get("relationship")
             if relationship == "Member":
                 group_id = target.metadata.group_id
-                target.parents[group_id].children.pop(target.metadata.identifier)  # 该群成员被移除
-                target.parents.pop(group_id)  # 该群成员与群组的关系解除
-                if not target.compare('Friend') and not target.parents:  # 该群成员不是好友，且没有群组
-                    protocol.scene.monomers.pop(target.metadata.identifier)
+                # 该群成员被移除
+                target.get_parent(group_id).relation['children'].remove(target.metadata.identifier)
+                # 该群成员与群组的关系解除
+                target.relation['parents'].remove(f"{group_id}@{protocol.identifier}")
+                if not target.compare('Friend') and not target.parents:
+                    # 该群成员不是好友，且没有群组
+                    protocol.scene.monomers.remove(target.metadata.pure_id)
+                    target.metadata.state = IOStatus.DELETE_WAIT
                 await protocol.docker.behavior.session_handle(
                     "post",
                     "kick",
                     {
                         "sessionKey": protocol.docker.metadata.session_key,
                         "target": group_id,
-                        "memberId": target.metadata.identifier
+                        "memberId": target.metadata.pure_id
                     }
                 )
         if action.endswith('Get'):
             relationship = data.content.get('relationship')
-            target = cast(MahEntity, data.content.get("target"))
+            _target: str = data.content.get("target")
             rest = data.content.get('rest')
             if relationship == "Member":
                 group = cast(MahEntity, rest.get('group'))
@@ -92,22 +97,22 @@ class RelationshipOperateBehavior(ParserBehavior):
                     "memberInfo",
                     {
                         "sessionKey": protocol.docker.metadata.session_key,
-                        "target": group.metadata.identifier,
-                        "memberId": target
+                        "target": group.metadata.pure_id,
+                        "memberId": _target
                     }
                 )
                 member = protocol.include_member(info)
-                if member.metadata.identifier not in group.children:
+                if not group.get_child(member.metadata.pure_id):
                     group.set_child(member)
-                member.metadata.update_data("group_id", group.metadata.identifier)
+                member.metadata.update_data("group_id", group.metadata.pure_id)
                 data.send_response(member)
             if relationship == "Friend":
                 profile = await protocol.docker.behavior.session_handle(
                     "get",
                     "friendProfile",
-                    {"sessionKey": protocol.docker.metadata.session_key, "target": target}
+                    {"sessionKey": protocol.docker.metadata.session_key, "target": _target}
                 )
-                profile.setdefault("id", target)
+                profile.setdefault("id", _target)
                 friend = protocol.include_friend(profile)
                 data.send_response(friend)
 

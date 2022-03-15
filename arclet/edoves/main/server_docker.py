@@ -1,4 +1,4 @@
-from typing import Type, Generic, Dict, Any, Union, Optional
+from typing import Type, Dict, Any, Union, Optional
 from abc import abstractmethod
 
 from aiohttp import FormData

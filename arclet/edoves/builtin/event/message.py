@@ -6,5 +6,5 @@ class MessageReceived(EdovesBasicEvent):
     medium: Message
 
 
-class MessageRevoke(EdovesBasicEvent):
+class MessageRevoked(EdovesBasicEvent):
     medium: Message

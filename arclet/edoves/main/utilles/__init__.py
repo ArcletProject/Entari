@@ -127,6 +127,12 @@ class IOStatus(int, Enum):
     CLOSED = 17080094
     """该IO已载出"""
 
+    DELETE_WAIT = 52428
+    """等待从IO名单中删除"""
+
+    DELETED = 987654321
+    """该IO已从IO名单中删除"""
+
     UNKNOWN = 17156595
     """未知状态"""
 

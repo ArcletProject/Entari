@@ -3,14 +3,14 @@ import importlib.metadata
 import time
 from typing import Dict, Optional, Type, Tuple
 from arclet.letoderea import EventSystem
-
+from .context import edoves_instance
 from .network import NetworkStatus
 from .module import BaseModule
 from .config import TemplateConfig
 from .server_docker import BaseServerDocker
 from .exceptions import DataMissing, ValidationFailed
 from .utilles.logger import Logger, replace_traceback
-from .utilles.security import check_scene
+from .utilles.security import check_name
 from .monomer import Monomer, MonoMetaComponent
 from .scene import EdovesScene
 
@@ -30,6 +30,7 @@ AE_LOGO = "\n".join(
 
 
 class Edoves:
+    __instance: bool = False
     event_system: EventSystem
     logger: Logger.logger
     __scene_list: Dict[str, EdovesScene] = {}
@@ -42,13 +43,15 @@ class Edoves:
             is_chat_log: bool = True,
             debug: bool = False
     ):
+        if self.__instance:
+            return
         self.event_system: EventSystem = event_system or EventSystem()
         self.logger = Logger(level='DEBUG' if debug else 'INFO').logger
         replace_traceback(self.event_system.loop)
         from ..builtin.chatlog import ChatLogModule
         for name, t_config in configs.items():
             try:
-                check_scene(name)
+                check_name(name)
                 cur_scene = EdovesScene(name, self, t_config[0].parse_obj(t_config[1]))
                 self.__scene_list.setdefault(
                     name,
@@ -62,6 +65,15 @@ class Edoves:
             else:
                 if is_chat_log:
                     cur_scene.require_module(ChatLogModule)
+        self.__instance = True
+
+    @classmethod
+    def current(cls) -> 'Edoves':
+        return edoves_instance.get()
+
+    @classmethod
+    def get_scene(cls, name: str) -> EdovesScene:
+        return cls.__scene_list.get(name)
 
     async def launch_task(self):
         self.logger.opt(colors=True, raw=True).info("=--------------------------------------------------------=\n")

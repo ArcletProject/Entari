@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Iterable
+from typing import Sequence
 from .medium import BaseMedium
 from .interact import InteractiveObject, BaseBehavior, MetadataComponent
 from .protocol import AbstractProtocol
@@ -7,13 +7,14 @@ from .exceptions import DataMissing
 
 
 class ParserMetadata(MetadataComponent):
-    parser_targets: Iterable[str]
+    parser_targets: Sequence[str]
     io: "BaseDataParser"
     __select_type: str
 
     def __init__(self, io: "BaseDataParser"):
         super(ParserMetadata, self).__init__(io)
         self.__select_type = "UNKNOWN"
+        self.identifier = io.__class__.__name__ + str(len(self.parser_targets) + sum([len(t) for t in self.parser_targets]))
 
     @property
     def select_type(self):

@@ -2,6 +2,7 @@ from typing import cast
 
 from arclet.edoves.builtin.medium import DictMedium
 from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
+from arclet.edoves.main.utilles import IOStatus
 from ...monomers import MahEntity
 from ...protocol import MAHProtocol
 
@@ -52,7 +53,7 @@ class BotStatusUpdateBehavior(ParserBehavior):
         ev_type = self.io.metadata.select_type
         if ev_type == "BotGroupPermissionChangeEvent":
             group = protocol.include_group(data.content.pop('group'))
-            protocol.scene.protagonist.metadata.update_data("group_id", group.metadata.identifier)
+            protocol.scene.protagonist.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "MonomerStatusUpdate",
                 cast(MahEntity, protocol.scene.protagonist),
@@ -63,9 +64,9 @@ class BotStatusUpdateBehavior(ParserBehavior):
             operator_data = data.content.pop('operator')
             operator = protocol.include_member(operator_data)
             group = protocol.include_group(operator_data['group'])
-            if operator.metadata.identifier not in group.children:
+            if not group.get_child(operator.metadata.pure_id):
                 group.set_child(operator)
-            operator.metadata.update_data("group_id", group.metadata.identifier)
+            operator.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "MonomerStatusUpdate",
                 cast(MahEntity, protocol.scene.protagonist),
@@ -85,7 +86,7 @@ class BotRelationshipOperateBehavior(ParserBehavior):
         ev_type = self.io.metadata.select_type
         if ev_type == "BotJoinGroupEvent":
             group = protocol.include_group(data.content.pop('group'))
-            protocol.scene.protagonist.metadata.update_data("group_id", group.metadata.identifier)
+            protocol.scene.protagonist.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "RelationshipSetup",
                 cast(MahEntity, protocol.scene.protagonist),
@@ -104,8 +105,8 @@ class BotRelationshipOperateBehavior(ParserBehavior):
             )
         elif ev_type == "BotLeaveEventKick":
             group = protocol.exclude_group(data.content.pop('group'))
-            operator = protocol.exclude_member(data.content.pop('operator'), group.metadata.identifier)
-            operator.metadata.update_data("group_id", group.metadata.identifier)
+            operator = protocol.exclude_member(data.content.pop('operator'), group.metadata.pure_id)
+            operator.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "RelationshipSevered",
                 cast(MahEntity, protocol.scene.protagonist),
@@ -119,9 +120,12 @@ class BotRelationshipOperateBehavior(ParserBehavior):
         target = cast(MahEntity, data.content.get("target"))
         relationship = data.content.get("relationship")
         if relationship == "Friend":
-            protocol.scene.protagonist.children.pop(target.metadata.identifier)  # 删除好友
+            # 删除好友
+            protocol.scene.protagonist.relation['children'].remove(target.metadata.identifier)
             if not target.compare("Member"):
-                protocol.scene.monomers.pop(target.metadata.identifier)  # 解除所有关系
+                # 解除所有关系
+                protocol.scene.monomers.remove(target.metadata.pure_id)
+                target.metadata.state = IOStatus.DELETE_WAIT
             else:
                 target.remove_tags("Friend")  # 删除好友标签
             await protocol.docker.behavior.session_handle(

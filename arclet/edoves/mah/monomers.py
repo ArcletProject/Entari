@@ -4,7 +4,6 @@ from typing import Optional, Dict, Any
 from arclet.edoves.main.typings import TProtocol
 from arclet.edoves.main.monomer import Monomer, MonoMetaComponent
 from arclet.edoves.builtin.behavior import MiddlewareBehavior
-from .chain import MessageChain
 
 
 class Permission(str, Enum):
@@ -51,10 +50,10 @@ class MahEntity(Monomer):
 
     @property
     def current_group(self):
-        return self.parents[self.metadata.group_id] if hasattr(self.metadata, "group_id") else None
+        return self.get_parent(self.metadata.group_id) if hasattr(self.metadata, "group_id") else None
 
     def avatar(self):
-        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s=140'
+        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.pure_id}&s=140'
 
     async def reply(self, *args):
         raise NotImplementedError

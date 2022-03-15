@@ -1,6 +1,7 @@
 from arclet.letoderea.entities.event import StructuredEvent
+from copy import copy
 from .medium import BaseMedium
-from .context import ctx_module, ctx_edoves
+from .context import ctx_module, edoves_instance, ctx_monomer
 
 
 class EdovesBasicEvent(StructuredEvent):
@@ -11,10 +12,11 @@ class EdovesBasicEvent(StructuredEvent):
 
     def get_params(self):
         return self.param_export(
-            edoves=ctx_edoves.get(),
+            edoves=edoves_instance.get(),
+            sender=ctx_monomer.get(),
             module=ctx_module.get(),
             protocol=self.medium.purveyor.metadata.protocol,
-            **{self.medium.__class__.__name__: self.medium},
+            medium=self.medium,
             **self.medium_vars()
         )
 

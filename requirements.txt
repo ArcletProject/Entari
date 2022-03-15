@@ -1,6 +1,7 @@
 aiohttp
 pydantic>=1.8.2
 yarl
-loguru
-arclet-letoderea>=0.2.6
-arclet-alconna>=0.5.7
+loguru>=0.6.0
+arclet-letoderea>=0.3.3
+arclet-alconna>=0.7.5
+importlib-metadata

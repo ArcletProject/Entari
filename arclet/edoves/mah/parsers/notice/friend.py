@@ -13,11 +13,11 @@ class FriendEventMeta(ParserMetadata):
 class FriendEventBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
         friend = protocol.include_friend(data.content.pop('friend'))
-        await self.post_notice(
+        await protocol.post_notice(
             "MonomerMetadataUpdate",
             friend,
             self.io.metadata.select_type,
-            data
+            data.content
         )
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):

@@ -31,9 +31,9 @@ class MemberChangeStatusBehavior(ParserBehavior):
         group = protocol.include_group(group_data)
 
         member = protocol.include_member(member_data)
-        if member.metadata.identifier not in group.children:
+        if not group.get_child(member.metadata.pure_id):
             group.set_child(member)
-        member.metadata.update_data("group_id", group.metadata.identifier)
+        member.metadata.update_data("group_id", group.metadata.pure_id)
         ev_type = self.io.metadata.select_type
         if ev_type == "MemberPermissionChangeEvent":
             await protocol.post_notice(
@@ -48,9 +48,9 @@ class MemberChangeStatusBehavior(ParserBehavior):
                 operator = protocol.scene.protagonist
             else:
                 operator = protocol.include_member(operator_data)
-                if operator.metadata.identifier not in group.children:
+                if not group.get_child(operator.metadata.pure_id):
                     group.set_child(group)
-                operator.metadata.update_data("group_id", group.metadata.identifier)
+                operator.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "MonomerStatusUpdate",
                 member,
@@ -76,7 +76,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
                         {
                             "sessionKey": protocol.docker.metadata.session_key,
                             "target": target.metadata.group_id,
-                            "memberId": target.metadata.identifier,
+                            "memberId": target.metadata.pure_id,
                             "time": mute_time
                         }
                     )
@@ -87,7 +87,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
                         {
                             "sessionKey": protocol.docker.metadata.session_key,
                             "target": target.metadata.group_id,
-                            "memberId": target.metadata.identifier
+                            "memberId": target.metadata.pure_id
                         }
                     )
 
@@ -99,9 +99,9 @@ class MemberChangeDataBehavior(ParserBehavior):
         group = protocol.include_group(group_data)
 
         member = protocol.include_member(member_data)
-        if member.metadata.identifier not in group.children:
+        if not group.get_child(member.metadata.pure_id):
             group.set_child(member)
-        member.metadata.update_data("group_id", group.metadata.identifier)
+        member.metadata.update_data("group_id", group.metadata.pure_id)
         await protocol.post_notice(
             "MonomerMetadataUpdate",
             member,

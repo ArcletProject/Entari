@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from asyncio import PriorityQueue
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, List, Literal, Callable, Any
 from .event import EdovesBasicEvent
 from .medium import BaseMedium, MediumObserver
@@ -10,6 +11,8 @@ from .utilles.data_source_info import DataSourceInfo
 from .utilles import IOStatus, MediumStatus
 from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
+from .context import ctx_event, edoves_instance, ctx_monomer
+from ...letoderea import search_event
 
 TM = TypeVar("TM", bound=BaseMedium)
 
@@ -66,12 +69,12 @@ class AbstractProtocol(metaclass=ABCMeta):
 
     def verify(self, other: verify_check_list):
         if isinstance(other, str) and other != self.identifier:
-            raise ValidationFailed
+            raise ValidationFailed(f"{self.__class__.__name__} verify failed")
         if other.metadata.verify_code == EDOVES_DEFAULT:
             return
         if other.metadata.verify_code != self.identifier:
             other.metadata.state = IOStatus.CLOSED
-            raise ValidationFailed
+            raise ValidationFailed(f"{other.__class__.__name__} verify failed")
 
     async def get_medium(self, medium_type: Optional[Type[TM]] = None, **kwargs) -> TM:
         medium = await self.__medium_queue.get()
@@ -118,16 +121,26 @@ class AbstractProtocol(metaclass=ABCMeta):
         evt = event_type.__class__.__name__ if not isinstance(event_type, str) else event_type
         medium = await self.get_medium(medium_type=medium_type, event_type=evt)
         io_list = list(self.scene.all_io.values())
-        for io in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list):
-            self.scene.edoves.event_system.loop.create_task(
-                io.behavior.handler_medium(medium=medium, medium_type=medium_type, event_type=event_type, **kwargs)
-            )
+        if isinstance(event_type, str):
+            event = search_event(event_type)(medium=medium, **kwargs)
+        else:
+            event = event_type(medium=medium, **kwargs)
+        with ExitStack() as stack:
+            stack.enter_context(edoves_instance.use(self.scene.edoves))
+            stack.enter_context(ctx_event.use(event))
+            stack.enter_context(ctx_monomer.use(event.medium.purveyor))
+            self.scene.edoves.event_system.event_publish(event)
+            for io in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list):
+                self.scene.edoves.event_system.loop.create_task(
+                    io.behavior.handler_medium(medium=medium, medium_type=medium_type, **kwargs),
+                    name=f"POST_TO_{io.metadata.identifier}<{medium.mid}>"
+                )
 
     def __repr__(self):
         return (
             f"[{self.__class__.__name__}: "
             f"server_docker={self.docker_type.__name__}, "
-            f"parsers={self.parsers}"
+            f"parsers={len(self.parsers)}-parsers"
             f"]"
         )
 

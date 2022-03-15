@@ -39,9 +39,9 @@ class GroupChangeStatusBehavior(ParserBehavior):
         else:
             operator_data = data.content.pop('operator')
             operator = protocol.include_member(operator_data)
-            if operator.metadata.identifier not in group.children:
+            if not group.get_child(operator.metadata.pure_id):
                 group.set_child(group)
-            operator.metadata.update_data("group_id", group.metadata.identifier)
+            operator.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_notice(
                 "MonomerStatusUpdate",
                 group,
@@ -62,7 +62,7 @@ class GroupChangeStatusBehavior(ParserBehavior):
                     "muteAll",
                     {
                         "sessionKey": protocol.docker.metadata.session_key,
-                        "target": target.metadata.identifier
+                        "target": target.metadata.pure_id
                     }
                 )
             else:
@@ -71,7 +71,7 @@ class GroupChangeStatusBehavior(ParserBehavior):
                     "unmuteAll",
                     {
                         "sessionKey": protocol.docker.metadata.session_key,
-                        "target": target.metadata.identifier
+                        "target": target.metadata.pure_id
                     }
                 )
 
@@ -82,9 +82,9 @@ class GroupChangeDataBehavior(ParserBehavior):
         group = protocol.include_group(group_data)
         operator_data = data.content.pop('operator')
         operator = protocol.include_member(operator_data)
-        if operator.metadata.identifier not in group.children:
+        if not group.get_child(operator.metadata.pure_id):
             group.set_child(group)
-        operator.metadata.update_data("group_id", group.metadata.identifier)
+        operator.metadata.update_data("group_id", group.metadata.pure_id)
         await protocol.post_notice(
             "MonomerMetadataUpdate",
             group,

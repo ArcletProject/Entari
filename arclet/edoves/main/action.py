@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from .context import ctx_monomer
+from .monomer import Monomer, at_mono
 
 if TYPE_CHECKING:
     from .medium import BaseMedium
-    from .monomer import Monomer
 
 
 class ExecutiveAction(metaclass=ABCMeta):
@@ -16,33 +16,36 @@ class ExecutiveAction(metaclass=ABCMeta):
         self.action = action
         self.target = ctx_monomer.get()
 
-    def set_target(self, target: "Monomer"):
+    def to(self, target: "Monomer"):
         self.target = target
-
-    # def __await__(self):
-    #     return self.execute().__await__()
+        return self
 
     @abstractmethod
     async def execute(self):
         raise NotImplementedError
 
 
-class ExecActionWrapper:
+class ExecAs:
     monomer: "Monomer"
     action: "ExecutiveAction"
 
     def __init__(self, target: "Monomer"):
         self.monomer = target
 
-    def execute(self, action: "ExecutiveAction"):
+    def run(self, action: "ExecutiveAction"):
         self.action = action
+        self.action.to(self.monomer)
         return self
 
-    def to(self, target: "Monomer"):
-        self.action.set_target(target)
-        return self
-
-    __call__ = execute
+    def __class_getitem__(cls, item):
+        monomers = at_mono.__getitem__(item)
+        if monomers:
+            return cls(monomers[0])
+        else:
+            return cls(ctx_monomer.get())
 
     def __await__(self):
         return self.action.execute().__await__()
+
+
+exec_as = ExecAs

@@ -1,12 +1,12 @@
 from ...main.event import EdovesBasicEvent
-from ...main.context import ctx_edoves
+from ...main.context import edoves_instance
 
 
 class LifeCycle(EdovesBasicEvent):
 
     def get_params(self):
         return self.param_export(
-            edoves=ctx_edoves.get(),
+            edoves=edoves_instance.get(),
         )
 
 

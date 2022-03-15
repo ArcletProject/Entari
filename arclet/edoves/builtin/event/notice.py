@@ -1,4 +1,4 @@
-from ...main.event import EdovesBasicEvent, ctx_module, ctx_edoves
+from ...main.event import EdovesBasicEvent, ctx_module, edoves_instance
 from ..medium import Notice
 
 
@@ -8,9 +8,9 @@ class _NoticeEvent(EdovesBasicEvent):
 
     def get_params(self):
         return self.param_export(
-            edoves=ctx_edoves.get(),
+            edoves=edoves_instance.get(),
             module=ctx_module.get(),
-            **{self.medium.__class__.__name__: self.medium},
+            medium=self.medium,
             **self.medium_vars(),
             **{self.__field__: getattr(self, self.__field__, None)}
         )

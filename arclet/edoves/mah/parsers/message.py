@@ -1,8 +1,9 @@
-from typing import Dict
+from typing import Dict, cast
 
 from arclet.edoves.builtin.medium import DictMedium
 from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
 from ..protocol import MAHProtocol
+from ..chain import MessageChain
 
 
 class NudgeOperateMeta(ParserMetadata):
@@ -27,7 +28,7 @@ class NudgeParserBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
         operator_id = str(data.content.pop('fromId'))
         target_id = str(data.content.pop('target'))
-        operator = protocol.scene.monomers.get(operator_id)
+        operator = protocol.scene.monomer_map.get(f"{operator_id}@{protocol.identifier}")
         subject = data.content.pop('subject')
         if subject['kind'] == "Group":
             if not operator or not getattr(operator.metadata, "group_id", None):
@@ -41,9 +42,9 @@ class NudgeParserBehavior(ParserBehavior):
                 )
                 operator = protocol.include_member(info)
                 group = protocol.include_group(info.get("group"))
-                if operator.metadata.identifier not in group.children:
+                if not group.get_child(operator_id):
                     group.set_child(operator)
-                operator.metadata.update_data("group_id", group.metadata.identifier)
+                operator.metadata.update_data("group_id", group.metadata.pure_id)
             else:
                 operator.set_prime_tag("Member")
         elif subject['kind'] == "Friend":
@@ -60,19 +61,19 @@ class NudgeParserBehavior(ParserBehavior):
                 operator = protocol.include_friend(profile)
             else:
                 operator.set_prime_tag("Friend")
-        target = protocol.scene.monomers.get(target_id) or target_id
+        target = protocol.scene.monomer_map.get(f"{target_id}@{protocol.identifier}") or target_id
         await protocol.post_notice(
             "NoticeMe",
             operator,
-            self.io.metadata.parser_target,
-            {**data, "target": target}
+            self.io.metadata.select_type,
+            {**data.content, "target": target}
         )
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         rest = data.content.get('rest')
         source_type = rest.get('type')
         subject = target = data.content.get("target")
-        sender = protocol.scene.monomers.get(target)
+        sender = protocol.scene.monomer_map.get(f"{target}@{protocol.identifier}")
         kind = sender.prime_tag
         if source_type:
             if source_type.startswith("Friend") and sender.compare("Friend"):
@@ -97,7 +98,7 @@ class NudgeParserBehavior(ParserBehavior):
             }
         )
         protocol.scene.edoves.logger.info(
-            f"{protocol.scene.protagonist.metadata.identifier}: "
+            f"{protocol.scene.protagonist.metadata.pure_id}: "
             f"{kind}({target}) <- Nudge"
         )
 
@@ -108,7 +109,7 @@ class MessageActionParserBehavior(ParserBehavior):
         action = data.type
         target = data.content.get("target")
         if action.endswith("Send"):
-            sender = protocol.scene.monomers.get(target)
+            sender = protocol.scene.monomer_map.get(f"{target}@{protocol.identifier}")
             rest = data.content.get('rest')
             source_type = rest.get('type')
             if source_type:
@@ -123,15 +124,18 @@ class MessageActionParserBehavior(ParserBehavior):
                     if sender.parents:
                         target = sender.metadata.group_id
                         action = "sendGroupMessage"
+                elif sender.prime_tag == "Group":
+                    action = "sendGroupMessage"
                 elif sender.prime_tag == "Friend":
                     action = "sendFriendMessage"
+            message = cast(MessageChain, data.content.get("content")).replace_type("Text", "Plain")
             resp: Dict = await protocol.docker.behavior.session_handle(
                 "post",
                 action,
                 {
                     "sessionKey": protocol.docker.metadata.session_key,
                     "target": target,
-                    "messageChain": data.content.get("content"),
+                    "messageChain": message.dict()["__root__"],
                     **(
                         {"quote": rest.get("quote")} if data.content.get("reply") else {}
                     )
@@ -175,9 +179,9 @@ class MessageActionParserBehavior(ParserBehavior):
             elif ev_type.startswith("Group") or ev_type.startswith("Temp"):
                 sender = protocol.include_member(sender_data)
                 group = protocol.include_group(sender_data.get("group"))
-                if sender.metadata.identifier not in group.children:
+                if not group.get_child(sender.metadata.pure_id):
                     group.set_child(sender)
-                sender.metadata.update_data("group_id", group.metadata.identifier)
+                sender.metadata.update_data("group_id", group.metadata.pure_id)
             else:
                 sender = protocol.include_temporary_monomer(sender_data.get("nickname"), str(sender_data.get('id')))
             await protocol.post_message(
@@ -199,18 +203,20 @@ class MessageActionParserBehavior(ParserBehavior):
             await self.to_docker(protocol, await protocol.get_medium())
             message = await call.wait_response()
             if ev_type.startswith("Friend"):
-                if not (operator := protocol.scene.monomers.get(str(data.content.pop('operator')))):
+                if not (operator := protocol.scene.monomer_map.get(
+                        f"{data.content.pop('operator')}@{protocol.identifier}"
+                )):
                     return
             else:
                 group_data = data.content.pop('group')
                 group = protocol.include_group(group_data)
                 operator_data = data.content.pop('operator')
                 operator = protocol.include_member(operator_data)
-                if operator.metadata.identifier not in group.children:
-                    group.set_child(group)
-                operator.metadata.update_data("group_id", group.metadata.identifier)
+                if not group.get_child(operator.metadata.pure_id):
+                    group.set_child(operator)
+                operator.metadata.update_data("group_id", group.metadata.pure_id)
             await protocol.post_message(
-                "MessageRevoke",
+                "MessageRevoked",
                 operator,
                 ev_type,
                 message['messageChain']

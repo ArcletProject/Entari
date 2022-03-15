@@ -1,8 +1,9 @@
 import json as JSON
+from datetime import datetime
 from xml import sax
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Union, List
-from arclet.edoves.main.message import MessageElement, DataStructure, Text, Image
+from arclet.edoves.main.message import MessageElement, DataStructure, Text, Image, At, AtAll
 from pydantic import Field, validator
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ class Source(MessageElement):
     """表示消息在一个特定聊天区域内的唯一标识"""
     type: str = "Source"
     id: int
-    time: int
+    time: datetime
 
 
 class Face(MessageElement):

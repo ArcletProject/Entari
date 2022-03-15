@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, Callable, Coroutine, Any, Set
 from asyncio import Future, AbstractEventLoop, wait_for
 from .monomer import Monomer
@@ -19,7 +20,10 @@ class MediumObserver:
 
     def set_result(self, result: Any) -> None:
         self.__medium.status = MediumStatus.FINISHED
-        self.__fut.set_result(result)
+        if isinstance(result, Exception):
+            self.__fut.set_exception(result)
+        else:
+            self.__fut.set_result(result)
 
     async def wait_response(self, timeout: float = 0) -> Any:
         if timeout > 0:
@@ -33,7 +37,7 @@ class MediumObserver:
             self.__fut.cancel()
 
     def __repr__(self):
-        return f"<MediumObserver @M_{self.__medium.mid}>"
+        return f"<MediumObserver @M[{self.__medium.mid}]>"
 
 
 class MediumIdManager:
@@ -72,12 +76,14 @@ class BaseMedium:
     type: str
     content: TMeta
     mid: int
+    time: datetime
     status: MediumStatus
 
-    __metadata__ = ["type", "content", "purveyor"]
+    __metadata__ = ["type", "content", "purveyor", "time"]
 
     def __init__(self):
         self.mid = MediumIdManager.allocate()
+        self.time = datetime.now()
         self.status = MediumStatus.CREATED
 
     def __str__(self):

@@ -1,4 +1,5 @@
 from arclet.edoves.builtin.actions import MessageSend, GetMonomer, Union, ChangeStatus, ExecutiveAction
+from arclet.edoves.main.context import ctx_event
 from .monomers import MahEntity
 
 
@@ -43,15 +44,19 @@ class GetMember(GetMonomer):
 
 class Reply(MessageSend):
     async def execute(self):
+        try:
+            mid = self.data.id if self.data.id else ctx_event.get().medium.mid
+        except AttributeError:
+            raise ValueError("No message to reply to.")
         return await self.target.action(self.action)(
-            self.data, reply=True, quote=self.data.id
+            self.data, target=self.target, reply=True, quote=mid
         )
 
 
 class NudgeWith(MessageSend):
     async def execute(self):
         return await self.target.action(self.action)(
-            self.data, nudge=True
+            self.data, target=self.target, nudge=True
         )
 
 
@@ -62,7 +67,7 @@ class Nudge(ExecutiveAction):
 
     async def execute(self):
         return await self.target.action(self.action)(
-            self.target.metadata.identifier
+            self.target.metadata.pure_id
         )
 
 

@@ -31,8 +31,16 @@ class Message(BaseMedium):
         self.type = "Message"
 
     def set(self, *elements: Union[Iterable[MessageElement], MessageElement, str]):
-        self.content = MessageChain.create(*elements)
-        return self
+        """
+        设置消息内容。
+
+        Returns:
+            Message: 返回一个新的消息媒介。
+        """
+        new = Message().create(self.purveyor, MessageChain.create(*elements), self.type)
+        new.id = self.id
+        new.time = self.time
+        return new
 
     async def send(self, target: Optional[Union[int, str, Monomer]] = None):
         if target:

@@ -64,6 +64,10 @@ class MetadataComponent(Component):
         super().__init__(io)
         self.tags = []
 
+    @property
+    def pure_id(self):
+        return self.identifier.split('@')[0]
+
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:
             self.tags.extend(set(tags).difference(self.tags))
