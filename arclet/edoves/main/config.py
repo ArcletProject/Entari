@@ -1,13 +1,15 @@
 from typing import Type
+from yarl import URL
 from .utilles import DataStructure
 from .server_docker import NetworkClient
 from .typings import TProtocol
-from yarl import URL
+from .server_docker import BaseServerDocker
 
 
 class TemplateConfig(DataStructure):
     protocol: Type[TProtocol]
     client: Type[NetworkClient]
+    docker_type: Type["BaseServerDocker"]
     verify_token: str
     account: int
     host: str = "http://localhost"

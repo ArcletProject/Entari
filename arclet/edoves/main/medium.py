@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, Callable, Coroutine, Any, Set
 from asyncio import Future, AbstractEventLoop, wait_for
+
 from .monomer import Monomer
 from .typings import TMeta
 from .utilles import MediumStatus
@@ -100,7 +101,7 @@ class BaseMedium:
 
     def send_response(self, result: Any):
         """发送对medium发起者的响应."""
-        self.purveyor.metadata.protocol.set_call(self.mid, result)
+        self.purveyor.metadata.protocol.screen.set_call(self.mid, result)
 
     def create(self, purveyor: Monomer, content: Any, medium_type: Optional[str] = None, **kwargs):
         self.purveyor = purveyor

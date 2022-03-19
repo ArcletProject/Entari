@@ -60,8 +60,8 @@ class MetasChecker(type):
         print(cls.__metas__)
         print(getattr(cls, '__metadata__'))
         print(cls.__mro__)
-        obj = cls.__new__(cls, *args, **kwargs)
-        cls.__init__(cls, *args, **kwargs)
+        obj = cls.__new__(cls, *args, **kwargs)  # type: ignore
+        obj.__init__(*args, **kwargs)
         return obj
 
 

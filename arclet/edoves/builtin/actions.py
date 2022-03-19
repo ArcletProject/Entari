@@ -12,10 +12,11 @@ class GetMonomer(ExecutiveAction):
     mono_id: str
     rs: str
 
-    def __init__(self, target: Union[int, str], relationship: str, **kwargs):
+    def __init__(self, target: Union[int, str], relationship: str, whole: bool = False, **kwargs):
         self.mono_id = str(target)
         self.rs = relationship
         self.rest = kwargs
+        self.rest.setdefault("list_all", whole)
         super().__init__("relationship_get")
 
     async def execute(self):
@@ -24,7 +25,9 @@ class GetMonomer(ExecutiveAction):
             return await self.target.action(self.action)(
                 self.mono_id, self.rs, **self.rest
             )
-        entity.metadata.update_data("group_id", self.target.metadata.group_id)
+        gid = self.target.metadata.group_id
+        if gid:
+            entity.metadata.update_data("group_id", gid)
         return entity
 
 

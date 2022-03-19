@@ -15,7 +15,7 @@ from .component import MetadataComponent, Component
 from .context import ctx_module, ctx_event
 
 
-class ModuleMetaComponent(MetadataComponent, metaclass=VerifyCodeChecker):
+class ModuleMetaComponent(MetadataComponent, VerifyCodeChecker):
     io: "BaseModule"
     verify_code: str = UNKNOWN
     name: str
@@ -156,7 +156,7 @@ class ModuleBehavior(BaseBehavior):
             **kwargs
     ):
         if not medium:
-            medium = await self.io.metadata.protocol.get_medium(medium_type, **kwargs)
+            medium = await self.io.metadata.protocol.screen.get_medium(medium_type, **kwargs)
         if event_type:
             if isinstance(event_type, str):
                 event = search_event(event_type)(medium=medium, **kwargs)
@@ -172,7 +172,7 @@ class ModuleBehavior(BaseBehavior):
             return
         self.io.metadata.state = IOStatus.PROCESSING
         with ctx_module.use(self.io):
-            await self.io.metadata.protocol.scene.edoves.event_system.delegate_exec(
+            await self.io.metadata.protocol.screen.edoves.event_system.delegate_exec(
                 delegates, event
             )
             self.io.metadata.state = IOStatus.ESTABLISHED

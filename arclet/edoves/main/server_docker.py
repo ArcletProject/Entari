@@ -1,10 +1,10 @@
-from typing import Type, Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional
 from abc import abstractmethod
 
 from aiohttp import FormData
 
 from .network import NetworkClient, HTTP_METHODS, NetworkStatus
-from ..builtin.medium import DictMedium
+from .medium import BaseMedium
 from .typings import TProtocol
 from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
 from .utilles import IOStatus
@@ -13,8 +13,7 @@ from .utilles.security import UNKNOWN
 
 class BaseDockerMetaComponent(ModuleMetaComponent):
     io: "BaseServerDocker"
-    medium_type: Type[DictMedium] = DictMedium
-    session: NetworkClient
+    client: NetworkClient
     verify_code: str = UNKNOWN
     state: Union[IOStatus, NetworkStatus]
 
@@ -27,16 +26,16 @@ class DockerBehavior(ModuleBehavior):
         super().__init__(io)
         self.data = self.get_component(BaseDockerMetaComponent)
 
-    async def connect(self):
-        async with self.data.session.ensure_network(
-                self.data.protocol.config.get("host")
-        ):
-            raise NotImplementedError
+    @abstractmethod
+    async def session_fetch(self) -> Optional[BaseMedium]:
+        raise NotImplementedError
 
     @abstractmethod
-    async def start(self):
-        _ = await self.data.protocol.get_medium(medium_type=self.data.medium_type)
-        raise NotImplementedError
+    async def connect(self):
+        async with self.data.client.ensure_network(
+                self.data.protocol.current_scene.config.get("host")
+        ):
+            raise NotImplementedError
 
     @abstractmethod
     async def session_handle(
@@ -46,12 +45,20 @@ class DockerBehavior(ModuleBehavior):
             content: Optional[Union[Dict[str, Any], str, FormData]] = None,
             **kwargs
     ):
-        async with self.data.session.request(
+        async with self.data.client.request(
             method,
-            self.data.protocol.config.url(action, **content),
+            self.data.protocol.current_scene.config.url(action, **content),
             **kwargs
         ):
             raise NotImplementedError
+
+    async def update(self):
+        data = await self.session_fetch()
+        if not data:
+            return
+        for p in self.data.protocol.parsers:
+            if p.metadata.chosen_parser(self.data.protocol.event_type_predicate(data.content)):
+                await p.behavior.from_docker(self.data.protocol, data)
 
 
 class BaseServerDocker(BaseModule):
@@ -64,4 +71,4 @@ class BaseServerDocker(BaseModule):
         super().__init__(protocol)
         data = self.get_component(BaseDockerMetaComponent)
         data.state = IOStatus.MEDIUM_GET_WAIT
-        data.session = client
+        data.client = client

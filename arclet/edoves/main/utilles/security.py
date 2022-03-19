@@ -20,13 +20,15 @@ def generate_identifier(extremal_data_source_id: str):
     return str(h % 0x1ffffff)
 
 
-class VerifyCodeChecker(type):
-    def __init__(cls, name, bases, dic):
+class VerifyCodeChecker:
+    __slots__ = ()
+
+    def __new__(cls, *args, **kwargs):
         if "verify_code" not in cls.__annotations__:
             raise ValueError("You must define 'verify_code' in your class")
         if not cls.__dict__.get("verify_code") or not isinstance(cls.__dict__.get("verify_code"), str):
             raise ValueError("verify_code must be a string")
-        super().__init__(name, bases, dic)
+        return super().__new__(cls)
 
 
 def check_name(name: str):

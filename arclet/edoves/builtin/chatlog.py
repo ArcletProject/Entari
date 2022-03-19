@@ -26,7 +26,7 @@ class ChatLogModule(BaseModule):
 
 
 def log_message(module: ChatLogModule, message: Message, purveyor: Monomer):
-    scene = module.metadata.protocol.scene
+    scene = module.metadata.protocol.current_scene
     if purveyor.prime_tag == "Member":
         scene.edoves.logger.log(
             module.metadata.log_level,

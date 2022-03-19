@@ -1,9 +1,12 @@
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, TYPE_CHECKING
 
-from arclet.edoves.main.typings import TProtocol
 from arclet.edoves.main.monomer import Monomer, MonoMetaComponent
 from arclet.edoves.builtin.behavior import MiddlewareBehavior
+from arclet.edoves.builtin.medium import Message
+
+if TYPE_CHECKING:
+    from .protocol import MAHProtocol
 
 
 class Permission(str, Enum):
@@ -24,12 +27,16 @@ class Equipment(str, Enum):
 
 
 class MEMetadata(MonoMetaComponent):
-    specialTitle: Optional[str]
+    protocol: "MAHProtocol"
     permission: Permission
+    group_id: Optional[str]
+
+    specialTitle: Optional[str]
     joinTimestamp: Optional[int]
     lastSpeakTimestamp: Optional[int]
     mutetimeRemaining: Optional[int]
-    group_id: Optional[str]
+
+    __limit__ = ["group_id", "permission"]
 
 
 class MahEntity(Monomer):
@@ -38,15 +45,12 @@ class MahEntity(Monomer):
 
     def __init__(
             self,
-            protocol: TProtocol,
+            protocol: "MAHProtocol",
             nickname: str,
             identifier: Optional[str] = None,
             remark: Optional[str] = None,
-            **data: Dict[str, Any]
     ):
         super().__init__(protocol, nickname, identifier, remark)
-        for k, v in data.items():
-            self.get_component(MEMetadata).update_data(k, v)
 
     @property
     def current_group(self):
@@ -56,4 +60,8 @@ class MahEntity(Monomer):
         return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.pure_id}&s=140'
 
     async def reply(self, *args):
-        raise NotImplementedError
+        msg = Message(*args, target=self)
+        msg.type = self.prime_tag + "Message"
+        return await self.get_component(MiddlewareBehavior).send_with(
+            msg, reply=True,
+        )

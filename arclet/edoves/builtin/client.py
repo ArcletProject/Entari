@@ -97,6 +97,7 @@ class AiohttpClient(NetworkClient):
     ):
         resp: ClientWebSocketResponse = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
         yield AiohttpWSConnection(resp)
+        pass
 
     @asynccontextmanager
     async def request(

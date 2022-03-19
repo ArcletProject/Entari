@@ -5,21 +5,21 @@ from inspect import isclass, getmembers
 import shelve
 from os import PathLike
 from pathlib import Path
-from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, Coroutine, List
+from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, List
 from .monomer import MonoMetaComponent, Monomer
 from .context import current_scene
 from ..builtin.behavior import MiddlewareBehavior
-from ..builtin.medium import DictMedium
 from .utilles import IOStatus, SceneStatus
 from .typings import TProtocol, TConfig
 from .exceptions import ValidationFailed
 from .module import BaseModule
 from .interact import InteractiveObject, IOManager
+from ..builtin.medium import DictMedium
 
 TMde = TypeVar("TMde", bound=BaseModule)
 
 if TYPE_CHECKING:
-    from . import Edoves
+    from .screen import Screen
 
 
 class EdovesMetadata(MonoMetaComponent):
@@ -28,19 +28,15 @@ class EdovesMetadata(MonoMetaComponent):
 
 class EdovesMainBehavior(MiddlewareBehavior):
     io: "EdovesSelf"
-    loop: asyncio.AbstractEventLoop
 
     async def start(self):
-        connected = await self.io.metadata.protocol.push_medium(
-            {"start": True},
-            lambda x: DictMedium().create(self.io, x)
-        )
-        await self.io.metadata.protocol.broadcast_medium("DockerOperate")
-        await connected.wait_response()
+        protocol = self.io.metadata.protocol
+        pak = DictMedium().create(self.io, {"start": True})
+        connected = await protocol.screen.post_medium(pak, protocol.docker, event_type="DockerOperate")
+        self.get_component(EdovesMetadata).connect_info = await connected.wait_response()
 
     def activate(self):
-        self.io.metadata.protocol.scene.monomers.append(self.io.metadata.pure_id)
-        self.loop = self.io.metadata.protocol.scene.edoves.event_system.loop
+        self.io.metadata.protocol.current_scene.monomers.append(self.io.metadata.pure_id)
         self.io.add_tags("bot", self.io.metadata.protocol.source_information.name, "app")
 
 
@@ -52,47 +48,53 @@ class EdovesSelf(Monomer):
 class EdovesScene(Generic[TProtocol]):
     __name: str
     protagonist: EdovesSelf
-    edoves: "Edoves"
-    protocol: TProtocol
     config: TConfig
     modules: List[str]
     monomers: List[str]
     status: SceneStatus
+    sig_exit: asyncio.Event
 
     def __init__(
             self,
             name: str,
-            edoves: "Edoves",
+            screen: "Screen",
             config: TConfig
     ):
+        self.edoves = screen.edoves
         self.modules = []  # 不存储protocol的标识符
         self.monomers = []  # 不存储protocol的标识符
         self.status = SceneStatus.STOPPED
         self.__name = name
-        self.edoves = edoves
         self.config = config
-        self.protocol = config.protocol(self, config)
+        self.sig_exit = asyncio.Event()
+
+        if self.config.protocol not in screen.edoves.protocol_list:
+            screen.edoves.protocol_list[config.protocol] = config.protocol(self)
+            try:
+                self.protocol.docker = self.config.docker_type(self.protocol, self.config.client())
+                self.edoves.logger.debug(
+                    f"{self.config.docker_type.__name__} activate successful"
+                )
+            except ValidationFailed:
+                self.edoves.logger.warning(
+                    f"{self.config.docker_type.__name__} does not supply the dock server you chosen"
+                )
+        else:
+            screen.edoves.protocol_list[config.protocol].put_scene(self)
+
         self.cache_path = f"./edoves_cache/{self.protocol.source_information.name}/{self.scene_name}/"
         with self.context() as self_scene:
             self_scene.require_modules(path=config.modules_base_path)
+            self_scene.protagonist = EdovesSelf(
+                self_scene.protocol,
+                "Edoves Application",
+                self_scene.config.get("account"),
+                "edoves"
+            )
 
-        self.protagonist = EdovesSelf(
-            self.protocol,
-            "Edoves Application",
-            self.config.get("account"),
-            "edoves"
-        )
-        try:
-            self.protocol.docker = self.protocol.docker_type(self.protocol, self.config.client())
-            self.edoves.logger.debug(
-                f"{self.scene_name}: "
-                f"{self.server_docker.__class__.__name__} activate successful"
-            )
-        except ValidationFailed:
-            self.edoves.logger.warning(
-                f"{self.scene_name}: "
-                f"{self.server_docker.__class__.__name__} does not supply the dock server you chosen"
-            )
+    @property
+    def protocol(self) -> TProtocol:
+        return self.edoves.protocol_list[self.config.protocol]
 
     @property
     def scene_name(self) -> str:
@@ -109,6 +111,7 @@ class EdovesScene(Generic[TProtocol]):
     @contextmanager
     def context(self):
         token = current_scene.set(self)
+        self.protocol.current_scene = self
         yield self
         current_scene.reset(token)
 
@@ -137,7 +140,7 @@ class EdovesScene(Generic[TProtocol]):
     def save_snap(self):
         path = Path(self.cache_path)
         if not path.exists():
-            path.mkdir()
+            path.mkdir(parents=True)
         relation_table = {}
         monomers = self.monomer_map
         for i, m in monomers.items():
@@ -234,7 +237,9 @@ class EdovesScene(Generic[TProtocol]):
                 self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
                 count += 1
             except ValidationFailed:
-                self.edoves.logger.warning(f"{self.scene_name}: {_name} does not supply the dock server you chosen")
+                self.edoves.logger.warning(
+                    f"{self.scene_name}: {_name} does not supply the dock server you chosen"
+                )
         if count > 0:
             self.edoves.logger.info(f"{self.scene_name}: {count} modules activate successful")
         if path:
@@ -249,64 +254,76 @@ class EdovesScene(Generic[TProtocol]):
 
     async def start_running(self):
         if self.status is SceneStatus.STOPPED:
-            self.status = SceneStatus.STARTING
-            self.load_snap()
-            self.edoves.logger.info(f"{self.scene_name} Using DataSource: {self.protocol.source_information.info}")
-            tasks = []
-            for i, v in enumerate(self.all_io.values()):
-                if v.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
-                    continue
-                tasks.append(asyncio.create_task(v.behavior.start(), name=f"{self.scene_name}_IO_Start @AllIO[{i}]"))
+            with self.context():
+                self.status = SceneStatus.STARTING
+                self.load_snap()
+                self.edoves.logger.info(
+                    f"{self.scene_name} Using DataSource: {self.protocol.source_information.info}"
+                )
+                tasks = []
+                for i, v in enumerate(self.all_io.values()):
+                    if v.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
+                        continue
+                    tasks.append(asyncio.create_task(
+                        v.behavior.start(), name=f"{self.scene_name}_IO_Start @AllIO[{i}]"
+                    ))
 
-            try:
-                results = await asyncio.gather(*tasks)
-                for task in results:
-                    if task and task.exception() == NotImplementedError:
-                        self.edoves.logger.warning(f"{task}'s behavior in {self.scene_name} start failed.")
-            except TimeoutError:
-                await self.stop_running()
-                return
-            await asyncio.sleep(0.001)
-            self.edoves.logger.info(f"{len(self.all_io)} InteractiveObjects in {self.scene_name} has been loaded.")
-            self.status = SceneStatus.RUNNING
+                try:
+                    results = await asyncio.gather(*tasks)
+                    for task in results:
+                        if task and task.exception() == NotImplementedError:
+                            self.edoves.logger.warning(f"{task}'s behavior in {self.scene_name} start failed.")
+                except TimeoutError:
+                    await self.stop_running()
+                    return
+                if self.sig_exit.is_set():
+                    await self.stop_running()
+                    return
+                await asyncio.sleep(0.001)
+                self.edoves.logger.success(
+                    f"{len(self.all_io)} InteractiveObjects in {self.scene_name} has been loaded."
+                )
+                self.status = SceneStatus.RUNNING
 
     async def update(self):
         while self.status is SceneStatus.RUNNING:
-            await asyncio.sleep(self.config.update_interval)
-            tasks = []
-            for i, v in enumerate(self.all_io.values()):
-                if v.metadata.state == IOStatus.CLOSE_WAIT:
-                    v.metadata.state = IOStatus.CLOSED
-                if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN):
-                    tasks.append(asyncio.create_task(
-                        v.behavior.update(), name=f"{self.scene_name}_IO_Update @AllIO[{i}]"
-                    ))
-            try:
-                await asyncio.gather(*tasks)
-            except NotImplementedError:
-                pass
+            with self.context():
+                await asyncio.sleep(self.config.update_interval)
+                tasks = []
+                for i, v in enumerate(self.all_io.values()):
+                    if v.metadata.state == IOStatus.CLOSE_WAIT:
+                        v.metadata.state = IOStatus.CLOSED
+                    if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN):
+                        tasks.append(asyncio.create_task(
+                            v.behavior.update(), name=f"{self.scene_name}_IO_Update @AllIO[{i}]"
+                        ))
+                try:
+                    await asyncio.gather(*tasks)
+                except NotImplementedError:
+                    pass
 
     async def stop_running(self):
         if self.status in (SceneStatus.STARTING, SceneStatus.RUNNING):
-            self.status = SceneStatus.STOPPING
-            for k, v in self.all_io.items():
-                if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN):
-                    try:
-                        v.metadata.state = IOStatus.CLOSED
-                        await v.behavior.quit()
-                    except NotImplementedError:
-                        self.edoves.logger.warning(f"{k}'s behavior in {self.scene_name} quit failed.")
-            self.status = SceneStatus.CLEANUP
-            await self.clean_up()
-            self.status = SceneStatus.STOPPED
+            with self.context():
+                self.status = SceneStatus.STOPPING
+                for k, v in self.all_io.items():
+                    if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN):
+                        try:
+                            v.metadata.state = IOStatus.CLOSED
+                            await v.behavior.quit()
+                        except NotImplementedError:
+                            self.edoves.logger.warning(f"{k}'s behavior in {self.scene_name} quit failed.")
+                self.status = SceneStatus.CLEANUP
+                await self.clean_up()
+                self.status = SceneStatus.STOPPED
 
     async def clean_up(self):
         self.modules.clear()
         self.save_snap()
-        for t in asyncio.all_tasks(self.edoves.event_system.loop):
-            if t is asyncio.current_task(self.edoves.event_system.loop):
+        for t in asyncio.all_tasks(self.edoves.loop):
+            if t is asyncio.current_task(self.edoves.loop):
                 continue
-            coro: Coroutine = t.get_coro()
+            coro = t.get_coro()
             try:
                 if coro.__qualname__.startswith(f"{self.scene_name}_IO_"):
                     t.cancel()

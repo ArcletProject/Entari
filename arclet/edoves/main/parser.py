@@ -11,10 +11,14 @@ class ParserMetadata(MetadataComponent):
     io: "BaseDataParser"
     __select_type: str
 
+    __limit__ = ["parser_targets", "__select_type", "_ParserMetadata__select_type"]
+
     def __init__(self, io: "BaseDataParser"):
         super(ParserMetadata, self).__init__(io)
         self.__select_type = "UNKNOWN"
-        self.identifier = io.__class__.__name__ + str(len(self.parser_targets) + sum([len(t) for t in self.parser_targets]))
+        self.identifier = io.__class__.__name__ + str(
+            len(self.parser_targets) + sum([len(t) for t in self.parser_targets])
+        )
 
     @property
     def select_type(self):

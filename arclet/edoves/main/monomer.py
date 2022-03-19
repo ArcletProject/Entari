@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Optional, Any, List
+from typing import Union, Optional, Any, List, Coroutine
 import inspect
 
 from .typings import TProtocol
@@ -14,10 +14,13 @@ class MonoMetaComponent(MetadataComponent):
     name: str
     alias: str
 
-    def update_data(self, name: str, value: Any):
-        if not self.__dict__.get(name):
-            setattr(self, name, value)
-        self.__dict__[name] = value
+    __limit__ = ["name", "alias"]
+
+    def __getitem__(self, item: str) -> Union[Any, Coroutine[Any, Any, Any]]:
+        res = self.additions.get(item, None) or self.__dict__.get(item, None)
+        if res is None:
+            return self.protocol.put_metadata(item, self.io)
+        return res
 
 
 class BaseMonoBehavior(BaseBehavior):
@@ -26,6 +29,17 @@ class BaseMonoBehavior(BaseBehavior):
     @abstractmethod
     def activate(self):
         ...
+
+    @abstractmethod
+    async def change_metadata(
+            self,
+            meta: str,
+            value: Any,
+            target: Optional["Monomer"] = None,
+            **addition
+    ):
+        await self.io.protocol.set_metadata(meta, value, target or self.io, **addition)
+        raise NotImplementedError
 
     async def update(self):
         pass
@@ -53,6 +67,14 @@ class Monomer(InteractiveObject):
         data.alias = alias or ""
         super(Monomer, self).__init__(data)
         self.metadata.state = IOStatus.ESTABLISHED
+
+    def __getitem__(self, item: str):
+        parts = item.split(".")
+        if len(parts) == 1:
+            return self.metadata.__getitem__(item)
+        tag, attr = parts[0], parts[1]
+        if self.compare(tag):
+            return self.metadata.__getitem__(item)
 
     def __setstate__(self, state):
         f = inspect.currentframe()

@@ -81,7 +81,7 @@ class Commander(BaseModule):
 
     def __init__(self, protocol: TProtocol, namespace: Optional[str] = None):
         super().__init__(protocol)
-        self.metadata.command_namespace = namespace or self.metadata.protocol.scene.scene_name + "_Commander"
+        self.metadata.command_namespace = namespace or self.metadata.protocol.current_scene.scene_name + "_Commander"
         self.command_parsers = CommandParsers(self)
         if self.local_storage.get(self.__class__):
             for k, v in self.local_storage[self.__class__].items():
@@ -100,8 +100,8 @@ class Commander(BaseModule):
                             **result.all_matched_args,
                             "message": message,
                             "sender": message.purveyor,
-                            "edoves": self.metadata.protocol.scene.edoves,
-                            "scene": self.metadata.protocol.scene
+                            "edoves": self.metadata.protocol.screen.edoves,
+                            "scene": self.metadata.protocol.current_scene
                         }
                     )
                     break

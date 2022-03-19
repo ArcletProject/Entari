@@ -1,5 +1,4 @@
 from arclet.letoderea.entities.event import StructuredEvent
-from copy import copy
 from .medium import BaseMedium
 from .context import ctx_module, edoves_instance, ctx_monomer
 

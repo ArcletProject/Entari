@@ -1,40 +1,34 @@
 from abc import ABCMeta, abstractmethod
-from asyncio import PriorityQueue
-from contextlib import ExitStack
-from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, List, Literal, Callable, Any
-from .event import EdovesBasicEvent
-from .medium import BaseMedium, MediumObserver
-from ..builtin.medium import Message, Notice, Request, DictMedium
-from .message.chain import MessageChain
+from typing import TYPE_CHECKING, Union, Type, List, Any, Optional, Dict
+
+from .medium import BaseMedium
 from .utilles.security import EDOVES_DEFAULT
 from .utilles.data_source_info import DataSourceInfo
-from .utilles import IOStatus, MediumStatus
+from .utilles import IOStatus
 from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
-from .context import ctx_event, edoves_instance, ctx_monomer
-from ...letoderea import search_event
 
-TM = TypeVar("TM", bound=BaseMedium)
 
 if TYPE_CHECKING:
+    from .screen import Screen
     from .scene import EdovesScene
-    from .config import TemplateConfig
     from .server_docker import BaseServerDocker
     from .monomer import Monomer
     from .parser import BaseDataParser
 
 
 class AbstractProtocol(metaclass=ABCMeta):
-    scene: "EdovesScene"
     parsers: List["BaseDataParser"]
-    docker_type: Type["BaseServerDocker"]
     source_information: DataSourceInfo
     docker: "BaseServerDocker"
-    config: "TemplateConfig"
-    __medium_call_list: Dict[int, MediumObserver]
-    __medium_done_queue: Dict[int, MediumObserver]
-    __medium_queue: PriorityQueue
+    screen: "Screen"
+
+    regular_metas: List[str]
+    regular_monomer: Type["Monomer"]
+
+    __scenes: List[str]
     __identifier: str
+    __current_scene: "EdovesScene"
 
     if TYPE_CHECKING:
         from .module import BaseModule
@@ -51,21 +45,40 @@ class AbstractProtocol(metaclass=ABCMeta):
     def __new__(cls, *args, **kwargs):
         if not hasattr(cls, "source_information"):
             raise DataMissing(f"{cls.__name__} missing its Source Information")
-        if not hasattr(cls, "docker_type"):
-            raise DataMissing(f"{cls.__name__} missing its Docker Type")
+        if not hasattr(cls, "regular_metas"):
+            raise DataMissing(f"{cls.__name__} missing its Regular Metas")
+        if not hasattr(cls, "regular_monomer"):
+            raise DataMissing(f"{cls.__name__} missing its Regular Monomer")
         return super(AbstractProtocol, cls).__new__(cls)
 
-    def __init__(self, scene: "EdovesScene", config: "TemplateConfig", verify_code: str = None):
-        self.scene = scene
+    def __init__(
+            self,
+            scene: "EdovesScene",
+            verify_code: str = None
+    ):
+        self.screen = scene.edoves.screen
+        self.__scenes = [scene.scene_name]
+        self.__current_scene = scene
         self.__identifier = verify_code or self.source_information.instance_identifier
-        self.config = config
-        self.__medium_call_list = {}
-        self.__medium_done_queue = {}
-        self.__medium_queue = PriorityQueue()
 
     @property
     def identifier(self):
         return self.__identifier
+
+    @property
+    def current_scene(self):
+        return self.__current_scene
+
+    @current_scene.setter
+    def current_scene(self, scene: "EdovesScene"):
+        if scene.scene_name in self.__scenes:
+            self.__current_scene = scene
+        else:
+            raise ValidationFailed(f"Scene:{scene.scene_name} is not accepted by {self.__class__.__name__}")
+
+    def put_scene(self, scene: "EdovesScene"):
+        self.__current_scene = scene
+        self.__scenes.append(scene.scene_name)
 
     def verify(self, other: verify_check_list):
         if isinstance(other, str) and other != self.identifier:
@@ -76,73 +89,23 @@ class AbstractProtocol(metaclass=ABCMeta):
             other.metadata.state = IOStatus.CLOSED
             raise ValidationFailed(f"{other.__class__.__name__} verify failed")
 
-    async def get_medium(self, medium_type: Optional[Type[TM]] = None, **kwargs) -> TM:
-        medium = await self.__medium_queue.get()
-        if medium_type and not isinstance(medium, medium_type):
-            medium = medium_type().create(self.scene.protagonist, medium.content, **kwargs)
-        self.__medium_done_queue.setdefault(medium.mid, self.__medium_call_list.pop(medium.mid))
-        medium.status = MediumStatus.HANDLING
-        return medium
-
-    def set_call(self, mid: int, result: Any):
-        if mid in self.__medium_done_queue:
-            call = self.__medium_done_queue.pop(mid)
-            call.set_result(result)
-
-    async def push_medium(
-            self,
-            medium: Union[TM, TData],
-            action: Optional[Callable[[Union[BaseMedium, TData]], TM]] = None,
-            in_time: bool = False
-    ):
-        if isinstance(medium, BaseMedium):
-            await self.__medium_queue.put(medium)
-            medium.status = MediumStatus.POSTING
-            call = MediumObserver(medium, self.scene.edoves.event_system.loop)
-            self.__medium_call_list[medium.mid] = call
-        elif action:
-            medium = action(medium)
-            await self.__medium_queue.put(medium)
-            medium.status = MediumStatus.POSTING
-            call = MediumObserver(medium, self.scene.edoves.event_system.loop)
-            self.__medium_call_list[medium.mid] = call
-        else:
-            raise TypeError
-        if in_time:
-            await self.broadcast_medium(medium.type)
-        return call
-
-    async def broadcast_medium(
-            self,
-            event_type: Union[str, Type[EdovesBasicEvent]],
-            medium_type: Optional[Type[TM]] = None,
-            **kwargs
-    ):
-        evt = event_type.__class__.__name__ if not isinstance(event_type, str) else event_type
-        medium = await self.get_medium(medium_type=medium_type, event_type=evt)
-        io_list = list(self.scene.all_io.values())
-        if isinstance(event_type, str):
-            event = search_event(event_type)(medium=medium, **kwargs)
-        else:
-            event = event_type(medium=medium, **kwargs)
-        with ExitStack() as stack:
-            stack.enter_context(edoves_instance.use(self.scene.edoves))
-            stack.enter_context(ctx_event.use(event))
-            stack.enter_context(ctx_monomer.use(event.medium.purveyor))
-            self.scene.edoves.event_system.event_publish(event)
-            for io in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list):
-                self.scene.edoves.event_system.loop.create_task(
-                    io.behavior.handler_medium(medium=medium, medium_type=medium_type, **kwargs),
-                    name=f"POST_TO_{io.metadata.identifier}<{medium.mid}>"
-                )
-
     def __repr__(self):
         return (
             f"[{self.__class__.__name__}: "
-            f"server_docker={self.docker_type.__name__}, "
+            f"server_docker={self.docker.__class__.__name__}, "
             f"parsers={len(self.parsers)}-parsers"
             f"]"
         )
+
+    async def execution_handle(
+            self,
+    ) -> Optional[BaseMedium]:
+        if self.docker.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
+            return
+        medium = await self.screen.get_medium()
+        for p in self.parsers:
+            if p.metadata.chosen_parser(medium.type):
+                await p.behavior.to_docker(self, medium)
 
     @classmethod
     def register_parser(cls, parser: Type["BaseDataParser"]):
@@ -155,6 +118,7 @@ class AbstractProtocol(metaclass=ABCMeta):
         """
         通过api获取的Bot资料来修改Bot自身的metadata, 主要是name
         """
+        raise NotImplementedError
 
     @abstractmethod
     def event_type_predicate(self, content: TData) -> str:
@@ -166,62 +130,80 @@ class AbstractProtocol(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
-    async def data_parser_dispatch(self, action: Union[Literal["get"], Literal["post"]]):
-        if action == "get":
-            data = await self.get_medium(DictMedium)
-            for p in self.parsers:
-                if p.metadata.chosen_parser(self.event_type_predicate(data.content)):
-                    await p.behavior.from_docker(self, data)
-
-        elif action == "post":
-            if self.docker.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
-                return
-            medium = await self.get_medium(DictMedium)
-            for p in self.parsers:
-                if p.metadata.chosen_parser(medium.type):
-                    await p.behavior.to_docker(self, medium)
-
     @abstractmethod
-    async def post_message(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: List[Dict[str, str]],
-            **kwargs
-    ):
-        message = Message().create(purveyor, MessageChain.parse_obj(content), medium_type)
-        await self.push_medium(message)
-        await self.broadcast_medium(ev_type, **kwargs)
+    async def put_metadata(self, meta: str, target: "Monomer", **kwargs):
+        """
+        请求更新某个monomer的metadata
+        """
         raise NotImplementedError
 
     @abstractmethod
-    async def post_notice(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: Dict[str, str],
-            operator: Optional["Monomer"] = None,
-            **kwargs
-    ):
-        notice = Notice().create(purveyor, content, medium_type)
-        notice.operator = operator
-        await self.push_medium(notice)
-        await self.broadcast_medium(ev_type, **kwargs)
+    async def set_metadata(self, meta: str, value: Any, target: "Monomer", **kwargs):
+        """
+        改变某个monomer的metadata
+        """
         raise NotImplementedError
 
     @abstractmethod
-    async def post_request(
-            self,
-            ev_type: str,
-            purveyor: "Monomer",
-            medium_type: str,
-            content: Dict[str, str],
-            event_id: str,
-            **kwargs
-    ):
-        request = Request().create(purveyor, content, medium_type, event=event_id)
-        await self.push_medium(request)
-        await self.broadcast_medium(ev_type, **kwargs)
+    def include_monomer(self, **kwargs):
+        """
+        为当前scene添加一个monomer
+        """
         raise NotImplementedError
+
+    @abstractmethod
+    def exclude_monomer(self, **kwargs):
+        """
+        为当前scene排除一个monomer
+        """
+        raise NotImplementedError
+
+    def dispatch_metadata(self, monomer: "Monomer", data: Dict):
+        for key, value in data.items():
+            if key in self.regular_metas:
+                monomer.metadata.__setattr__(key, value)
+
+    # @abstractmethod
+    # async def post_message(
+    #         self,
+    #         ev_type: str,
+    #         purveyor: "Monomer",
+    #         medium_type: str,
+    #         content: List[Dict[str, str]],
+    #         **kwargs
+    # ):
+    #     message = Message().create(purveyor, MessageChain.parse_obj(content), medium_type)
+    #     await self.screen.push_medium(message)
+    #     await self.screen.broadcast_medium(ev_type, **kwargs)
+    #     raise NotImplementedError
+    #
+    # @abstractmethod
+    # async def post_notice(
+    #         self,
+    #         ev_type: str,
+    #         purveyor: "Monomer",
+    #         medium_type: str,
+    #         content: Dict[str, str],
+    #         operator: Optional["Monomer"] = None,
+    #         **kwargs
+    # ):
+    #     notice = Notice().create(purveyor, content, medium_type)
+    #     notice.operator = operator
+    #     await self.screen.push_medium(notice)
+    #     await self.screen.broadcast_medium(ev_type, **kwargs)
+    #     raise NotImplementedError
+    #
+    # @abstractmethod
+    # async def post_request(
+    #         self,
+    #         ev_type: str,
+    #         purveyor: "Monomer",
+    #         medium_type: str,
+    #         content: Dict[str, str],
+    #         event_id: str,
+    #         **kwargs
+    # ):
+    #     request = Request().create(purveyor, content, medium_type, event=event_id)
+    #     await self.screen.push_medium(request)
+    #     await self.screen.broadcast_medium(ev_type, **kwargs)
+    #     raise NotImplementedError

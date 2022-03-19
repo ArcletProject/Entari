@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from ..main.monomer import BaseMonoBehavior, Monomer
 from ..main.protocol import AbstractProtocol
 from .medium import Message, Request, DictMedium
@@ -11,7 +11,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
         self.protocol = self.io.metadata.protocol
 
     async def revoke(self, medium: Message, target_message_id: int = None):
-        await self.protocol.push_medium(
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -20,10 +20,10 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "MessageRevoke"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
-    async def nudge(self, target: Union[str, Monomer], **rest):
-        await self.protocol.push_medium(
+    async def nudge(self, target: Union[str, Monomer, None], **rest):
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -33,7 +33,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "NudgeSend"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
     async def send_with(
             self,
@@ -47,7 +47,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
         if nudge:
             await self.nudge(target.metadata.pure_id, **rest)
 
-        resp = await self.protocol.push_medium(
+        resp = await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -59,17 +59,17 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "MessageSend"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
         resp_data: DictMedium = await resp.wait_response()
-        self.protocol.scene.edoves.logger.info(
-            f"{self.protocol.scene.protagonist.metadata.pure_id}: "
+        self.protocol.screen.edoves.logger.info(
+            f"{self.protocol.current_scene.protagonist.metadata.pure_id}: "
             f"{resp_data.type}({resp_data.content['id']})"
             f" <- {medium.content.to_text()}"
         )
         return resp_data.content.get('messageId')
 
     async def request_accept(self, medium: Request, msg: str = None):
-        await self.protocol.push_medium(
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -82,10 +82,10 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "Accept"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
     async def request_reject(self, medium: Request, msg: str = None):
-        await self.protocol.push_medium(
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -98,11 +98,11 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "Reject"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
     async def relationship_remove(self, target: Union[str, Monomer],  relationship: str = None):
         target = await self.relationship_get(target, relationship) if isinstance(target, str) else target
-        await self.protocol.push_medium(
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -112,10 +112,10 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "RelationshipRemove"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
     async def relationship_get(self, target: str, relationship: str, **rest):
-        resp = await self.protocol.push_medium(
+        resp = await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -126,11 +126,11 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "RelationshipGet"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
         return await resp.wait_response()
 
     async def change_monomer_status(self, target: Monomer, status: str, **rest):
-        await self.protocol.push_medium(
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
@@ -141,18 +141,24 @@ class MiddlewareBehavior(BaseMonoBehavior):
                 "ChangeMonomerStatus"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()
 
-    async def change_monomer_metadata(self, target: Monomer, meta: str, **rest):
-        await self.protocol.push_medium(
+    async def change_metadata(
+            self,
+            meta: str,
+            value: Any,
+            target: Optional["Monomer"] = None,
+            **addition
+    ):
+        await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
-                    "target": target,
+                    "target": target or self.io,
                     "meta": meta,
-                    "rest": rest,
+                    "rest": addition,
                 },
                 "ChangeMonomerMetadata"
             )
         )
-        await self.protocol.data_parser_dispatch("post")
+        await self.protocol.execution_handle()

@@ -1,14 +1,18 @@
 import asyncio
 import importlib.metadata
 import time
-from typing import Dict, Optional, Type, Tuple
+from typing import Dict, Optional, Type, Tuple, Union
 from arclet.letoderea import EventSystem
+from .interact import IOManager
+from .screen import Screen
+from .protocol import AbstractProtocol
 from .context import edoves_instance
 from .network import NetworkStatus
 from .module import BaseModule
 from .config import TemplateConfig
 from .server_docker import BaseServerDocker
 from .exceptions import DataMissing, ValidationFailed
+from .utilles import SceneStatus
 from .utilles.logger import Logger, replace_traceback
 from .utilles.security import check_name
 from .monomer import Monomer, MonoMetaComponent
@@ -16,14 +20,11 @@ from .scene import EdovesScene
 
 AE_LOGO = "\n".join(
     (
-        "             ▦▦                                 ",
-        "▦▦▦▦▦       ▦                                 ",
-        " ▦  ▦        ▦                                  ",
-        " ▦       ▦▦▦▦   ▦▦▦   ▦▦  ▦▦   ▦▦     ▦▦  ",
-        " ▦▦▦   ▦    ▦  ▦    ▦   ▦  ▦   ▦   ▦  ▦     ",
-        " ▦     ▦     ▦  ▦    ▦   ▦  ▦   ▦▦▦▦   ▦▦  ",
-        " ▦  ▦  ▦   ▦▦  ▦    ▦     ▦     ▦          ▦ ",
-        "▦▦▦▦▦  ▦▦ ▦▦   ▦▦▦      ▦      ▦▦▦   ▦▦  ",
+        r"    _             _       _        ___     _                       ",
+        r"   /_\  _ __ ____| | ____| |_     / __\ __| | _____   ______  ___  ",
+        r"  //_\\| '_// ___| |/ __ \ __|   / __\ /__` |/ _ \ \ / / __ \/ __| ",
+        r" /  _  \ | | (___| |  ___/ |_   / /__ |(__| | (_) \ V /  ___\___ \ ",
+        r" \_/ \_/_|  \____|_|\____|\__|  \___/  \__,_|\___ /\_/ \____|____/ ",
         ""
     )
 )
@@ -33,12 +34,14 @@ class Edoves:
     __instance: bool = False
     event_system: EventSystem
     logger: Logger.logger
-    __scene_list: Dict[str, EdovesScene] = {}
+    screen: Screen
+    scene_list: Dict[str, EdovesScene] = {}
+    protocol_list: Dict[Type[AbstractProtocol], AbstractProtocol] = {}
 
     def __init__(
             self,
             *,
-            configs: Dict[str, Tuple[Type[TemplateConfig], Dict]],
+            configs: Dict[str, Union[TemplateConfig, Tuple[Type[TemplateConfig], Dict]]],
             event_system: Optional[EventSystem] = None,
             is_chat_log: bool = True,
             debug: bool = False
@@ -46,14 +49,21 @@ class Edoves:
         if self.__instance:
             return
         self.event_system: EventSystem = event_system or EventSystem()
+        self.loop = self.event_system.loop
         self.logger = Logger(level='DEBUG' if debug else 'INFO').logger
+        self.screen = Screen(self)
         replace_traceback(self.event_system.loop)
+
         from ..builtin.chatlog import ChatLogModule
         for name, t_config in configs.items():
             try:
                 check_name(name)
-                cur_scene = EdovesScene(name, self, t_config[0].parse_obj(t_config[1]))
-                self.__scene_list.setdefault(
+                cur_scene = EdovesScene(
+                    name,
+                    self.screen,
+                    t_config[0].parse_obj(t_config[1]) if isinstance(t_config, tuple) else t_config
+                )
+                self.scene_list.setdefault(
                     name,
                     cur_scene
                 )
@@ -73,7 +83,7 @@ class Edoves:
 
     @classmethod
     def get_scene(cls, name: str) -> EdovesScene:
-        return cls.__scene_list.get(name)
+        return cls.scene_list.get(name)
 
     async def launch_task(self):
         self.logger.opt(colors=True, raw=True).info("=--------------------------------------------------------=\n")
@@ -90,22 +100,28 @@ class Edoves:
                 f"<magenta>{name}</> version: <yellow>{version}</>\n"
             )
         self.logger.opt(colors=True, raw=True).info("=--------------------------------------------------------=\n")
-        start_time = time.time()
+        all_time: float = 0
         self.logger.info("Edoves Application Start...")
-        start_task = []
-        for name, cur_scene in self.__scene_list.items():
+        for name, cur_scene in self.scene_list.items():
+            start_time = time.time()
             running_task = self.event_system.loop.create_task(
                 cur_scene.start_running(),
                 name=f"Edoves_{name}_Start_Task"
             )
-            start_task.append(running_task)
-        await asyncio.gather(*start_task)
-        self.logger.info(f"Edoves Application Started with {time.time() - start_time:.2}s")
+            await running_task
+            if cur_scene.status == SceneStatus.RUNNING:
+                self.logger.debug(f"{name} Start Success")
+                all_time += time.time() - start_time
+        if all_time > 0:
+            self.logger.info(f"Edoves Application Start Success, Total Running Time: {all_time:.2f}s")
+        else:
+            self.logger.error("Edoves Application Start Failed")
+            raise KeyboardInterrupt
 
     async def daemon_task(self):
         self.logger.info("Edoves Application Running...")
         update_task = []
-        for name, cur_scene in self.__scene_list.items():
+        for name, cur_scene in self.scene_list.items():
             running_task = self.event_system.loop.create_task(
                 cur_scene.update(),
                 name=f"Edoves_{name}_Stop_Task"
@@ -117,14 +133,15 @@ class Edoves:
     async def quit_task(self):
         self.logger.info("Edoves Application Stop...")
         start_task = []
-        for name, cur_scene in self.__scene_list.items():
+        for name, cur_scene in self.scene_list.items():
             running_task = self.event_system.loop.create_task(
                 cur_scene.stop_running(),
                 name=f"Edoves_{name}_Stop_Task"
             )
             start_task.append(running_task)
         await asyncio.gather(*start_task)
-        self.logger.info("Edoves shutdown. Have a nice day!")
+        self.logger.success("Edoves shutdown. Have a nice day!")
+        IOManager.storage.clear()
 
     def run(self):
         try:
@@ -138,9 +155,9 @@ class Edoves:
         await self.daemon_task()
 
     def __getitem__(self, item: str) -> EdovesScene:
-        return self.__scene_list.get(item)
+        return self.scene_list.get(item)
 
     def __getattr__(self, item):
-        if item in self.__scene_list:
+        if item in self.scene_list:
             return self.__getitem__(item)
         raise ValueError

@@ -1,6 +1,6 @@
 from typing import cast
 
-from arclet.edoves.builtin.medium import DictMedium
+from arclet.edoves.builtin.medium import DictMedium, Notice
 from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
 from ...protocol import MAHProtocol
 from ...monomers import MahEntity
@@ -28,37 +28,31 @@ class MemberChangeStatusBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
         member_data = data.content.pop('member')
         group_data = member_data.pop('group')
-        group = protocol.include_group(group_data)
+        group = protocol.include_monomer("group", group_data)
 
-        member = protocol.include_member(member_data)
+        member = protocol.include_monomer("member", member_data)
         if not group.get_child(member.metadata.pure_id):
             group.set_child(member)
-        member.metadata.update_data("group_id", group.metadata.pure_id)
+        member.metadata.group_id = group.metadata.pure_id
         ev_type = self.io.metadata.select_type
         if ev_type == "MemberPermissionChangeEvent":
-            await protocol.post_notice(
-                "MonomerStatusUpdate",
-                member,
-                ev_type,
-                data.content
-            )
+            notice = Notice().create(member, data.content, ev_type)
+            await protocol.screen.push_medium(notice)
+            await protocol.screen.broadcast_medium("MonomerStatusUpdate")
         else:
             operator_data = data.content.pop('operator')
             if not operator_data:
-                operator = protocol.scene.protagonist
+                operator = protocol.current_scene.protagonist
             else:
-                operator = protocol.include_member(operator_data)
+                operator = protocol.include_monomer("member", operator_data)
                 if not group.get_child(operator.metadata.pure_id):
                     group.set_child(group)
-                operator.metadata.update_data("group_id", group.metadata.pure_id)
-            await protocol.post_notice(
-                "MonomerStatusUpdate",
-                member,
-                ev_type,
-                data.content,
-                operator=operator,
-                active=False,
-                action=ev_type.replace('Member', '').replace('Event', '')
+                operator.metadata.group_id = group.metadata.pure_id
+            notice = Notice().create(member, data.content, ev_type)
+            notice.operator = operator
+            await protocol.screen.push_medium(notice)
+            await protocol.screen.broadcast_medium(
+                "MonomerStatusUpdate", active=False, action=ev_type.replace('Member', '').replace('Event', '')
             )
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
@@ -74,7 +68,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
                         "post",
                         "mute",
                         {
-                            "sessionKey": protocol.docker.metadata.session_key,
+                            "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
                             "target": target.metadata.group_id,
                             "memberId": target.metadata.pure_id,
                             "time": mute_time
@@ -85,7 +79,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
                         "post",
                         "unmute",
                         {
-                            "sessionKey": protocol.docker.metadata.session_key,
+                            "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
                             "target": target.metadata.group_id,
                             "memberId": target.metadata.pure_id
                         }
@@ -96,18 +90,15 @@ class MemberChangeDataBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
         member_data = data.content.pop('member')
         group_data = member_data.pop('group')
-        group = protocol.include_group(group_data)
+        group = protocol.include_monomer("group", group_data)
 
-        member = protocol.include_member(member_data)
+        member = protocol.include_monomer("member", member_data)
         if not group.get_child(member.metadata.pure_id):
             group.set_child(member)
-        member.metadata.update_data("group_id", group.metadata.pure_id)
-        await protocol.post_notice(
-            "MonomerMetadataUpdate",
-            member,
-            self.io.metadata.select_type,
-            data.content
-        )
+        member.metadata.group_id = group.metadata.pure_id
+        notice = Notice().create(member, data.content, self.io.metadata.select_type)
+        await protocol.screen.push_medium(notice)
+        await protocol.screen.broadcast_medium("MonomerMetadataUpdate")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         pass

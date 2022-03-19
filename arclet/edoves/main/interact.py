@@ -24,6 +24,10 @@ class IOManager:
 class InteractiveMeta(type):
     __check_tags__ = []
 
+    def __getitem__(self, item):
+        self.__check_tags__.append([item] if isinstance(item, str) else [*item])
+        return self
+
     def __instancecheck__(self, instance):
         if super(InteractiveMeta, self).__instancecheck__(instance):
             if self.__check_tags__:
@@ -31,6 +35,7 @@ class InteractiveMeta(type):
                 if not instance.compare(*tag):
                     return False
             return True
+        return False
 
 
 class InteractiveObject(metaclass=InteractiveMeta):
@@ -221,7 +226,8 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
     def __getstate__(self):
         return {
-            "metadata": {k: v for k, v in self.metadata.__dict__.items() if k not in ("io", "protocol")},
+            "metadata": {k: v for k, v in self.metadata.__dict__.items()
+                         if k not in self.metadata.__ignore__},
             "behavior": self.prefab_behavior
         }
 
@@ -230,7 +236,3 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
     def __hash__(self):
         return hash(tuple(self.__getstate__().items()))
-
-    def __class_getitem__(cls, item):
-        cls.__check_tags__.append([item] if isinstance(item, str) else [*item])
-        return cls

@@ -1,4 +1,4 @@
-from arclet.edoves.builtin.medium import DictMedium
+from arclet.edoves.builtin.medium import DictMedium, Notice
 from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
 from ...protocol import MAHProtocol
 
@@ -12,13 +12,10 @@ class FriendEventMeta(ParserMetadata):
 
 class FriendEventBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
-        friend = protocol.include_friend(data.content.pop('friend'))
-        await protocol.post_notice(
-            "MonomerMetadataUpdate",
-            friend,
-            self.io.metadata.select_type,
-            data.content
-        )
+        friend = protocol.include_monomer("friend", data.content.pop('friend'))
+        notice = Notice().create(friend, data.content, self.io.metadata.select_type)
+        await protocol.screen.push_medium(notice)
+        await protocol.screen.broadcast_medium("MonomerMetadataUpdate")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         pass

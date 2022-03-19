@@ -72,7 +72,8 @@ app = Edoves(
         )
     }
 )
-app["MAH-default"].require_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
+with app["MAH-default"].context() as scene:
+    scene.require_module(MessageModule).add_handler(MessageReceived, test_message_reaction)
 app.run()
 ```
 

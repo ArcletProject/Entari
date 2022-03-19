@@ -32,8 +32,8 @@ class GroupUnmuteAll(ChangeStatus):
 
 
 class GetFriend(GetMonomer):
-    def __init__(self, target: Union[int, str]):
-        super().__init__(target, "Friend")
+    def __init__(self, target: Union[int, str], detail: bool = False):
+        super().__init__(target, "Friend", detail=detail)
 
 
 class GetMember(GetMonomer):
