@@ -18,7 +18,7 @@ class ParserMetadata(MetadataComponent):
         super(ParserMetadata, self).__init__(io)
         self.__select_type = "UNKNOWN"
         self.identifier = io.__class__.__name__ + str(
-            len(self.parser_targets) + sum([len(t) for t in self.parser_targets])
+            len(self.parser_targets) + sum(len(t) for t in self.parser_targets)
         )
 
     @property

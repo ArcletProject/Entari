@@ -33,7 +33,7 @@ class NudgeParserBehavior(ParserBehavior):
         subject = data.content.pop('subject')
         if subject['kind'] == "Group":
             if not operator or not getattr(operator.metadata, "group_id", None):
-                resp = await protocol.screen.push_medium(
+                resp = await protocol.screen.push(
                     DictMedium().create(
                         protocol.current_scene.protagonist,
                         {
@@ -44,13 +44,13 @@ class NudgeParserBehavior(ParserBehavior):
                         "RelationshipGet"
                     )
                 )
-                await self.to_docker(protocol, await protocol.screen.get_medium())
+                await self.to_docker(protocol, await protocol.screen.get())
                 operator = await resp.wait_response()
             else:
                 operator.set_prime_tag("Member")
         elif subject['kind'] == "Friend":
             if not operator:
-                resp = await protocol.screen.push_medium(
+                resp = await protocol.screen.push(
                     DictMedium().create(
                         protocol.current_scene.protagonist,
                         {
@@ -61,14 +61,14 @@ class NudgeParserBehavior(ParserBehavior):
                         "RelationshipGet"
                     )
                 )
-                await self.to_docker(protocol, await protocol.screen.get_medium())
+                await self.to_docker(protocol, await protocol.screen.get())
                 operator = await resp.wait_response()
             else:
                 operator.set_prime_tag("Friend")
         target = protocol.current_scene.monomer_map.get(protocol.encode_unique_identifier(target_id)) or target_id
         notice = Notice().create(operator, {**data.content, "target": target}, self.io.metadata.select_type)
-        await protocol.screen.push_medium(notice)
-        await protocol.screen.broadcast_medium("NoticeMe")
+        await protocol.screen.push(notice)
+        await protocol.screen.broadcast("NoticeMe")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         rest = data.content.get('rest')
@@ -116,15 +116,14 @@ class MessageActionParserBehavior(ParserBehavior):
                     if sender.parents:
                         target = sender.get_component(MEMetadata).group_id
                         action = "sendGroupMessage"
-            else:
-                if sender.prime_tag == "Member":
-                    if sender.parents:
-                        target = sender.get_component(MEMetadata).group_id
-                        action = "sendGroupMessage"
-                elif sender.prime_tag == "Group":
+            elif sender.prime_tag == "Member":
+                if sender.parents:
+                    target = sender.get_component(MEMetadata).group_id
                     action = "sendGroupMessage"
-                elif sender.prime_tag == "Friend":
-                    action = "sendFriendMessage"
+            elif sender.prime_tag == "Group":
+                action = "sendGroupMessage"
+            elif sender.prime_tag == "Friend":
+                action = "sendFriendMessage"
             message = cast(MessageChain, data.content.get("content")).replace_type("Text", "Plain")
             resp: Dict = await protocol.docker.behavior.session_handle(
                 "post",
@@ -182,10 +181,10 @@ class MessageActionParserBehavior(ParserBehavior):
             msg.id = str(msg.content.find("Source").id)
             msg.time = msg.content.find("Source").time
             msg.content.remove("Source")
-            await protocol.screen.push_medium(msg)
-            await protocol.screen.broadcast_medium("MessageReceived")
+            await protocol.screen.push(msg)
+            await protocol.screen.broadcast("MessageReceived")
         elif ev_type.endswith("RecallEvent"):
-            call = await protocol.screen.push_medium(
+            call = await protocol.screen.push(
                 DictMedium().create(
                     protocol.current_scene.protagonist,
                     {
@@ -194,10 +193,10 @@ class MessageActionParserBehavior(ParserBehavior):
                     "MessageGet"
                 )
             )
-            await self.to_docker(protocol, await protocol.screen.get_medium())
+            await self.to_docker(protocol, await protocol.screen.get())
             message = await call.wait_response()
             if ev_type.startswith("Friend"):
-                resp = await protocol.screen.push_medium(
+                resp = await protocol.screen.push(
                     DictMedium().create(
                         protocol.current_scene.protagonist,
                         {
@@ -208,7 +207,7 @@ class MessageActionParserBehavior(ParserBehavior):
                         "RelationshipGet"
                     )
                 )
-                await self.to_docker(protocol, await protocol.screen.get_medium())
+                await self.to_docker(protocol, await protocol.screen.get())
                 operator = await resp.wait_response()
             else:
                 group_data = data.content.pop('group')
@@ -222,8 +221,8 @@ class MessageActionParserBehavior(ParserBehavior):
             msg.id = str(msg.content.find("Source").id)
             msg.time = msg.content.find("Source").time
             msg.content.remove("Source")
-            await protocol.screen.push_medium(msg)
-            await protocol.screen.broadcast_medium("MessageRevoked")
+            await protocol.screen.push(msg)
+            await protocol.screen.broadcast("MessageRevoked")
 
 
 @MAHProtocol.register_parser

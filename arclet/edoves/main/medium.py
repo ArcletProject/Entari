@@ -38,7 +38,7 @@ class MediumObserver:
             self.__fut.cancel()
 
     def __repr__(self):
-        return f"<MediumObserver @M[{self.__medium.mid}]>"
+        return f"<MediumObserver[{self.__medium.mid}]; state={self.target_status}>"
 
 
 class MediumIdManager:

@@ -37,8 +37,8 @@ class MemberChangeStatusBehavior(ParserBehavior):
         ev_type = self.io.metadata.select_type
         if ev_type == "MemberPermissionChangeEvent":
             notice = Notice().create(member, data.content, ev_type)
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium("MonomerStatusUpdate")
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast("MonomerStatusUpdate")
         else:
             if operator_data := data.content.pop('operator'):
                 operator = protocol.include_monomer("member", operator_data)
@@ -49,8 +49,8 @@ class MemberChangeStatusBehavior(ParserBehavior):
                 operator = protocol.current_scene.protagonist
             notice = Notice().create(member, data.content, ev_type)
             notice.operator = operator
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium(
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast(
                 "MonomerStatusUpdate", active=False, action=ev_type.replace('Member', '').replace('Event', '')
             )
 
@@ -93,8 +93,8 @@ class MemberChangeDataBehavior(ParserBehavior):
             group.set_child(member)
         member.metadata.group_id = group.metadata.identifier
         notice = Notice().create(member, data.content, self.io.metadata.select_type)
-        await protocol.screen.push_medium(notice)
-        await protocol.screen.broadcast_medium("MonomerMetadataUpdate")
+        await protocol.screen.push(notice)
+        await protocol.screen.broadcast("MonomerMetadataUpdate")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         pass

@@ -19,8 +19,8 @@ class RequestOperateParserBehavior(ParserBehavior):
         request = Request().create(
             friend, data.content, self.io.metadata.select_type, event=str(data.content.pop("eventId"))
         )
-        await protocol.screen.push_medium(request)
-        await protocol.screen.broadcast_medium("RequestReceived")
+        await protocol.screen.push(request)
+        await protocol.screen.broadcast("RequestReceived")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         rtype = data.content.get('type')

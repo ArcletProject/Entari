@@ -28,8 +28,8 @@ class RelationshipOperateBehavior(ParserBehavior):
             member = protocol.exclude_monomer("member", member_data, group_id=group_data.get("id"))
             if ev_type.endswith('Quit'):
                 notice = Notice().create(member, {"group": group}, ev_type)
-                await protocol.screen.push_medium(notice)
-                await protocol.screen.broadcast_medium("RelationshipTerminate", relationship="Member")
+                await protocol.screen.push(notice)
+                await protocol.screen.broadcast("RelationshipTerminate", relationship="Member")
             elif ev_type.endswith('Kick'):
                 operator_data = data.content.pop('operator')
                 operator = protocol.include_monomer("member", operator_data)
@@ -38,8 +38,8 @@ class RelationshipOperateBehavior(ParserBehavior):
                 operator.metadata.group_id = group.metadata.identifier
                 notice = Notice().create(member, {"group": group}, ev_type)
                 notice.operator = operator
-                await protocol.screen.push_medium(notice)
-                await protocol.screen.broadcast_medium("RelationshipSevered", relationship="Member")
+                await protocol.screen.push(notice)
+                await protocol.screen.broadcast("RelationshipSevered", relationship="Member")
         else:
             member = protocol.include_monomer("member", member_data)
             if not group.get_child(member.metadata.identifier):
@@ -48,8 +48,8 @@ class RelationshipOperateBehavior(ParserBehavior):
 
             if ev_type.endswith('MemberJoinEvent'):
                 notice = Notice().create(member, data.content, ev_type)
-                await protocol.screen.push_medium(notice)
-                await protocol.screen.broadcast_medium("RelationshipSetup", relationship="Member")
+                await protocol.screen.push(notice)
+                await protocol.screen.broadcast("RelationshipSetup", relationship="Member")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         action = self.io.metadata.select_type

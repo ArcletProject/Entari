@@ -207,10 +207,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
             return __c
 
     def get_components(self, __t: Type[TC]) -> List[TC]:
-        result = []
-        for __c in filter(lambda x: isinstance(x, __t), list(self._components.values())):
-            result.append(__c)
-        return result
+        return list(filter(lambda x: isinstance(x, __t), list(self._components.values())))
 
     def get_component_in_parent(self, __t: Union[str, Type[TC]]) -> TC:
         for __i in self.parents:

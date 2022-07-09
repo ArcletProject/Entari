@@ -38,8 +38,8 @@ class BotRelationshipMeta(ParserMetadata):
 class BotNoticeMeBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
         notice = Notice().create(protocol.current_scene.protagonist, {}, self.io.metadata.select_type)
-        await protocol.screen.push_medium(notice)
-        await protocol.screen.broadcast_medium("NoticeMe")
+        await protocol.screen.push(notice)
+        await protocol.screen.broadcast("NoticeMe")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         pass
@@ -52,8 +52,8 @@ class BotStatusUpdateBehavior(ParserBehavior):
             group = protocol.include_monomer("group", data.content.pop('group'))
             protocol.current_scene.protagonist.metadata.group_id = group.metadata.identifier
             notice = Notice().create(protocol.current_scene.protagonist, data.content, ev_type)
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium("MonomerStatusUpdate")
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast("MonomerStatusUpdate")
         elif ev_type in ("BotMuteEvent", "BotUnmuteEvent"):
             operator_data = data.content.pop('operator')
             operator = protocol.include_monomer("member", operator_data)
@@ -63,8 +63,8 @@ class BotStatusUpdateBehavior(ParserBehavior):
             operator.metadata.group_id = group.metadata.identifier
             notice = Notice().create(protocol.current_scene.protagonist, data.content, ev_type)
             notice.operator = operator
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium(
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast(
                 "MonomerStatusUpdate", action=f"set{ev_type.replace('Bot', '').replace('Event', '')}"
             )
 
@@ -80,15 +80,15 @@ class BotRelationshipOperateBehavior(ParserBehavior):
             group = protocol.include_monomer("group", data.content.pop('group'))
             protocol.current_scene.protagonist.metadata.group_id = group.metadata.identifier
             notice = Notice().create(protocol.current_scene.protagonist, data.content, ev_type)
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium(
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast(
                 "RelationshipSetup", relationship="Group"
             )
         elif ev_type == "BotLeaveEventActive":
             group = protocol.exclude_monomer("group", data.content.pop('group'))
             notice = Notice().create(protocol.current_scene.protagonist, {"group": group}, ev_type)
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium(
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast(
                 "RelationshipTerminate", relationship="Group"
             )
         elif ev_type == "BotLeaveEventKick":
@@ -99,8 +99,8 @@ class BotRelationshipOperateBehavior(ParserBehavior):
             operator.metadata.group_id = group.metadata.identifier
             notice = Notice().create(protocol.current_scene.protagonist, {"group": group}, ev_type)
             notice.operator = operator
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium(
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast(
                 "RelationshipSevered", relationship="Group"
             )
 

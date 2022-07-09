@@ -27,7 +27,7 @@ class Screen:
         self.medium_done_list = {}
         self.medium_queue = PriorityQueue()
 
-    async def push_medium(
+    async def push(
             self,
             medium: TM,
             in_time: bool = False
@@ -37,10 +37,10 @@ class Screen:
         call = MediumObserver(medium, self.edoves.loop)
         self.medium_call_list[medium.mid] = call
         if in_time:
-            await self.broadcast_medium(medium.type)
+            await self.broadcast(medium.type)
         return call
 
-    async def get_medium(self, medium_type: Optional[Type[TM]] = None, **kwargs) -> TM:
+    async def get(self, medium_type: Optional[Type[TM]] = None, **kwargs) -> TM:
         medium: TM = await self.medium_queue.get()
         if medium_type and not isinstance(medium, medium_type):
             medium = medium_type().create(medium.purveyor, medium.content, **kwargs)
@@ -48,7 +48,7 @@ class Screen:
         medium.status = MediumStatus.HANDLING
         return medium
 
-    async def post_medium(self, medium: TM, target: "InteractiveObject", **kwargs):
+    async def post(self, medium: TM, target: "InteractiveObject", **kwargs):
         call = MediumObserver(medium, self.edoves.loop)
         medium.status = MediumStatus.HANDLING
         self.medium_done_list.setdefault(medium.mid, call)
@@ -60,14 +60,14 @@ class Screen:
             call = self.medium_done_list.pop(mid)
             call.set_result(result)
 
-    async def broadcast_medium(
+    async def broadcast(
             self,
             event_type: Union[str, Type[EdovesBasicEvent]],
             medium_type: Optional[Type[TM]] = None,
             **kwargs
     ):
         evt = event_type if isinstance(event_type, str) else event_type.__class__.__name__
-        medium = await self.get_medium(medium_type=medium_type, event_type=evt)
+        medium = await self.get(medium_type=medium_type, event_type=evt)
         protocol = medium.purveyor.protocol
         io_list = list(protocol.current_scene.all_io.values())
         if isinstance(event_type, str):

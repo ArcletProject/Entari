@@ -29,8 +29,8 @@ class GroupChangeStatusBehavior(ParserBehavior):
         ev_type = self.io.metadata.select_type
         if ev_type == "GroupAllowConfessTalkEvent":
             notice = Notice().create(group, data.content, ev_type)
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium("MonomerStatusUpdate", action="AllowConfessTalk")
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast("MonomerStatusUpdate", action="AllowConfessTalk")
         else:
             operator_data = data.content.pop('operator')
             operator = protocol.include_monomer("member", operator_data)
@@ -39,8 +39,8 @@ class GroupChangeStatusBehavior(ParserBehavior):
             operator.metadata.group_id = group.metadata.identifier
             notice = Notice().create(group, data.content, ev_type)
             notice.operator = operator
-            await protocol.screen.push_medium(notice)
-            await protocol.screen.broadcast_medium("MonomerStatusUpdate")
+            await protocol.screen.push(notice)
+            await protocol.screen.broadcast("MonomerStatusUpdate")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         target = cast(MahEntity, data.content.get("target"))
@@ -77,8 +77,8 @@ class GroupChangeDataBehavior(ParserBehavior):
         operator.metadata.group_id = group.metadata.identifier
         notice = Notice().create(group, data.content, self.io.metadata.select_type)
         notice.operator = operator
-        await protocol.screen.push_medium(notice)
-        await protocol.screen.broadcast_medium("MonomerMetadataUpdate")
+        await protocol.screen.push(notice)
+        await protocol.screen.broadcast("MonomerMetadataUpdate")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
         pass

@@ -42,14 +42,11 @@ class MediumHandlers(Component):
         将delegate添加到delegates中
         应当保证同priority同event的delegate只能有一个
         """
-        if not self.delegates:
-            self.delegates.append(delegate)
-        else:
+        if self.delegates:
             last_delegate = self.delegates[-1]
-            if last_delegate.bind_event == delegate.bind_event:
-                if last_delegate.priority == delegate.priority:
-                    last_delegate += delegate.subscribers
-            self.delegates.append(delegate)
+            if last_delegate.bind_event == delegate.bind_event and last_delegate.priority == delegate.priority:
+                last_delegate += delegate.subscribers
+        self.delegates.append(delegate)
 
     def remove_delegate(self, target: Union[TEvent, EventDelegate]) -> None:
         if isinstance(target, EventDelegate):
@@ -69,11 +66,8 @@ class MediumHandlers(Component):
         在每个publisher中可以存在多个delegate，利用priority进行排序
         但是同priority同event的delegate只能有一个
         """
-        _delegates = []
-        for delegate in self.delegates:
-            if delegate.bind_event == event:
-                _delegates.append(delegate)
-        if len(_delegates) == 0:
+        _delegates = [delegate for delegate in self.delegates if delegate.bind_event == event]
+        if not _delegates:
             return None
         if priority:
             for delegate in filter(lambda d: d.priority == priority, _delegates):
@@ -157,7 +151,7 @@ class ModuleBehavior(BaseBehavior):
             **kwargs
     ):
         if not medium:
-            medium = await self.io.protocol.screen.get_medium(medium_type, **kwargs)
+            medium = await self.io.protocol.screen.get(medium_type, **kwargs)
         if event_type:
             if isinstance(event_type, str):
                 event = search_event(event_type)(medium=medium, **kwargs)
@@ -194,7 +188,7 @@ class BaseModule(InteractiveObject):
         self.protocol = protocol
         metadata = self.prefab_metadata(self)
         if not hasattr(metadata, 'identifier'):
-            metadata.identifier = self.__class__.__module__ + '.' + self.__class__.__qualname__
+            metadata.identifier = f'{self.__class__.__module__}.{self.__class__.__qualname__}'
         super().__init__(metadata)
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):

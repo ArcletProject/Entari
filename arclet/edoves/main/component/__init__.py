@@ -2,15 +2,17 @@ from typing import List, TYPE_CHECKING, Type, Union, Iterable, Dict, Any
 
 from ..utilles import IOStatus
 
-
 if TYPE_CHECKING:
     from ..interact import InteractiveObject, TC
+
+_seminal = type("seminal", (), {})
 
 
 class ComponentMeta(type):
 
     def __call__(cls, *args, **kwargs):
         obj: "Component" = cls.__new__(cls, *args, **kwargs)  # type: ignore
+        obj.__init__(*args, **kwargs)
         _ignore = []
         _limit = []
         for m in cls.__mro__[-2::-1]:
@@ -18,7 +20,7 @@ class ComponentMeta(type):
             _limit.extend(getattr(m, "__limit__", []))
         obj.__ignore__ = list(set(_ignore))
         obj.__limit__ = list(set(_limit))
-        obj.__init__(*args, **kwargs)
+
         return obj
 
 
@@ -54,17 +56,17 @@ class Component:
         return self.additions.get(item, None) or self.__dict__.get(item, None)
 
     def __getattr__(self, item):
-        if attr := self.additions.get(item, None):
-            return attr
         if item in ("is_enable", "set_active", "_Component__enable"):
             return self.__getattribute__(item)
+        if (attr := self.additions.get(item, _seminal)) != _seminal:
+            return attr
         if self.__enable:
             return self.__getattribute__(item)
         else:
             raise AttributeError(f"Component {self.__class__.__name__} is not enable")
 
     def __setattr__(self, key, value):
-        if key == "__enable":
+        if key == "_Component__enable":
             super(Component, self).__setattr__(key, value)
         elif self.__enable:
             if key not in ("__limit__", "__ignore__", "additions") and \
@@ -76,13 +78,12 @@ class Component:
             raise AttributeError(f"Component {self.__class__.__name__} is not enable")
 
     def __delattr__(self, item):
-        if self.__enable:
-            if self.__limit__ and item not in self.__ignore__ + self.__limit__:
-                del self.additions[item]
-            else:
-                super().__delattr__(item)
-        else:
+        if not self.__enable:
             raise AttributeError(f"Component {self.__class__.__name__} is not enable")
+        if self.__limit__ and item not in self.__ignore__ + self.__limit__:
+            del self.additions[item]
+        else:
+            super().__delattr__(item)
 
     def __repr__(self):
         attrs = [f'{k}={v}' for k, v in vars(self).items() if k not in self.__ignore__ and not k.startswith('_')]

@@ -102,7 +102,7 @@ class AbstractProtocol(metaclass=ABCMeta):
     ) -> Optional[BaseMedium]:
         if self.docker.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
             return
-        medium = await self.screen.get_medium()
+        medium = await self.screen.get()
         for p in self.parsers:
             if p.metadata.chosen_parser(medium.type):
                 await p.behavior.to_docker(self, medium)
@@ -186,6 +186,5 @@ class AbstractProtocol(metaclass=ABCMeta):
         raise NotImplementedError
 
     def dispatch_metadata(self, monomer: "Monomer", data: Dict):
-        for key, value in data.items():
-            if key in self.regular_metas:
-                monomer.metadata.__setattr__(key, value)
+        for key in filter(lambda x: x in self.regular_metas, data):
+            monomer.metadata.__setattr__(key, data[key])

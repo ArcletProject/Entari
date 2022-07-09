@@ -23,9 +23,7 @@ class TemplateConfig(DataStructure):
         return self.__dict__.get(key)
 
     def url(self, api: str, **kwargs: str):
-        if not kwargs:
-            return self.connection_url() / api
-        return (self.connection_url() / api).with_query(kwargs)
+        return (self.connection_url() / api).with_query(kwargs) if kwargs else self.connection_url() / api
 
     def connection_url(self):
-        return URL(self.host + ":" + self.port)
+        return URL(f"{self.host}:{self.port}")
