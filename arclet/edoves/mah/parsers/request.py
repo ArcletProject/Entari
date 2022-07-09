@@ -1,5 +1,5 @@
 from arclet.edoves.builtin.medium import DictMedium, Request
-from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
+from arclet.edoves.main.interact.parser import BaseDataParser, ParserBehavior, ParserMetadata
 from ..protocol import MAHProtocol
 
 

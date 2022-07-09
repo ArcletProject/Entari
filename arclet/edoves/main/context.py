@@ -5,9 +5,9 @@ from arclet.letoderea.utils import ContextModel
 if TYPE_CHECKING:
     from . import Edoves
     from .scene import EdovesScene
-    from .module import BaseModule
-    from .monomer import Monomer
     from .event import EdovesBasicEvent
+    from .interact.module import BaseModule
+    from .interact.monomer import Monomer
 
 edoves_instance: "ContextModel[Edoves]" = ContextModel("edoves")
 current_scene: "ContextModel[EdovesScene]" = ContextModel("current_scene")

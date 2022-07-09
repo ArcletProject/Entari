@@ -1,9 +1,9 @@
 from typing import Dict, Union, Iterable, Optional
 import json as JSON
 
-from ..main.typings import TData
-from ..main.medium import BaseMedium, Monomer
-from ..main.message.chain import MessageChain, MessageElement
+from arclet.edoves.main.typings import TData
+from arclet.edoves.main.medium import BaseMedium, Monomer
+from .message.chain import MessageChain, MessageElement
 
 
 class DictMedium(BaseMedium):
@@ -20,8 +20,6 @@ class DictMedium(BaseMedium):
 class Message(BaseMedium):
     id: str
     content: MessageChain
-
-    __metadata__ = [*BaseMedium.__metadata__, "id"]
 
     def __init__(self, *elements: Union[Iterable[MessageElement], MessageElement, str], target: Monomer = None):
         super().__init__()
@@ -42,17 +40,27 @@ class Message(BaseMedium):
         new.time = self.time
         return new
 
-    async def send(self, target: Optional[Union[int, str, Monomer]] = None):
+    def __call__(self, *args, **kwargs):
+        return self.set(*args)
+
+    async def send(
+            self,
+            target: Optional[Union[int, str, Monomer]] = None,
+            reply: bool = False,
+    ):
         if target:
-            return await self.action("send_with")(self, target)
-        return await self.action("send_with")(self)
+            return await self.action("send_with")(self, target, reply)
+        return await self.action("send_with")(self, reply=reply)
+
+    def __await__(self):
+        return self.send().__await__()
 
 
 class Notice(BaseMedium):
     operator: Optional[Monomer]
     content: Dict[str, TData]  # 子类请使用TypedDict或Literal代替str来固定meta
 
-    __metadata__ = [*BaseMedium.__metadata__, "operator"]
+    __export__ = ["operator"]
 
     def get_data(self, key: str):
         return self.content.get(key)
@@ -61,8 +69,6 @@ class Notice(BaseMedium):
 class Request(BaseMedium):
     event: str
     content: Dict[str, TData]
-
-    __metadata__ = [*BaseMedium.__metadata__, "event"]
 
     def get_data(self, key: str):
         return self.content.get(key)

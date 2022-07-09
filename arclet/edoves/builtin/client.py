@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
-from typing import Union, Dict, Any, Optional
+from typing import Union, Dict, Any, Optional, List
 import json
 from aiohttp import ClientSession, ClientWebSocketResponse, ClientResponse, WSMessage, FormData
 from yarl import URL
 
-from ..main.network import NetworkClient, HTTP_METHODS, NetworkResponse, NetworkConnection
+from arclet.edoves.main.network import NetworkClient, HTTP_METHODS, NetworkResponse, NetworkConnection
 
 
 class AiohttpResponse(NetworkResponse):
@@ -79,11 +79,15 @@ class AiohttpWSConnection(NetworkConnection):
 
 class AiohttpClient(NetworkClient):
     session: ClientSession
+    resp_list: List[ClientWebSocketResponse]
 
     def __init__(self):
         self.session = ClientSession()
+        self.resp_list = []
 
     async def close(self):
+        for resp in self.resp_list:
+            await resp.close()
         await self.session.close()
 
     @asynccontextmanager
@@ -96,6 +100,7 @@ class AiohttpClient(NetworkClient):
             **kwargs: Any
     ):
         resp: ClientWebSocketResponse = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
+        self.resp_list.append(resp)
         yield AiohttpWSConnection(resp)
         pass
 
@@ -111,7 +116,6 @@ class AiohttpClient(NetworkClient):
         async with self.session.request(
                 method, url, **{"headers": headers, "data": data, **kwargs}
         ) as resp:
-
             yield AiohttpResponse(resp)
 
     @asynccontextmanager

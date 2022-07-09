@@ -49,22 +49,6 @@ class DataStructure(BaseModel):
         extra = Extra.allow
 
 
-class MetasChecker(type):
-    __metas__ = {}
-
-    def __init__(cls, name, bases, dic):
-        super().__init__(name, bases, dic)
-        cls.__metas__.update(dic['__annotations__'])
-
-    def __call__(cls, *args, **kwargs):
-        print(cls.__metas__)
-        print(getattr(cls, '__metadata__'))
-        print(cls.__mro__)
-        obj = cls.__new__(cls, *args, **kwargs)  # type: ignore
-        obj.__init__(*args, **kwargs)
-        return obj
-
-
 class SceneStatus(str, Enum):
     """指示 Scene 状态的枚举类"""
 
@@ -106,34 +90,34 @@ class MediumStatus(str, Enum):
 class IOStatus(int, Enum):
     """描述IO的状态"""
 
-    ACTIVATE_WAIT = 411831
+    ACTIVATE_WAIT = 19852134
     """等待载入Protocol中"""
 
-    ESTABLISHED = 26366521
+    ESTABLISHED = 29241211
     """激活成功, 可以传入medium"""
 
-    MEDIUM_GET_WAIT = 10161266
+    MEDIUM_GET_WAIT = 17147634
     """主动请求传入medium, 优先级高于ESTABLISHED"""
 
-    PROCESSING = 5572535
+    PROCESSING = 9403566
     """正在处理medium, 无法接受medium"""
 
-    MEDIUM_POST_WAIT = 585033
+    MEDIUM_POST_WAIT = 1874712
     """主动请求传出medium, 优先级低于ESTABLISHED"""
 
-    CLOSE_WAIT = 3078491
+    CLOSE_WAIT = 21876493
     """主动请求从Protocol中载出"""
 
-    CLOSED = 17080094
+    CLOSED = 26106042
     """该IO已载出"""
 
-    DELETE_WAIT = 52428
+    DELETE_WAIT = 16312319
     """等待从IO名单中删除"""
 
-    DELETED = 987654321
+    DELETED = 21047882
     """该IO已从IO名单中删除"""
 
-    UNKNOWN = 17156595
+    UNKNOWN = 17342590
     """未知状态"""
 
 
@@ -153,14 +137,10 @@ code_exceptions_mapping: Dict[int, Type[Exception]] = {
 
 def error_check(code: Union[dict, int]):
     origin = code
-    if isinstance(code, dict):
-        code = code.get("code")
-    else:
-        code = code
+    code = code.get("code") if isinstance(code, dict) else code
     if not isinstance(code, int) or code == 200 or code == 0:
         return
-    exc_cls = code_exceptions_mapping.get(code)
-    if exc_cls:
+    if exc_cls := code_exceptions_mapping.get(code):
         raise exc_cls(exc_cls.__doc__)
     else:
         raise UnknownError(f"{origin}")
@@ -170,6 +150,4 @@ class DatetimeEncoder(json.JSONEncoder):
     """可以编码 datetime 的 JSONEncoder"""
 
     def default(self, o: Any) -> Any:
-        if isinstance(o, datetime):
-            return int(o.timestamp())
-        return super().default(o)
+        return int(o.timestamp()) if isinstance(o, datetime) else super().default(o)

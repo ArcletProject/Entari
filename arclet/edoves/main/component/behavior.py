@@ -1,10 +1,10 @@
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Optional
-from .component import Component
+from . import Component
 
 if TYPE_CHECKING:
-    from .interact import InteractiveObject
-    from .medium import BaseMedium
+    from ..interact import InteractiveObject
+    from ..medium import BaseMedium
 
 
 class BaseBehavior(Component, metaclass=ABCMeta):
@@ -27,7 +27,7 @@ class BaseBehavior(Component, metaclass=ABCMeta):
             **kwargs
     ):
         if not medium:
-            await self.io.metadata.protocol.get_medium(medium_type, **kwargs)
+            await self.io.protocol.get_medium(medium_type, **kwargs)
         pass
 
     @abstractmethod

@@ -6,15 +6,15 @@ import shelve
 from os import PathLike
 from pathlib import Path
 from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, List
-from .monomer import MonoMetaComponent, Monomer
+
 from .context import current_scene
-from ..builtin.behavior import MiddlewareBehavior
 from .utilles import IOStatus, SceneStatus
 from .typings import TProtocol, TConfig
 from .exceptions import ValidationFailed
-from .module import BaseModule
 from .interact import InteractiveObject, IOManager
-from ..builtin.medium import DictMedium
+from .interact.monomer import MonoMetaComponent, Monomer
+from .interact.module import BaseModule
+from ..builtin.behavior import MiddlewareBehavior
 
 TMde = TypeVar("TMde", bound=BaseModule)
 
@@ -30,14 +30,16 @@ class EdovesMainBehavior(MiddlewareBehavior):
     io: "EdovesSelf"
 
     async def start(self):
-        protocol = self.io.metadata.protocol
+        from ..builtin.medium import DictMedium
+        self.protocol = self.io.protocol
         pak = DictMedium().create(self.io, {"start": True})
-        connected = await protocol.screen.post_medium(pak, protocol.docker, event_type="DockerOperate")
+        connected = await self.protocol.screen.post_medium(pak, self.protocol.docker, event_type="DockerOperate")
         self.get_component(EdovesMetadata).connect_info = await connected.wait_response()
+        await self.protocol.docker.behavior.session_fetch()
 
     def activate(self):
-        self.io.metadata.protocol.current_scene.monomers.append(self.io.metadata.pure_id)
-        self.io.add_tags("bot", self.io.metadata.protocol.source_information.name, "app")
+        self.io.protocol.current_scene.monomers.append(self.io.metadata.identifier)
+        self.io.add_tags("bot", self.io.protocol.source_information.name, "app")
 
 
 class EdovesSelf(Monomer):
@@ -49,7 +51,7 @@ class EdovesScene(Generic[TProtocol]):
     __name: str
     protagonist: EdovesSelf
     config: TConfig
-    modules: List[str]
+    modules: List[Type["BaseModule"]]
     monomers: List[str]
     status: SceneStatus
     sig_exit: asyncio.Event
@@ -61,7 +63,7 @@ class EdovesScene(Generic[TProtocol]):
             config: TConfig
     ):
         self.edoves = screen.edoves
-        self.modules = []  # 不存储protocol的标识符
+        self.modules = []  # 存储模块类型
         self.monomers = []  # 不存储protocol的标识符
         self.status = SceneStatus.STOPPED
         self.__name = name
@@ -123,18 +125,18 @@ class EdovesScene(Generic[TProtocol]):
     def monomer_map(self) -> Dict[str, "Monomer"]:
         """带有protocol标识符"""
         return {
-            mono.metadata.identifier: mono
+            mono.identifier: mono
             for mono in IOManager.filter(Monomer)
-            if mono.metadata.pure_id in self.monomers
+            if mono.metadata.identifier in self.monomers
         }
 
     @property
     def module_map(self) -> Dict[str, "BaseModule"]:
-        """带有protocol标识符"""
+        """以模块名字为key"""
         return {
-            module.metadata.identifier: module
+            module.__class__.__qualname__: module
             for module in IOManager.filter(BaseModule)
-            if module.metadata.pure_id in self.modules
+            if module.__class__ in self.modules
         }
 
     def save_snap(self):
@@ -145,7 +147,10 @@ class EdovesScene(Generic[TProtocol]):
         monomers = self.monomer_map
         for i, m in monomers.items():
             relation_table[i] = {'parents': m.relation['parents'], 'children': m.relation['children']}
-        monomer = {k.split('@')[0]: v for k, v in monomers.items() if k.split('@')[0] != str(self.config.account)}
+        monomer = {
+            v.metadata.identifier: v for v in monomers.values()
+            if v.metadata.identifier != str(self.config.account)
+        }
         with shelve.open(f"{self.cache_path}/monomerSnap.db") as db:
             db['rtable'] = relation_table
             db['monomer'] = monomer
@@ -199,14 +204,13 @@ class EdovesScene(Generic[TProtocol]):
         """
         _name = module_type.__qualname__
         _path = module_type.__module__ + '.' + _name
-        _id = f"{_path}@{self.protocol.identifier}"
-        if m := self.module_map.get(_id):
+        if m := self.module_map.get(module_type.__qualname__):
             return m
         try:
             new_module = module_type(self.protocol)
             if new_module.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
                 return
-            self.modules.append(_path)
+            self.modules.append(module_type)
             self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
             return new_module
         except ValidationFailed:
@@ -228,12 +232,13 @@ class EdovesScene(Generic[TProtocol]):
         for mt in module_type:
             _name = module_type.__qualname__
             _path = module_type.__module__ + '.' + _name
-            _id = f"{_path}@{self.protocol.identifier}"
+            if self.module_map.get(mt.__qualname__):
+                continue
             try:
                 nm = mt(self.protocol)
-                self.modules.append(_path)
+                self.modules.append(mt)
                 if nm.metadata.state in (IOStatus.CLOSED, IOStatus.UNKNOWN):
-                    return
+                    continue
                 self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
                 count += 1
             except ValidationFailed:

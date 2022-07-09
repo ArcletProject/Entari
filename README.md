@@ -37,7 +37,7 @@ pip install --upgrade arclet-edoves
     - [x] `Protocol`: 作为数据源与IO的转接层, 负责数据解析与`Medium`的调度
     - [x] `Scene`: 对IO统一的生命周期管理, 是多账号功能的实现
     - [x] `Server`: 对IO的管理, 包括`Scene`的管理
-    - [ ] `Premission`: 权限管理
+    - [ ] `Permission`: 权限管理
 + 杂项
     - [x] `NetworkClient`: 对网络端的抽象处理
     - [x] `Filter`: 对事件内容的限制操作

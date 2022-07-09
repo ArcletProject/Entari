@@ -1,14 +1,13 @@
 from typing import Dict, Any, Union, Optional
 from abc import abstractmethod
-
 from aiohttp import FormData
 
-from .network import NetworkClient, HTTP_METHODS, NetworkStatus
-from .medium import BaseMedium
-from .typings import TProtocol
 from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
-from .utilles import IOStatus
-from .utilles.security import UNKNOWN
+from ..network import NetworkClient, HTTP_METHODS, NetworkStatus
+from ..medium import BaseMedium
+from ..typings import TProtocol
+from ..utilles import IOStatus
+from ..utilles.security import UNKNOWN
 
 
 class BaseDockerMetaComponent(ModuleMetaComponent):
@@ -33,7 +32,7 @@ class DockerBehavior(ModuleBehavior):
     @abstractmethod
     async def connect(self):
         async with self.data.client.ensure_network(
-                self.data.protocol.current_scene.config.get("host")
+                self.io.protocol.current_scene.config.get("host")
         ):
             raise NotImplementedError
 
@@ -47,7 +46,7 @@ class DockerBehavior(ModuleBehavior):
     ):
         async with self.data.client.request(
             method,
-            self.data.protocol.current_scene.config.url(action, **content),
+            self.io.protocol.current_scene.config.url(action, **content),
             **kwargs
         ):
             raise NotImplementedError
@@ -56,9 +55,9 @@ class DockerBehavior(ModuleBehavior):
         data = await self.session_fetch()
         if not data:
             return
-        for p in self.data.protocol.parsers:
-            if p.metadata.chosen_parser(self.data.protocol.event_type_predicate(data.content)):
-                await p.behavior.from_docker(self.data.protocol, data)
+        for p in self.io.protocol.parsers:
+            if p.metadata.chosen_parser(self.io.protocol.event_type_predicate(data.content)):
+                await p.behavior.from_docker(self.io.protocol, data)
 
 
 class BaseServerDocker(BaseModule):

@@ -1,4 +1,4 @@
-from ...main.event import EdovesBasicEvent
+from arclet.edoves.main.event import EdovesBasicEvent
 from ..medium import Message
 
 

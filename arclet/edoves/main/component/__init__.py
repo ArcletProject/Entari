@@ -1,10 +1,10 @@
 from typing import List, TYPE_CHECKING, Type, Union, Iterable, Dict, Any
 
-from .utilles import IOStatus
-from .typings import TProtocol
+from ..utilles import IOStatus
+
 
 if TYPE_CHECKING:
-    from .interact import InteractiveObject, TC
+    from ..interact import InteractiveObject, TC
 
 
 class ComponentMeta(type):
@@ -23,14 +23,16 @@ class ComponentMeta(type):
 
 
 class Component:
-    __enable: bool = True
+    __enable: bool
     io: "InteractiveObject"
     additions: Dict[str, Any]
 
     __ignore__ = ["io"]
     __limit__ = []
+    __required__ = []
 
     def __init__(self, io: "InteractiveObject"):
+        self.__enable = True
         self.io = io
         self.additions = {}
 
@@ -83,28 +85,23 @@ class Component:
             raise AttributeError(f"Component {self.__class__.__name__} is not enable")
 
     def __repr__(self):
+        attrs = [f'{k}={v}' for k, v in vars(self).items() if k not in self.__ignore__ and not k.startswith('_')]
         return (
             f"[{self.__class__.__name__}: "
-            f"{' '.join([f'{k}={v}' for k, v in vars(self).items() if k not in self.__ignore__])}]"
+            f"{' '.join(attrs)}]"
         )
 
 
 class MetadataComponent(Component, metaclass=ComponentMeta):
     tags: List[str]
     identifier: str
-    protocol: TProtocol
     state: IOStatus
 
-    __ignore__ = ["protocol"]
     __limit__ = ["tags", "identifier", "state"]
 
     def __init__(self, io: "InteractiveObject"):
         super().__init__(io)
         self.tags = []
-
-    @property
-    def pure_id(self):
-        return self.identifier.split('@')[0]
 
     def add_tags(self, tags: Iterable[str]):
         if self.is_enable:

@@ -1,8 +1,10 @@
+import asyncio
 from inspect import isclass
 from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List, Callable, Coroutine
-from .component import Component, MetadataComponent
-from .behavior import BaseBehavior
-from .utilles import IOStatus
+from ..component import Component, MetadataComponent
+from ..component.behavior import BaseBehavior
+from ..utilles import IOStatus
+from ..typings import TProtocol
 
 TC = TypeVar("TC", bound=Component)
 TI = TypeVar("TI")
@@ -42,13 +44,14 @@ class InteractiveObject(metaclass=InteractiveMeta):
     prefab_behavior: Type[BaseBehavior] = BaseBehavior
     prefab_metadata: Type[MetadataComponent] = MetadataComponent
     _components: Dict[str, Component]
+    protocol: TProtocol
     metadata: prefab_metadata
     behavior: prefab_behavior
     relation: Relationship
 
-    __slots__ = "metadata", "behavior", "_components", "relation"
+    __slots__ = "metadata", "behavior", "_components", "relation", "protocol"
 
-    __ignore__ = ["_components", "relation"]
+    __ignore__ = ["_components", "relation", "protocol"]
 
     def __new__(cls, *args, **kwargs):
         __anno = {}
@@ -64,7 +67,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
     def __init__(
             self,
             metadata: Optional[Union[prefab_metadata, Type[prefab_metadata]]] = None,
-            behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None
+            behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None,
     ):
         self._components = {}
         self.relation = {"parents": [], "children": []}
@@ -75,7 +78,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
         self.behavior = (
             behavior(self) if isclass(behavior) else behavior
         ) if behavior else self.prefab_behavior(self)
-        IOManager.storage[self.metadata.identifier] = self
+        IOManager.storage[self.identifier] = self
 
     def compare(self, *tag: str):
         """对比输入的tag是否存在于该IO的tags中"""
@@ -99,26 +102,44 @@ class InteractiveObject(metaclass=InteractiveMeta):
             self.metadata.tags[0], self.metadata.tags[-1] = self.metadata.tags[-1], self.metadata.tags[0]
 
     @property
-    def prime_tag(self):
+    def identifier(self) -> str:
+        """
+        当自身存在protocol参数时， 返回经过protocol处理的identifier
+
+        否则返回自身的identifier
+        """
+        if hasattr(self, 'protocol'):
+            return self.protocol.encode_unique_identifier(self.metadata.identifier)
+        return self.metadata.identifier
+
+    @property
+    def prime_tag(self) -> Optional[str]:
         if self.metadata.tags:
             return self.metadata.tags[0]
 
+    async def await_status(self, status: int):
+        """
+        等待IO的状态变为指定status
+        """
+        while self.metadata.state.value != status:
+            await asyncio.sleep(0.01)
+
     @property
-    def parents(self):
+    def parents(self) -> List["InteractiveObject"]:
         return [IOManager.storage[i] for i in self.relation['parents']]
 
     @property
-    def children(self):
+    def children(self) -> List["InteractiveObject"]:
         return [IOManager.storage[i] for i in self.relation['children']]
 
-    def get_parent(self, pure_identifier: str) -> Optional["InteractiveObject"]:
-        may_parent = IOManager.storage.get(f"{pure_identifier}@{self.metadata.protocol.identifier}")
-        if may_parent and may_parent.metadata.identifier in self.relation['parents']:
+    def get_parent(self, identifier: str) -> Optional["InteractiveObject"]:
+        may_parent = IOManager.storage.get(self.protocol.encode_unique_identifier(identifier))
+        if may_parent and may_parent.identifier in self.relation['parents']:
             return may_parent
 
-    def get_child(self, pure_identifier: str) -> Optional["InteractiveObject"]:
-        may_child = IOManager.storage.get(f"{pure_identifier}@{self.metadata.protocol.identifier}")
-        if may_child and may_child.metadata.identifier in self.relation['children']:
+    def get_child(self, identifier: str) -> Optional["InteractiveObject"]:
+        may_child = IOManager.storage.get(self.protocol.encode_unique_identifier(identifier))
+        if may_child and may_child.identifier in self.relation['children']:
             return may_child
 
     def filter_parents(self, *tag):
@@ -130,14 +151,14 @@ class InteractiveObject(metaclass=InteractiveMeta):
         return list(filter(lambda x: x.compare(*tag), self.children))
 
     def set_parent(self, parent: "InteractiveObject"):
-        parent.relation['children'].append(self.metadata.identifier)
-        self.relation['parents'].append(parent.metadata.identifier)
+        parent.relation['children'].append(self.identifier)
+        self.relation['parents'].append(parent.identifier)
         self.relation['parents'] = list(set(self.relation['parents']))
         parent.relation['children'] = list(set(parent.relation['children']))
 
     def set_child(self, child: "InteractiveObject"):
-        child.relation['parents'].append(self.metadata.identifier)
-        self.relation['children'].append(child.metadata.identifier)
+        child.relation['parents'].append(self.identifier)
+        self.relation['children'].append(child.identifier)
         self.relation['children'] = list(set(self.relation['children']))
         child.relation['parents'] = list(set(child.relation['parents']))
 

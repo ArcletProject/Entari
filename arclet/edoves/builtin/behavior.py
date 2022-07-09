@@ -1,6 +1,7 @@
 from typing import Optional, Union, Any
-from ..main.monomer import BaseMonoBehavior, Monomer
-from ..main.protocol import AbstractProtocol
+from arclet.edoves.main.interact.monomer import BaseMonoBehavior, Monomer
+from arclet.edoves.main.protocol import AbstractProtocol
+
 from .medium import Message, Request, DictMedium
 
 
@@ -8,7 +9,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
     protocol: AbstractProtocol
 
     def activate(self):
-        self.protocol = self.io.metadata.protocol
+        self.protocol = self.io.protocol
 
     async def revoke(self, medium: Message, target_message_id: int = None):
         await self.protocol.screen.push_medium(
@@ -23,17 +24,22 @@ class MiddlewareBehavior(BaseMonoBehavior):
         await self.protocol.execution_handle()
 
     async def nudge(self, target: Union[str, Monomer, None], **rest):
-        await self.protocol.screen.push_medium(
+        resp = await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
-                    "target": target if isinstance(target, str) else target.metadata.pure_id,
+                    "target": target if isinstance(target, str) else target.metadata.identifier,
                     "rest": rest
                 },
                 "NudgeSend"
             )
         )
         await self.protocol.execution_handle()
+        resp_data: DictMedium = await resp.wait_response()
+        self.protocol.screen.edoves.logger.info(
+            f"{self.protocol.current_scene.protagonist.metadata.identifier}: "
+            f"{resp_data.type}({resp_data.content['id']}) <- Nudge"
+        )
 
     async def send_with(
             self,
@@ -45,13 +51,13 @@ class MiddlewareBehavior(BaseMonoBehavior):
     ):
         target = target or medium.purveyor
         if nudge:
-            await self.nudge(target.metadata.pure_id, **rest)
+            await self.nudge(target.metadata.identifier, **rest)
 
         resp = await self.protocol.screen.push_medium(
             DictMedium().create(
                 self.io,
                 {
-                    "target": target.metadata.pure_id,
+                    "target": target.metadata.identifier,
                     "reply": reply,
                     "content": medium.content.to_sendable(),
                     "rest": rest
@@ -62,8 +68,8 @@ class MiddlewareBehavior(BaseMonoBehavior):
         await self.protocol.execution_handle()
         resp_data: DictMedium = await resp.wait_response()
         self.protocol.screen.edoves.logger.info(
-            f"{self.protocol.current_scene.protagonist.metadata.pure_id}: "
-            f"{resp_data.type}({resp_data.content['id']})"
+            f"{self.protocol.current_scene.protagonist.metadata.identifier}: "
+            f"{resp_data.type}({resp_data.content.get('id') or target.metadata.identifier})"
             f" <- {medium.content.to_text()}"
         )
         return resp_data.content.get('messageId')

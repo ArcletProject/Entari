@@ -1,4 +1,4 @@
-from ...main.event import EdovesBasicEvent, ctx_module, edoves_instance
+from arclet.edoves.main.event import EdovesBasicEvent, ctx_module, edoves_instance
 from ..medium import Notice
 
 

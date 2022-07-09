@@ -41,9 +41,9 @@ class Screen:
         return call
 
     async def get_medium(self, medium_type: Optional[Type[TM]] = None, **kwargs) -> TM:
-        medium = await self.medium_queue.get()
+        medium: TM = await self.medium_queue.get()
         if medium_type and not isinstance(medium, medium_type):
-            medium = medium_type().create(self.edoves.current_scene.protagonist, medium.content, **kwargs)
+            medium = medium_type().create(medium.purveyor, medium.content, **kwargs)
         self.medium_done_list.setdefault(medium.mid, self.medium_call_list.pop(medium.mid))
         medium.status = MediumStatus.HANDLING
         return medium
@@ -66,9 +66,9 @@ class Screen:
             medium_type: Optional[Type[TM]] = None,
             **kwargs
     ):
-        evt = event_type.__class__.__name__ if not isinstance(event_type, str) else event_type
+        evt = event_type if isinstance(event_type, str) else event_type.__class__.__name__
         medium = await self.get_medium(medium_type=medium_type, event_type=evt)
-        protocol = medium.purveyor.metadata.protocol
+        protocol = medium.purveyor.protocol
         io_list = list(protocol.current_scene.all_io.values())
         if isinstance(event_type, str):
             event = search_event(event_type)(medium=medium, **kwargs)
@@ -80,6 +80,7 @@ class Screen:
             stack.enter_context(ctx_event.use(event))
             stack.enter_context(ctx_monomer.use(event.medium.purveyor))
             self.edoves.event_system.event_publish(event)
+            protocol.record_event(medium, event.__class__.__name__)
             for io in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list):
                 self.edoves.loop.create_task(
                     io.behavior.handler_medium(medium=medium, medium_type=medium_type, **kwargs),

@@ -1,11 +1,11 @@
 import inspect
 from typing import Optional, Union, Any, TYPE_CHECKING
-from .medium import Message, Request
-from ..main.action import ExecutiveAction
+from arclet.edoves.main.action import ExecutiveAction
 
+from .medium import Message, Request
 
 if TYPE_CHECKING:
-    from ..main.monomer import Monomer
+    from arclet.edoves.main.interact.monomer import Monomer
 
 
 class GetMonomer(ExecutiveAction):
@@ -19,15 +19,12 @@ class GetMonomer(ExecutiveAction):
         self.rest.setdefault("list_all", whole)
         super().__init__("relationship_get")
 
-    async def execute(self):
-        entity = self.target.metadata.protocol.scene.monomer_map.get(self.mono_id)
+    async def execute(self) -> "Monomer":
+        entity = self.target.protocol.current_scene.monomer_map.get(self.mono_id)
         if not entity:
             return await self.target.action(self.action)(
                 self.mono_id, self.rs, **self.rest
             )
-        gid = self.target.metadata.group_id
-        if gid:
-            entity.metadata.update_data("group_id", gid)
         return entity
 
 

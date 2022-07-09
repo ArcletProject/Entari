@@ -3,8 +3,7 @@ from datetime import datetime, timedelta
 from arclet.letoderea.utils import run_always_await
 
 from arclet.edoves.main.utilles.security import EDOVES_DEFAULT
-from arclet.edoves.main.module import BaseModule, ModuleMetaComponent, ModuleBehavior, Component
-
+from arclet.edoves.main.interact.module import BaseModule, ModuleMetaComponent, ModuleBehavior, Component
 from arclet.edoves.main.typings import TProtocol
 
 TIMER = Callable[[], timedelta]
@@ -12,6 +11,7 @@ TIMER = Callable[[], timedelta]
 
 class TimerModuleData(ModuleMetaComponent):
     verify_code = EDOVES_DEFAULT
+    identifier = "edoves.builtin.timer"
     name = "Timer Module"
     description = "A module for time scheduler"
 

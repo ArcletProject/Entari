@@ -12,9 +12,9 @@ from .typings import TData
 if TYPE_CHECKING:
     from .screen import Screen
     from .scene import EdovesScene
-    from .server_docker import BaseServerDocker
-    from .monomer import Monomer
-    from .parser import BaseDataParser
+    from .interact.server_docker import BaseServerDocker
+    from .interact.monomer import Monomer
+    from .interact.parser import BaseDataParser
 
 
 class AbstractProtocol(metaclass=ABCMeta):
@@ -31,7 +31,7 @@ class AbstractProtocol(metaclass=ABCMeta):
     __current_scene: "EdovesScene"
 
     if TYPE_CHECKING:
-        from .module import BaseModule
+        from .interact.module import BaseModule
         verify_check_list: Type[Union[str, "BaseModule"]] = Union[str, "BaseModule"]
     else:
         verify_check_list = str
@@ -66,7 +66,7 @@ class AbstractProtocol(metaclass=ABCMeta):
         return self.__identifier
 
     @property
-    def current_scene(self):
+    def current_scene(self) -> "EdovesScene":
         return self.__current_scene
 
     @current_scene.setter
@@ -107,11 +107,38 @@ class AbstractProtocol(metaclass=ABCMeta):
             if p.metadata.chosen_parser(medium.type):
                 await p.behavior.to_docker(self, medium)
 
+    def encode_unique_identifier(self, origin: Union[str, int]) -> str:
+        """
+        用某种方式在原始id中标注协议信息
+        """
+        return f"{origin}@{self.__identifier}"
+
+    def decode_unique_identifier(self, encoded: str) -> str:
+        """
+        根据传入id返回原始id
+        """
+        parts = encoded.split("@")
+        if len(parts) == 1:
+            self.screen.edoves.logger.warning(
+                f"{self.__class__.__name__} dose not detect proto-identifier in {encoded}. Maybe it is not encoded"
+            )
+            return parts[0]
+        if parts[1] != self.__identifier:
+            raise ValidationFailed("该IO并非该协议的约束对象")
+        return parts[0]
+
     @classmethod
     def register_parser(cls, parser: Type["BaseDataParser"]):
         p = parser()
         cls.parsers.append(p)
         return p
+
+    @abstractmethod
+    def record_event(self, medium: BaseMedium, event: str):
+        """
+        当前协议的事件记录, 通常调用logger
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def ensure_self(self):
@@ -162,48 +189,3 @@ class AbstractProtocol(metaclass=ABCMeta):
         for key, value in data.items():
             if key in self.regular_metas:
                 monomer.metadata.__setattr__(key, value)
-
-    # @abstractmethod
-    # async def post_message(
-    #         self,
-    #         ev_type: str,
-    #         purveyor: "Monomer",
-    #         medium_type: str,
-    #         content: List[Dict[str, str]],
-    #         **kwargs
-    # ):
-    #     message = Message().create(purveyor, MessageChain.parse_obj(content), medium_type)
-    #     await self.screen.push_medium(message)
-    #     await self.screen.broadcast_medium(ev_type, **kwargs)
-    #     raise NotImplementedError
-    #
-    # @abstractmethod
-    # async def post_notice(
-    #         self,
-    #         ev_type: str,
-    #         purveyor: "Monomer",
-    #         medium_type: str,
-    #         content: Dict[str, str],
-    #         operator: Optional["Monomer"] = None,
-    #         **kwargs
-    # ):
-    #     notice = Notice().create(purveyor, content, medium_type)
-    #     notice.operator = operator
-    #     await self.screen.push_medium(notice)
-    #     await self.screen.broadcast_medium(ev_type, **kwargs)
-    #     raise NotImplementedError
-    #
-    # @abstractmethod
-    # async def post_request(
-    #         self,
-    #         ev_type: str,
-    #         purveyor: "Monomer",
-    #         medium_type: str,
-    #         content: Dict[str, str],
-    #         event_id: str,
-    #         **kwargs
-    # ):
-    #     request = Request().create(purveyor, content, medium_type, event=event_id)
-    #     await self.screen.push_medium(request)
-    #     await self.screen.broadcast_medium(ev_type, **kwargs)
-    #     raise NotImplementedError

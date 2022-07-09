@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, Callable, Coroutine, Any, Set
+from typing import Optional, Callable, Coroutine, Any, Set, Generic, TypeVar
 from asyncio import Future, AbstractEventLoop, wait_for
 
-from .monomer import Monomer
 from .typings import TMeta
 from .utilles import MediumStatus
+from .interact.monomer import Monomer
 
 
 class MediumObserver:
@@ -72,7 +72,22 @@ class MediumIdManager:
             cls.allocated.remove(medium_id)
 
 
-class BaseMedium:
+class MediumMeta(type):
+
+    def __call__(cls, *args, **kwargs):
+        obj: "BaseMedium" = cls.__new__(cls, *args, **kwargs)  # type: ignore
+        _export = []
+        for m in cls.__mro__[-2::-1]:
+            _export.extend(getattr(m, "__export__", []))
+        obj.__export__ = list(set(_export))
+        obj.__init__(*args, **kwargs)  # type: ignore
+        return obj
+
+
+T = TypeVar("T")
+
+
+class BaseMedium(Generic[T] , metaclass=MediumMeta):
     purveyor: Monomer
     type: str
     content: TMeta
@@ -80,7 +95,7 @@ class BaseMedium:
     time: datetime
     status: MediumStatus
 
-    __metadata__ = ["type", "content", "purveyor", "time"]
+    __export__ = ["content", "purveyor"]
 
     def __init__(self):
         self.mid = MediumIdManager.allocate()
@@ -101,9 +116,9 @@ class BaseMedium:
 
     def send_response(self, result: Any):
         """发送对medium发起者的响应."""
-        self.purveyor.metadata.protocol.screen.set_call(self.mid, result)
+        self.purveyor.protocol.screen.set_call(self.mid, result)
 
-    def create(self, purveyor: Monomer, content: Any, medium_type: Optional[str] = None, **kwargs):
+    def create(self, purveyor: Monomer, content: Any, medium_type: Optional[str] = None, **kwargs) -> T:
         self.purveyor = purveyor
         self.type = medium_type or self.__class__.__name__
         self.content = content

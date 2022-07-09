@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Literal
 
-from arclet.edoves.main.monomer import Monomer, MonoMetaComponent
+from arclet.edoves.main.interact.monomer import Monomer, MonoMetaComponent
 from arclet.edoves.builtin.behavior import MiddlewareBehavior
 from arclet.edoves.builtin.medium import Message
 
@@ -27,7 +27,6 @@ class Equipment(str, Enum):
 
 
 class MEMetadata(MonoMetaComponent):
-    protocol: "MAHProtocol"
     permission: Permission
     group_id: Optional[str]
 
@@ -42,6 +41,8 @@ class MEMetadata(MonoMetaComponent):
 class MahEntity(Monomer):
     prefab_metadata = MEMetadata
     prefab_behavior = MiddlewareBehavior
+    metadata: MEMetadata
+    protocol: "MAHProtocol"
 
     def __init__(
             self,
@@ -56,8 +57,13 @@ class MahEntity(Monomer):
     def current_group(self):
         return self.get_parent(self.metadata.group_id) if hasattr(self.metadata, "group_id") else None
 
-    def avatar(self):
-        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.pure_id}&s=140'
+    async def avatar(self, size: Literal[640, 140] = 640, get: bool = False):
+        if get:
+            async with self.protocol.docker.metadata.client.session.get(
+                    f"https://q1.qlogo.cn/g?b=qq&nk={self.identifier}&s={size}"
+            ) as resp:
+                return await resp.read()
+        return f'https://q4.qlogo.cn/g?b=qq&nk={self.metadata.identifier}&s={size}'
 
     async def reply(self, *args):
         msg = Message(*args, target=self)

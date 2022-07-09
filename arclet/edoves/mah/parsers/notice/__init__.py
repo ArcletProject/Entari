@@ -2,7 +2,7 @@ from typing import cast
 
 from arclet.edoves.main.interact import IOManager
 from arclet.edoves.builtin.medium import DictMedium, Notice
-from arclet.edoves.main.parser import BaseDataParser, ParserBehavior, ParserMetadata
+from arclet.edoves.main.interact.parser import BaseDataParser, ParserBehavior, ParserMetadata
 from arclet.edoves.main.utilles import IOStatus
 from ...monomers import MahEntity
 from ...protocol import MAHProtocol
@@ -33,18 +33,18 @@ class RelationshipOperateBehavior(ParserBehavior):
             elif ev_type.endswith('Kick'):
                 operator_data = data.content.pop('operator')
                 operator = protocol.include_monomer("member", operator_data)
-                if not group.get_child(operator.metadata.pure_id):
+                if not group.get_child(operator.metadata.identifier):
                     group.set_child(group)
-                operator.metadata.group_id = group.metadata.pure_id
+                operator.metadata.group_id = group.metadata.identifier
                 notice = Notice().create(member, {"group": group}, ev_type)
                 notice.operator = operator
                 await protocol.screen.push_medium(notice)
                 await protocol.screen.broadcast_medium("RelationshipSevered", relationship="Member")
         else:
             member = protocol.include_monomer("member", member_data)
-            if not group.get_child(member.metadata.pure_id):
+            if not group.get_child(member.metadata.identifier):
                 group.set_child(member)
-            member.metadata.group_id = group.metadata.pure_id
+            member.metadata.group_id = group.metadata.identifier
 
             if ev_type.endswith('MemberJoinEvent'):
                 notice = Notice().create(member, data.content, ev_type)
@@ -59,12 +59,12 @@ class RelationshipOperateBehavior(ParserBehavior):
             if relationship == "Member":
                 group_id = target.metadata.group_id
                 # 该群成员被移除
-                target.get_parent(group_id).relation['children'].remove(target.metadata.identifier)
+                target.get_parent(group_id).relation['children'].remove(target.identifier)
                 # 该群成员与群组的关系解除
-                target.relation['parents'].remove(f"{group_id}@{protocol.identifier}")
+                target.relation['parents'].remove(protocol.encode_unique_identifier(group_id))
                 if not target.compare('Friend') and not target.parents:
                     # 该群成员不是好友，且没有群组
-                    protocol.current_scene.monomers.remove(target.metadata.pure_id)
+                    protocol.current_scene.monomers.remove(target.metadata.identifier)
                     target.metadata.state = IOStatus.DELETE_WAIT
                 await protocol.docker.behavior.session_handle(
                     "post",
@@ -72,7 +72,7 @@ class RelationshipOperateBehavior(ParserBehavior):
                     {
                         "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
                         "target": group_id,
-                        "memberId": target.metadata.pure_id
+                        "memberId": target.metadata.identifier
                     }
                 )
         if action.endswith('Get'):
@@ -92,21 +92,20 @@ class RelationshipOperateBehavior(ParserBehavior):
                     )
                     res = []
                     for _member_data in member_list:
-                        if _member_data.get("id") not in protocol.current_scene.monomers:
+                        if str(_member_data.get("id")) not in protocol.current_scene.monomers:
                             _member = protocol.include_monomer("member", _member_data)
-                            protocol.current_scene.monomers.remove(_member_data.get("id"))
-                            del IOManager.storage[_member.metadata.identifier]
+                            protocol.current_scene.monomers.remove(str(_member_data.get("id")))
+                            del IOManager.storage[_member.identifier]
                             _member.metadata.group_id = _member_data['group']['id']
-                            res.append(_member)
                         else:
                             _member = protocol.current_scene.monomer_map.get(
-                                f"{_member_data.get('id')}@{protocol.identifier}"
+                                protocol.encode_unique_identifier(_member_data.get("id"))
                             )
                             if _member.prime_tag == "Friend":
                                 _member.metadata.alias = _member.metadata.name
                                 _member.metadata.name = _member_data.get("memberName")
                                 _member.set_prime_tag("Member")
-                            res.append(_member)
+                        res.append(_member)
                     data.send_response(res)
                 else:
                     group = rest.get('group')
@@ -115,16 +114,16 @@ class RelationshipOperateBehavior(ParserBehavior):
                         "memberInfo",
                         {
                             "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
-                            "target": group.metadata.pure_id if isinstance(group, MahEntity) else group,
+                            "target": group.metadata.identifier if isinstance(group, MahEntity) else group,
                             "memberId": _target
                         }
                     )
                     if not isinstance(group, MahEntity):
                         group = protocol.include_monomer("group", info.get("group"))
                     member = protocol.include_monomer("member", info)
-                    if not group.get_child(member.metadata.pure_id):
+                    if not group.get_child(member.metadata.identifier):
                         group.set_child(member)
-                    member.metadata.group_id = group.metadata.pure_id
+                    member.metadata.group_id = group.metadata.identifier
                     data.send_response(member)
             if relationship == "Friend":
                 if list_all:
@@ -135,25 +134,23 @@ class RelationshipOperateBehavior(ParserBehavior):
                     )
                     res = []
                     for _friend_data in friend_list:
-                        if _friend_data.get("id") not in protocol.current_scene.monomers:
+                        if str(_friend_data.get("id")) not in protocol.current_scene.monomers:
                             _friend = protocol.include_monomer("friend", _friend_data)
-                            protocol.current_scene.monomers.remove(_friend.get("id"))
-                            del IOManager.storage[_friend.metadata.identifier]
-                            res.append(_friend)
+                            protocol.current_scene.monomers.remove(str(_friend_data.get("id")))
+                            del IOManager.storage[_friend.identifier]
                         else:
                             _friend = protocol.current_scene.monomer_map.get(
-                                f"{_friend_data.get('id')}@{protocol.identifier}"
+                                protocol.encode_unique_identifier(_friend_data.get("id"))
                             )
                             if _friend.prime_tag == "Member":
                                 _friend.set_parent(protocol.current_scene.protagonist)
                                 _friend.metadata.name = _friend_data.get("nickname")
                                 _friend.metadata.alias = _friend_data.get("remark")
                                 _friend.set_prime_tag("Friend")
-                            res.append(_friend)
+                        res.append(_friend)
                     data.send_response(res)
                     return
-                detail = rest.get('detail', False)
-                if detail:
+                if rest.get('detail', False):
                     friend_list = await protocol.docker.behavior.session_handle(
                         "get",
                         "friendList",
@@ -185,18 +182,17 @@ class RelationshipOperateBehavior(ParserBehavior):
                 if list_all:
                     res = []
                     for _group_data in group_list:
-                        if _group_data.get("id") not in protocol.current_scene.monomers:
+                        if str(_group_data.get("id")) not in protocol.current_scene.monomers:
                             _group = protocol.include_monomer("group", _group_data)
-                            protocol.current_scene.monomers.remove(_group_data.get("id"))
-                            del IOManager.storage[_group.metadata.identifier]
-                            res.append(_group)
+                            protocol.current_scene.monomers.remove(str(_group_data.get("id")))
+                            del IOManager.storage[_group.identifier]
                         else:
                             _group = protocol.current_scene.monomer_map.get(
-                                f"{_group_data.get('id')}@{protocol.identifier}"
+                                protocol.encode_unique_identifier(_group_data.get("id"))
                             )
                             _group.metadata.name = _group_data.get("name")
                             _group.metadata.permission = _group_data.get("permission")
-                            res.append(_group)
+                        res.append(_group)
                     data.send_response(res)
                     return
                 for _group in group_list:

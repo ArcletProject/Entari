@@ -11,11 +11,11 @@ class FriendLimit(MonomerTagLimit):
         self.ids = [str(i) for i in identifier]
 
         @self.set_aux("before_parse", "judge")
-        def judge(event: EdovesBasicEvent) -> bool:
-            if self.ids:
-                return event.medium.purveyor.prime_tag == self.tags[0] \
-                       and event.medium.purveyor.metadata.pure_id in self.ids
-            return event.medium.purveyor.prime_tag == self.tags[0]
+        def judge(sf: FriendLimit, event: EdovesBasicEvent) -> bool:
+            if sf.ids:
+                return event.medium.purveyor.prime_tag == sf.tags[0] \
+                       and event.medium.purveyor.metadata.identifier in sf.ids
+            return event.medium.purveyor.prime_tag == sf.tags[0]
 
 
 class GroupLimit(MonomerTagLimit):
@@ -26,8 +26,8 @@ class GroupLimit(MonomerTagLimit):
         self.ids = [str(i) for i in identifier]
 
         @self.set_aux("before_parse", "judge")
-        def judge(event: EdovesBasicEvent) -> bool:
-            if self.ids:
-                return event.medium.purveyor.prime_tag == self.tags[0] \
-                       and event.medium.purveyor.get_component(MEMetadata).group_id in self.ids
-            return event.medium.purveyor.prime_tag == self.tags[0]
+        def judge(sf: GroupLimit, event: EdovesBasicEvent) -> bool:
+            if sf.ids:
+                return event.medium.purveyor.prime_tag == sf.tags[0] \
+                       and event.medium.purveyor.get_component(MEMetadata).group_id in sf.ids
+            return event.medium.purveyor.prime_tag == sf.tags[0]

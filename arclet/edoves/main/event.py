@@ -7,14 +7,14 @@ class EdovesBasicEvent(StructuredEvent):
     medium: BaseMedium
 
     def medium_vars(self):
-        return {k: v for k, v in self.medium.__dict__.items()}
+        return {k: v for k, v in self.medium.__dict__.items() if k in self.medium.__export__}
 
     def get_params(self):
         return self.param_export(
             edoves=edoves_instance.get(),
             sender=ctx_monomer.get(),
             module=ctx_module.get(),
-            protocol=self.medium.purveyor.metadata.protocol,
+            protocol=self.medium.purveyor.protocol,
             medium=self.medium,
             **self.medium_vars()
         )

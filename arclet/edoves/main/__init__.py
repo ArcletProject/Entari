@@ -8,14 +8,14 @@ from .screen import Screen
 from .protocol import AbstractProtocol
 from .context import edoves_instance
 from .network import NetworkStatus
-from .module import BaseModule
 from .config import TemplateConfig
-from .server_docker import BaseServerDocker
 from .exceptions import DataMissing, ValidationFailed
 from .utilles import SceneStatus
 from .utilles.logger import Logger, replace_traceback
 from .utilles.security import check_name
-from .monomer import Monomer, MonoMetaComponent
+from .interact.module import BaseModule
+from .interact.server_docker import BaseServerDocker
+from .interact.monomer import Monomer, MonoMetaComponent
 from .scene import EdovesScene
 
 AE_LOGO = "\n".join(
@@ -43,7 +43,6 @@ class Edoves:
             *,
             configs: Dict[str, Union[TemplateConfig, Tuple[Type[TemplateConfig], Dict]]],
             event_system: Optional[EventSystem] = None,
-            is_chat_log: bool = True,
             debug: bool = False
     ):
         if self.__instance:
@@ -54,7 +53,6 @@ class Edoves:
         self.screen = Screen(self)
         replace_traceback(self.event_system.loop)
 
-        from ..builtin.chatlog import ChatLogModule
         for name, t_config in configs.items():
             try:
                 check_name(name)
@@ -72,9 +70,6 @@ class Edoves:
             except ValueError as e:
                 self.logger.critical(f"{e}: {name}")
                 exit()
-            else:
-                if is_chat_log:
-                    cur_scene.require_module(ChatLogModule)
         self.__instance = True
 
     @classmethod
@@ -124,9 +119,10 @@ class Edoves:
         for name, cur_scene in self.scene_list.items():
             running_task = self.event_system.loop.create_task(
                 cur_scene.update(),
-                name=f"Edoves_{name}_Stop_Task"
+                name=f"Edoves_{name}_Running_Task"
             )
             update_task.append(running_task)
+            self.logger.debug(f"{name} Running...")
         await asyncio.gather(*update_task)
         # await self.quit_task()
 
@@ -160,4 +156,6 @@ class Edoves:
     def __getattr__(self, item):
         if item in self.scene_list:
             return self.__getitem__(item)
+        if item in self.protocol_list:
+            return self.protocol_list[item]
         raise ValueError

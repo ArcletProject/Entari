@@ -1,6 +1,8 @@
+from typing import cast
+
 from arclet.edoves.builtin.actions import MessageSend, GetMonomer, Union, ChangeStatus, ExecutiveAction
 from arclet.edoves.main.context import ctx_event
-from .monomers import MahEntity
+from .monomers import MahEntity, MEMetadata
 
 
 class MuteMember(ChangeStatus):
@@ -32,14 +34,25 @@ class GroupUnmuteAll(ChangeStatus):
 
 
 class GetFriend(GetMonomer):
+    target: MahEntity
+
     def __init__(self, target: Union[int, str], detail: bool = False):
         super().__init__(target, "Friend", detail=detail)
 
 
 class GetMember(GetMonomer):
+    target: MahEntity
+
     def __init__(self, target: Union[int, str]):
         super().__init__(target, "Member")
         self.rest = {"group": self.target.current_group}
+
+    async def execute(self) -> MahEntity:
+        member = await (super().execute())
+        gid = self.target.get_component(MEMetadata).group_id
+        if gid:
+            member.metadata.group_id = gid
+        return cast(MahEntity, member)
 
 
 class Reply(MessageSend):
@@ -67,7 +80,7 @@ class Nudge(ExecutiveAction):
 
     async def execute(self):
         return await self.target.action(self.action)(
-            self.target.metadata.pure_id
+            self.target.metadata.identifier
         )
 
 

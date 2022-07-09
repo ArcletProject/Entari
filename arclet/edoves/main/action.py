@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 from .context import ctx_monomer
-from .monomer import Monomer, at_mono
+from .interact.monomer import Monomer, at_mono
 
 if TYPE_CHECKING:
     from .medium import BaseMedium
@@ -29,6 +29,12 @@ class ExecAs:
     monomer: "Monomer"
     action: "ExecutiveAction"
 
+    @classmethod
+    def of(cls, **kwargs):
+        if monomers := at_mono(**kwargs):
+            return cls(monomers[0])
+        return cls(ctx_monomer.get())
+
     def __init__(self, target: "Monomer"):
         self.monomer = target
 
@@ -36,13 +42,6 @@ class ExecAs:
         self.action = action
         self.action.to(self.monomer)
         return self
-
-    def __class_getitem__(cls, item):
-        monomers = at_mono.__getitem__(item)
-        if monomers:
-            return cls(monomers[0])
-        else:
-            return cls(ctx_monomer.get())
 
     def __await__(self):
         return self.action.execute().__await__()

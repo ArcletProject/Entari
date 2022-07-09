@@ -7,7 +7,7 @@ from abc import ABC
 
 from pydantic import Field
 
-from ..utilles import DataStructure
+from arclet.edoves.main.utilles import DataStructure
 
 
 class MessageElement(ABC, DataStructure):

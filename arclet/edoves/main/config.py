@@ -1,9 +1,9 @@
 from typing import Type
 from yarl import URL
 from .utilles import DataStructure
-from .server_docker import NetworkClient
 from .typings import TProtocol
-from .server_docker import BaseServerDocker
+from .network import NetworkClient
+from .interact.server_docker import BaseServerDocker
 
 
 class TemplateConfig(DataStructure):
@@ -17,6 +17,7 @@ class TemplateConfig(DataStructure):
     update_interval: float = 0.02
     modules_base_path: str = "./edoves_modules"
     ensure_retries: int = 5
+    use_event_record: bool = True
 
     def get(self, key: str):
         return self.__dict__.get(key)

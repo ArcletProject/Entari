@@ -3,11 +3,11 @@ from datetime import datetime
 from xml import sax
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Union, List
-from arclet.edoves.main.message import MessageElement, DataStructure, Text, Image, At, AtAll
+from arclet.edoves.builtin.message import MessageElement, DataStructure, Text, Image, At, AtAll
 from pydantic import Field, validator
 
 if TYPE_CHECKING:
-    from arclet.edoves.main.message import MessageChain
+    from arclet.edoves.builtin.message import MessageChain
 
 
 class Plain(Text):
@@ -196,7 +196,7 @@ class Forward(MessageElement):
 
 
 def _update_forward_refs():
-    from arclet.edoves.main.message import MessageChain
+    from arclet.edoves.builtin.message import MessageChain
 
     Quote.update_forward_refs(MessageChain=MessageChain)
     ForwardNode.update_forward_refs(MessageChain=MessageChain)

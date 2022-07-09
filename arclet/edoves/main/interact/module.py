@@ -4,15 +4,16 @@ from arclet.letoderea.utils import search_event, TEvent
 from arclet.letoderea.entities.auxiliary import BaseAuxiliary
 from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
 from arclet.letoderea.utils import run_always_await
-from .interact import InteractiveObject
-from .typings import TProtocol
-from .medium import BaseMedium
-from .utilles import IOStatus
-from .utilles.security import UNKNOWN, VerifyCodeChecker
-from .behavior import BaseBehavior
-from .event import EdovesBasicEvent
-from .component import MetadataComponent, Component
-from .context import ctx_module, ctx_event
+
+from . import InteractiveObject
+from ..typings import TProtocol
+from ..medium import BaseMedium
+from ..utilles import IOStatus
+from ..utilles.security import UNKNOWN, VerifyCodeChecker
+from ..component.behavior import BaseBehavior
+from ..event import EdovesBasicEvent
+from ..component import MetadataComponent, Component
+from ..context import ctx_module, ctx_event
 
 
 class ModuleMetaComponent(MetadataComponent, VerifyCodeChecker):
@@ -104,7 +105,7 @@ class ModuleBehavior(BaseBehavior):
 
     def activate(self):
         data = self.get_component(ModuleMetaComponent)
-        data.protocol.verify(self.interactive_object)
+        self.interactive_object.protocol.verify(self.interactive_object)
         data.state = IOStatus.ESTABLISHED
 
     async def invoke(self, method_name: str, time: float):
@@ -156,7 +157,7 @@ class ModuleBehavior(BaseBehavior):
             **kwargs
     ):
         if not medium:
-            medium = await self.io.metadata.protocol.screen.get_medium(medium_type, **kwargs)
+            medium = await self.io.protocol.screen.get_medium(medium_type, **kwargs)
         if event_type:
             if isinstance(event_type, str):
                 event = search_event(event_type)(medium=medium, **kwargs)
@@ -172,7 +173,7 @@ class ModuleBehavior(BaseBehavior):
             return
         self.io.metadata.state = IOStatus.PROCESSING
         with ctx_module.use(self.io):
-            await self.io.metadata.protocol.screen.edoves.event_system.delegate_exec(
+            await self.io.protocol.screen.edoves.event_system.delegate_exec(
                 delegates, event
             )
             self.io.metadata.state = IOStatus.ESTABLISHED
@@ -184,21 +185,22 @@ class BaseModule(InteractiveObject):
     prefab_handlers = MediumHandlers
     metadata: prefab_metadata
     behavior: prefab_behavior
-    handlers: MediumHandlers
+    handlers: prefab_handlers
     local_storage: Dict = {}
 
     __slots__ = ["handlers"]
 
     def __init__(self, protocol: TProtocol):
-        _path = self.__class__.__module__ + '.' + self.__class__.__qualname__
+        self.protocol = protocol
         metadata = self.prefab_metadata(self)
-        metadata.protocol = protocol
-        metadata.identifier = f"{_path}@{protocol.identifier}"
+        if not hasattr(metadata, 'identifier'):
+            metadata.identifier = self.__class__.__module__ + '.' + self.__class__.__qualname__
         super().__init__(metadata)
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):
-            for k, v in self.local_storage.pop(self.__class__).items():
-                self.get_component(self.prefab_behavior).add_handlers(k, *v[0], auxiliaries=v[1])
+            hds = self.local_storage.pop(self.__class__)
+            for hd in hds:
+                self.get_component(self.prefab_behavior).add_handlers(hd[0], *hd[1][0], auxiliaries=hd[1][1])
 
     @property
     def name(self):
@@ -223,8 +225,8 @@ class BaseModule(InteractiveObject):
             auxiliaries: Optional[List[BaseAuxiliary]] = None
     ):
         if not __module_self__.local_storage.get(__module_self__):
-            __module_self__.local_storage.setdefault(__module_self__, {})
-        __module_self__.local_storage[__module_self__].setdefault(event_type, [reaction, auxiliaries])
+            __module_self__.local_storage.setdefault(__module_self__, [])
+        __module_self__.local_storage[__module_self__].append([event_type, [reaction, auxiliaries]])
 
     def add_handler(
             __module_self__,
@@ -236,5 +238,5 @@ class BaseModule(InteractiveObject):
             return __module_self__.behavior.add_handlers(event_type, *reaction, auxiliaries=auxiliaries)
         except AttributeError:
             if not __module_self__.local_storage.get(__module_self__.__class__):
-                __module_self__.local_storage.setdefault(__module_self__.__class__, {})
-            __module_self__.local_storage[__module_self__.__class__].setdefault(event_type, [reaction, auxiliaries])
+                __module_self__.local_storage.setdefault(__module_self__.__class__, [])
+            __module_self__.local_storage[__module_self__.__class__].append([event_type, [reaction, auxiliaries]])

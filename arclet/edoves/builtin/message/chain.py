@@ -1,8 +1,7 @@
-from typing import List, Iterable, Type, Union, TypeVar
+from typing import List, Iterable, Type, Union, TypeVar, Iterator, SupportsIndex
+from arclet.edoves.main.utilles import DataStructure, gen_subclass
 
 from .element import MessageElement
-from ..utilles import DataStructure, gen_subclass
-
 TMElement = TypeVar("TMElement", bound=MessageElement)
 
 
@@ -286,10 +285,10 @@ class MessageChain(DataStructure):
     def __repr__(self) -> str:
         return fr"MessageChain({repr(self.__root__)})"
 
-    def __iter__(self) -> Iterable[TMElement]:
+    def __iter__(self) -> Iterator[TMElement]:
         yield from self.__root__
 
-    def __getitem__(self, index) -> TMElement:
+    def __getitem__(self, index: SupportsIndex) -> TMElement:
         return self.__root__[index]
 
     def __len__(self) -> int:

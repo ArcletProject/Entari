@@ -21,7 +21,7 @@ def _create_init(needy_args, optional_args):
 
     args = ", ".join(args)
     local_vars = ', '.join(local_param.keys())
-    header = header + "(" + args + "):"
+    header = f"{header}({args}):"
     body = '\n'.join(f'  {b}' for b in body)
     txt = f'{header}\n{body}'
     txt = f"def __create_fn__({local_vars}):\n{txt}\n return __init__"
