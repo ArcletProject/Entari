@@ -128,15 +128,15 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.8.0"
+version = "0.9.2"
 requires_python = ">=3.8"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 dependencies = [
     "tarina>=0.3.0",
 ]
 files = [
-    {file = "arclet-letoderea-0.8.0.tar.gz", hash = "sha256:67c9e237f6aea8b530402f8631c6dd31e384ffc35663a4da08da88647739f15e"},
-    {file = "arclet_letoderea-0.8.0-py3-none-any.whl", hash = "sha256:caf5a2d8f129249b802bcf54ca22504b1a60a443f00cc4584c316457803b3eb7"},
+    {file = "arclet-letoderea-0.9.2.tar.gz", hash = "sha256:75ca11e3a27a44769255ecd2de9f761c079c9291ab07f1c38cd8eb3b065ee8da"},
+    {file = "arclet_letoderea-0.9.2-py3-none-any.whl", hash = "sha256:3e8c9d1e4a20835469fc0de4a9e556dd0b2162f6afee2285eaf7d84f075a277b"},
 ]
 
 [[package]]
@@ -367,22 +367,22 @@ files = [
 
 [[package]]
 name = "satori-python-client"
-version = "0.9.0"
+version = "0.9.1"
 requires_python = ">=3.8"
 summary = "Satori Protocol SDK for python, specify client part"
 dependencies = [
     "aiohttp>=3.8.6",
     "launart>=0.8.2",
-    "satori-python-core>=0.9.0",
+    "satori-python-core>=0.9.1",
 ]
 files = [
-    {file = "satori_python_client-0.9.0-py3-none-any.whl", hash = "sha256:a6a0b08924bf173dc2ae86e6b6043e1dd85aa1004b11e09da6f7916d9d9c057a"},
-    {file = "satori_python_client-0.9.0.tar.gz", hash = "sha256:03abc7b2e3f7363662f9b30b78274faa9ed5edc5be5cb6cee5f7bb77541d4f46"},
+    {file = "satori_python_client-0.9.1-py3-none-any.whl", hash = "sha256:e82eaf2f404221fa74a81b33dde5f2f0a5c7ae4aa9779b6ccd2d9b17ff6644d1"},
+    {file = "satori_python_client-0.9.1.tar.gz", hash = "sha256:90c8a7e516ead30531106c786463a14d5f23a6c657132f6cdb57cbae5641fc5b"},
 ]
 
 [[package]]
 name = "satori-python-core"
-version = "0.9.0"
+version = "0.9.1"
 requires_python = ">=3.8"
 summary = "Satori Protocol SDK for python, specify common part"
 dependencies = [
@@ -391,8 +391,8 @@ dependencies = [
     "yarl>=1.9.3",
 ]
 files = [
-    {file = "satori_python_core-0.9.0-py3-none-any.whl", hash = "sha256:6d35c39d0acda91b9196f15d1e4a599c8bd732cf48dc176186b63e8057273ead"},
-    {file = "satori_python_core-0.9.0.tar.gz", hash = "sha256:cf8dacb3e5db5140824f7f161f87c9650fe71fb040b011cf02a5d06446ed906a"},
+    {file = "satori_python_core-0.9.1-py3-none-any.whl", hash = "sha256:6e79e4df33d6bd568ac26de0ffdb110abb746e26681f710ed958d016e88eaa5e"},
+    {file = "satori_python_core-0.9.1.tar.gz", hash = "sha256:45e92bf049f66b1b2d4f783685c3fc64ca599f9f62b410f19db30612540d4797"},
 ]
 
 [[package]]

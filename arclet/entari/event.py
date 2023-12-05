@@ -4,6 +4,8 @@ from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import ClassVar
 
+from tarina import gen_subclass
+
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as SatoriEvent
@@ -30,7 +32,7 @@ class Event:
         for fd in fs:
             if not fd.init:
                 continue
-            if attr := getattr(origin, fd.name):
+            if attr := getattr(origin, fd.name, None):
                 attrs[fd.name] = attr
         res = cls(**attrs)
         res._origin = origin
@@ -352,3 +354,17 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
             context["member"] = self.member
         if self.guild:
             context["guild"] = self.guild
+
+
+MAPPING = {}
+
+for cls in gen_subclass(Event):
+    if hasattr(cls, "type"):
+        MAPPING[cls.type.value] = cls
+
+
+def event_parse(account: Account, event: SatoriEvent):
+    try:
+        return MAPPING[event.type].parse(account, event)
+    except KeyError:
+        raise NotImplementedError from None
