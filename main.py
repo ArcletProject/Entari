@@ -11,9 +11,9 @@ from arclet.entari import (
 command = EntariCommands()
 
 
-@command.on("test {a}")
-async def test(a: int, channel: Channel, session: Session):
-    await session.send_message(channel, f"a = {a}")
+@command.on("add {a} {b}")
+async def add(a: int, b: int, channel: Channel, session: Session):
+    await session.send_message(channel, f"{a + b =}")
 
 
 plug = Plugin(MessageCreatedEvent)
