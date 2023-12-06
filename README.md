@@ -5,18 +5,19 @@
 ## 示例
 
 ```python
-from arclet.entari import Channel, Entari, EntariCommands, Session, WebsocketsInfo
+from arclet.entari import ContextSession, Entari, EntariCommands, WebsocketsInfo
 
 command = EntariCommands()
 
 
 @command.on("add {a} {b}")
-async def add(a: int, b: int, channel: Channel, session: Session):
-    await session.send_message(channel, f"{a + b =}")
+async def add(a: int, b: int, session: ContextSession):
+    await session.send_message(f"{a + b =}")
 
 
 app = Entari()
 app.apply(WebsocketsInfo(port=5500, token="XXX"))
 
 app.run()
+
 ```

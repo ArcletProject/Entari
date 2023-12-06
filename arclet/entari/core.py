@@ -12,6 +12,7 @@ from satori.model import Event
 
 from .event import event_parse
 from .plugin import plugins
+from .session import ContextSession
 
 
 class SessionProvider(Provider[Session]):
@@ -20,7 +21,13 @@ class SessionProvider(Provider[Session]):
             return account.session
 
 
-global_providers.append(SessionProvider())
+class ContextSessionProvider(Provider[ContextSession]):
+    async def __call__(self, context: Contexts):
+        if "$origin_event" and "$account" in context:
+            return ContextSession(context["$account"], context["$origin_event"])
+
+
+global_providers.extend([SessionProvider(), ContextSessionProvider()])
 
 
 class Entari(App):

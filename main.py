@@ -1,19 +1,11 @@
-from arclet.entari import (
-    Channel,
-    Entari,
-    EntariCommands,
-    MessageCreatedEvent,
-    Plugin,
-    Session,
-    WebsocketsInfo,
-)
+from arclet.entari import ContextSession, Entari, EntariCommands, MessageCreatedEvent, Plugin, WebsocketsInfo
 
 command = EntariCommands()
 
 
 @command.on("add {a} {b}")
-async def add(a: int, b: int, channel: Channel, session: Session):
-    await session.send_message(channel, f"{a + b =}")
+async def add(a: int, b: int, session: ContextSession):
+    await session.send_message(f"{a + b =}")
 
 
 plug = Plugin(MessageCreatedEvent)

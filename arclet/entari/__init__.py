@@ -45,3 +45,4 @@ from .event import MessageEvent as MessageEvent
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMeta as PluginMeta
+from .session import ContextSession as ContextSession
