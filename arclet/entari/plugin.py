@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from arclet.letoderea import Publisher, BaseEvent, system_ctx
+from arclet.letoderea import BaseEvent, Publisher, system_ctx
 
 
 @dataclass
@@ -12,7 +12,7 @@ class PluginMeta:
     name: str | None = None
     version: str | None = None
     license: str | None = None
-    urls:  dict[str, str] | None = None
+    urls: dict[str, str] | None = None
     description: str | None = None
     icon: str | None = None
     classifier: list[str] = field(default_factory=list)
@@ -28,7 +28,6 @@ plugins = {}
 
 
 class Plugin(Publisher):
-
     def __init__(
         self,
         *events: type[BaseEvent],

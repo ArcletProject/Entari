@@ -1,18 +1,8 @@
 import asyncio
-import inspect
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Optional,
-    TypeVar,
-    Union,
-    cast,
-    get_args,
-    overload,
-)
+import inspect
+from typing import Any, Callable, Generic, Optional, TypeVar, Union, cast, get_args, overload
 
 from arclet.alconna import (
     Alconna,
@@ -193,7 +183,6 @@ class AlconnaSuppiler(SupplyAuxiliary):
 
 
 class AlconnaProvider(Provider[Any]):
-
     def __init__(self, type: str, extra: Optional[dict] = None):
         super().__init__()
         self.type = type
@@ -252,7 +241,7 @@ class AlconnaProviderFactory(ProviderFactory):
 
 
 def get_cmd(target: Subscriber):
-    return next((a for a in target.auxiliaries[Scope.prepare] if isinstance(a, AlconnaSuppiler))).cmd
+    return next(a for a in target.auxiliaries[Scope.prepare] if isinstance(a, AlconnaSuppiler)).cmd
 
 
 class EntariCommands:
@@ -291,12 +280,9 @@ class EntariCommands:
         return command_manager.all_command_help(namespace=self.__namespace__)
 
     def get_help(self, command: str) -> str:
-        return command_manager.get_command(
-            f"{self.__namespace__}::{command}"
-        ).get_help()
+        return command_manager.get_command(f"{self.__namespace__}::{command}").get_help()
 
     async def execute(self, message: MessageChain):
-
         async def _run(target: Subscriber, content: MessageChain):
             aux = next((a for a in target.auxiliaries[Scope.prepare] if isinstance(a, AlconnaSuppiler)), None)
             if not aux:
@@ -319,9 +305,7 @@ class EntariCommands:
 
         msg = str(message.exclude(At)).lstrip()
         if matches := list(self.trie.prefixes(msg)):
-            return await asyncio.gather(
-                *(_run(res.value, message) for res in matches if res.value)
-            )
+            return await asyncio.gather(*(_run(res.value, message) for res in matches if res.value))
         # shortcut
         head, _ = split_once(msg, (" ",))
         res = []
@@ -340,15 +324,11 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]
-        ] = None,
+        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TCallable) -> TCallable:
-                return self.on(
-                    _cmd_self.build(), need_tome, remove_tome, auxiliaries, providers
-                )(func)
+                return self.on(_cmd_self.build(), need_tome, remove_tome, auxiliaries, providers)(func)
 
         return Command(command, help_text)
 
@@ -359,9 +339,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]
-        ] = None,
+        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
     ) -> Callable[[TCallable], TCallable]:
         ...
 
@@ -372,9 +350,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]
-        ] = None,
+        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
@@ -387,9 +363,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]
-        ] = None,
+        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
@@ -404,21 +378,19 @@ class EntariCommands:
                 _command = alconna_from_format(command, mapping, meta, union=False)
                 _command.reset_namespace(self.__namespace__)
                 key = _command.name + "".join(
-                    f" {arg.value.target}"
-                    for arg in _command.args
-                    if isinstance(arg.value, DirectPattern)
+                    f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
-                auxiliaries.insert(0, AlconnaSuppiler(_command, need_tome or self.need_tome, remove_tome or self.remove_tome))
-                target = self.publisher.register(
-                    auxiliaries=auxiliaries, providers=providers
-                )(func)
+                auxiliaries.insert(
+                    0, AlconnaSuppiler(_command, need_tome or self.need_tome, remove_tome or self.remove_tome)
+                )
+                target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
                 self.publisher.remove_subscriber(target)
                 self.trie[key] = target
             else:
-                auxiliaries.insert(0, AlconnaSuppiler(command, need_tome or self.need_tome, remove_tome or self.remove_tome))
-                target = self.publisher.register(
-                    auxiliaries=auxiliaries, providers=providers
-                )(func)
+                auxiliaries.insert(
+                    0, AlconnaSuppiler(command, need_tome or self.need_tome, remove_tome or self.remove_tome)
+                )
+                target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
                 self.publisher.remove_subscriber(target)
                 if not isinstance(command.command, str):
                     raise TypeError("Command name must be a string.")

@@ -1,25 +1,18 @@
+from __future__ import annotations
+
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import (
-    TYPE_CHECKING,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import TYPE_CHECKING, TypeVar, overload
+from typing_extensions import Self, SupportsIndex
 
 from satori import Element, Text
-from typing_extensions import Self, SupportsIndex
 
 T = TypeVar("T")
 TE = TypeVar("TE", bound=Element)
 TE1 = TypeVar("TE1", bound=Element)
 
 
-class MessageChain(List[TE]):
+class MessageChain(list[TE]):
     """消息序列
 
     参数:
@@ -27,8 +20,8 @@ class MessageChain(List[TE]):
     """
 
     def __init__(
-        self: "MessageChain[Element]",
-        message: Union[Iterable[Union[str, TE]], str, TE, None] = None,
+        self: MessageChain[Element],
+        message: Iterable[str | TE] | str | TE | None = None,
     ):
         super().__init__()
         if isinstance(message, str):
@@ -46,22 +39,18 @@ class MessageChain(List[TE]):
         return "[" + ", ".join(repr(seg) for seg in self) + "]"
 
     @overload
-    def __add__(self, other: str) -> "MessageChain[Union[TE, Text]]":
+    def __add__(self, other: str) -> MessageChain[TE | Text]:
         ...
 
     @overload
-    def __add__(self, other: Union[TE, Iterable[TE]]) -> "MessageChain[TE]":
+    def __add__(self, other: TE | Iterable[TE]) -> MessageChain[TE]:
         ...
 
     @overload
-    def __add__(
-        self, other: Union[TE1, Iterable[TE1]]
-    ) -> "MessageChain[Union[TE, TE1]]":
+    def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]:
         ...
 
-    def __add__(
-        self, other: Union[str, TE, TE1, Iterable[Union[TE, TE1]]]
-    ) -> "MessageChain":
+    def __add__(self, other: str | TE | TE1 | Iterable[TE | TE1]) -> MessageChain:
         result: MessageChain = self.copy()
         if isinstance(other, str):
             if result and isinstance(text := result[-1], Text):
@@ -81,33 +70,29 @@ class MessageChain(List[TE]):
         return result
 
     @overload
-    def __radd__(self, other: str) -> "MessageChain[Union[Text, TE]]":
+    def __radd__(self, other: str) -> MessageChain[Text | TE]:
         ...
 
     @overload
-    def __radd__(self, other: Union[TE, Iterable[TE]]) -> "MessageChain[TE]":
+    def __radd__(self, other: TE | Iterable[TE]) -> MessageChain[TE]:
         ...
 
     @overload
-    def __radd__(
-        self, other: Union[TE1, Iterable[TE1]]
-    ) -> "MessageChain[Union[TE1, TE]]":
+    def __radd__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE1 | TE]:
         ...
 
-    def __radd__(self, other: Union[str, TE1, Iterable[TE1]]) -> "MessageChain":
+    def __radd__(self, other: str | TE1 | Iterable[TE1]) -> MessageChain:
         result = MessageChain(other)
         return result + self
 
-    def __iadd__(self, other: Union[str, TE, Iterable[TE]]) -> Self:
+    def __iadd__(self, other: str | TE | Iterable[TE]) -> Self:
         if isinstance(other, str):
             if self and isinstance(text := self[-1], Text):
                 text.text += other
             else:
                 self.append(Text(other))  # type: ignore
         elif isinstance(other, Element):
-            if self and (
-                isinstance(text := self[-1], Text) and isinstance(other, Text)
-            ):
+            if self and (isinstance(text := self[-1], Text) and isinstance(other, Text)):
                 text.text += other.text
             else:
                 self.append(other)
@@ -119,7 +104,7 @@ class MessageChain(List[TE]):
         return self
 
     @overload
-    def __getitem__(self, args: Type[TE1]) -> "MessageChain[TE1]":
+    def __getitem__(self, args: type[TE1]) -> MessageChain[TE1]:
         """获取仅包含指定消息段类型的消息
 
         参数:
@@ -130,7 +115,7 @@ class MessageChain(List[TE]):
         """
 
     @overload
-    def __getitem__(self, args: Tuple[Type[TE1], int]) -> TE1:
+    def __getitem__(self, args: tuple[type[TE1], int]) -> TE1:
         """索引指定类型的消息段
 
         参数:
@@ -141,7 +126,7 @@ class MessageChain(List[TE]):
         """
 
     @overload
-    def __getitem__(self, args: Tuple[Type[TE1], slice]) -> "MessageChain[TE1]":
+    def __getitem__(self, args: tuple[type[TE1], slice]) -> MessageChain[TE1]:
         """切片指定类型的消息段
 
         参数:
@@ -175,14 +160,8 @@ class MessageChain(List[TE]):
 
     def __getitem__(
         self,
-        args: Union[
-            Type[TE1],
-            Tuple[Type[TE1], int],
-            Tuple[Type[TE1], slice],
-            int,
-            slice,
-        ],
-    ) -> Union[TE, TE1, "MessageChain[TE1]", Self]:
+        args: (type[TE1] | tuple[type[TE1], int] | tuple[type[TE1], slice] | int | slice),
+    ) -> TE | TE1 | MessageChain[TE1] | Self:
         arg1, arg2 = args if isinstance(args, tuple) else (args, None)
         if isinstance(arg1, int) and arg2 is None:
             return super().__getitem__(arg1)
@@ -198,7 +177,7 @@ class MessageChain(List[TE]):
             return MessageChain([seg for seg in self if isinstance(seg, arg1)][arg2])
         raise ValueError("Incorrect arguments to slice")  # pragma: no cover
 
-    def __contains__(self, value: Union[str, Element, Type[Element]]) -> bool:
+    def __contains__(self, value: str | Element | type[Element]) -> bool:
         """检查消息段是否存在
 
         参数:
@@ -212,13 +191,11 @@ class MessageChain(List[TE]):
             value = Text(value)
         return super().__contains__(value)
 
-    def has(self, value: Union[str, Element, Type[Element]]) -> bool:
+    def has(self, value: str | Element | type[Element]) -> bool:
         """与 {ref}``__contains__` <nonebot.adapters.Message.__contains__>` 相同"""
         return value in self
 
-    def index(
-        self, value: Union[str, Element, Type[Element]], *args: SupportsIndex
-    ) -> int:
+    def index(self, value: str | Element | type[Element], *args: SupportsIndex) -> int:
         """索引消息段
 
         参数:
@@ -240,7 +217,7 @@ class MessageChain(List[TE]):
             value = Text(value)
         return super().index(value, *args)  # type: ignore
 
-    def get(self, type_: Type[TE], count: Optional[int] = None) -> "MessageChain[TE]":
+    def get(self, type_: type[TE], count: int | None = None) -> MessageChain[TE]:
         """获取指定类型的消息段
 
         参数:
@@ -253,9 +230,7 @@ class MessageChain(List[TE]):
         if count is None:
             return self[type_]
 
-        iterator, filtered = (
-            seg for seg in self if isinstance(seg, type_)
-        ), MessageChain()
+        iterator, filtered = (seg for seg in self if isinstance(seg, type_)), MessageChain()
         for _ in range(count):
             seg = next(iterator, None)
             if seg is None:
@@ -263,7 +238,7 @@ class MessageChain(List[TE]):
             filtered.append(seg)
         return filtered
 
-    def count(self, value: Union[Type[Element], str, Element]) -> int:
+    def count(self, value: type[Element] | str | Element) -> int:
         """计算指定消息段的个数
 
         参数:
@@ -280,7 +255,7 @@ class MessageChain(List[TE]):
             else super().count(value)  # type: ignore
         )
 
-    def only(self, value: Union[Type[Element], str, Element]) -> bool:
+    def only(self, value: type[Element] | str | Element) -> bool:
         """检查消息中是否仅包含指定消息段
 
         参数:
@@ -295,9 +270,7 @@ class MessageChain(List[TE]):
             value = Text(value)
         return all(seg == value for seg in self)
 
-    def join(
-        self, iterable: Iterable[Union[TE1, "MessageChain[TE1]"]]
-    ) -> "MessageChain[Union[TE, TE1]]":
+    def join(self, iterable: Iterable[TE1 | MessageChain[TE1]]) -> MessageChain[TE | TE1]:
         """将多个消息连接并将自身作为分割
 
         参数:
@@ -316,11 +289,11 @@ class MessageChain(List[TE]):
                 ret.extend(msg.copy())
         return ret
 
-    def copy(self) -> "MessageChain[TE]":
+    def copy(self) -> MessageChain[TE]:
         """深拷贝消息"""
         return deepcopy(self)
 
-    def include(self, *types: Type[Element]) -> Self:
+    def include(self, *types: type[Element]) -> Self:
         """过滤消息
 
         参数:
@@ -331,7 +304,7 @@ class MessageChain(List[TE]):
         """
         return MessageChain(seg for seg in self if seg.__class__ in types)
 
-    def exclude(self, *types: Type[Element]) -> Self:
+    def exclude(self, *types: type[Element]) -> Self:
         """过滤消息
 
         参数:

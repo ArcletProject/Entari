@@ -4,14 +4,13 @@ from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import ClassVar
 
-from tarina import gen_subclass
-
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as SatoriEvent
 from satori import EventType, Guild, Login, Member, Quote, Role, User
 from satori.client import Account
-from satori.model import Message
+from satori.model import MessageObject
+from tarina import gen_subclass
 
 from .message import MessageChain
 
@@ -63,7 +62,7 @@ class Event:
         async def __call__(self, context: Contexts):
             return context["$origin_event"].user
 
-    class MessageProvider(Provider[Message]):
+    class MessageProvider(Provider[MessageObject]):
         async def __call__(self, context: Contexts):
             return context["$origin_event"].message
 
@@ -210,7 +209,7 @@ class QuoteProvider(Provider[Quote]):
 class MessageEvent(Event):
     channel: Channel
     user: User
-    message: Message
+    message: MessageObject
     content: MessageChain = field(init=False)
     guild: Guild | None = None
     member: Member | None = None
@@ -252,7 +251,7 @@ class MessageUpdatedEvent(MessageEvent):
 class ReactionEvent(NoticeEvent):
     channel: Channel
     user: User
-    message: Message
+    message: MessageObject
     content: MessageChain = field(init=False)
     quote: Quote | None = None
     guild: Guild | None = None
@@ -330,7 +329,7 @@ class InteractionCommandArgvEvent(InteractionCommandEvent):
 class InteractionCommandMessageEvent(InteractionCommandEvent):
     channel: Channel
     user: User
-    message: Message
+    message: MessageObject
     content: MessageChain = field(init=False)
     quote: Quote | None = None
     guild: Guild | None = None
