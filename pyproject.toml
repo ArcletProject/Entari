@@ -1,15 +1,15 @@
 [project]
 name = "arclet-entari"
 version = "0.1.0"
-description = "interact framework"
+description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
 ]
 dependencies = [
-    "arclet-letoderea>=0.7.0",
+    "arclet-letoderea>=0.9.2",
     "arclet-alconna>=1.7.38",
-    "satori-python-core>=0.9.0",
-    "satori-python-client>=0.9.0",
+    "satori-python-core>=0.9.2",
+    "satori-python-client>=0.9.2",
     "arclet-alconna-tools>=0.6.8",
     "pygtrie>=2.5.0",
 ]
@@ -17,7 +17,6 @@ requires-python = ">=3.9"
 readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
