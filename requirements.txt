@@ -1,7 +1,0 @@
-aiohttp
-pydantic>=1.8.2
-yarl
-loguru>=0.6.0
-arclet-letoderea>=0.3.5
-arclet-alconna>=1.0.2
-importlib-metadata
