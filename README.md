@@ -1,4 +1,15 @@
-# arclet-entari
+<div align="center"> 
+  
+# Entari
+
+  > _lo su etheclim, ti zo entaem rish._
+  
+</div>
+
+[![Licence](https://img.shields.io/github/license/ArcletProject/Entari)](https://github.com/ArcletProject/Entari/blob/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/arclet-entari)](https://pypi.org/project/arclet-entari)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/arclet-entari)](https://www.python.org/)
+![Entari](https://img.shields.io/badge/Arclet-Entari-2564c2.svg)
 
 一个基于 `Satori` 协议的简易 IM framework
 
