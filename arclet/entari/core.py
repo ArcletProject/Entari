@@ -51,7 +51,7 @@ class Entari(App):
 
             logger.warning(f"received unsupported event {raw.type}: {raw}")
 
-        asyncio.create_task(event_parse_task(account, event))
+        await event_parse_task(account, event)
 
     # async def handle_lifecycle(self, account: Account, state: LoginStatus):
     # if state == LoginStatus.ONLINE:

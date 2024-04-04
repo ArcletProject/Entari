@@ -39,16 +39,13 @@ class MessageChain(list[TE]):
         return "[" + ", ".join(repr(seg) for seg in self) + "]"
 
     @overload
-    def __add__(self, other: str) -> MessageChain[TE | Text]:
-        ...
+    def __add__(self, other: str) -> MessageChain[TE | Text]: ...
 
     @overload
-    def __add__(self, other: TE | Iterable[TE]) -> MessageChain[TE]:
-        ...
+    def __add__(self, other: TE | Iterable[TE]) -> MessageChain[TE]: ...
 
     @overload
-    def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]:
-        ...
+    def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]: ...
 
     def __add__(self, other: str | TE | TE1 | Iterable[TE | TE1]) -> MessageChain:
         result: MessageChain = self.copy()
@@ -70,16 +67,13 @@ class MessageChain(list[TE]):
         return result
 
     @overload
-    def __radd__(self, other: str) -> MessageChain[Text | TE]:
-        ...
+    def __radd__(self, other: str) -> MessageChain[Text | TE]: ...
 
     @overload
-    def __radd__(self, other: TE | Iterable[TE]) -> MessageChain[TE]:
-        ...
+    def __radd__(self, other: TE | Iterable[TE]) -> MessageChain[TE]: ...
 
     @overload
-    def __radd__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE1 | TE]:
-        ...
+    def __radd__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE1 | TE]: ...
 
     def __radd__(self, other: str | TE1 | Iterable[TE1]) -> MessageChain:
         result = MessageChain(other)
@@ -160,7 +154,7 @@ class MessageChain(list[TE]):
 
     def __getitem__(
         self,
-        args: (type[TE1] | tuple[type[TE1], int] | tuple[type[TE1], slice] | int | slice),
+        args: type[TE1] | tuple[type[TE1], int] | tuple[type[TE1], slice] | int | slice,
     ) -> TE | TE1 | MessageChain[TE1] | Self:
         arg1, arg2 = args if isinstance(args, tuple) else (args, None)
         if isinstance(arg1, int) and arg2 is None:

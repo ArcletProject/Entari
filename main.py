@@ -1,6 +1,12 @@
+from satori import Image
 from arclet.entari import ContextSession, Entari, EntariCommands, MessageCreatedEvent, Plugin, WebsocketsInfo
 
 command = EntariCommands()
+
+
+@command.on("echoimg {img}")
+async def echoimg(img: Image, session: ContextSession):
+    await session.send_message([img])
 
 
 @command.on("add {a} {b}")
@@ -19,8 +25,8 @@ async def _(event: MessageCreatedEvent):
 app = Entari()
 app.apply(
     WebsocketsInfo(
-        port=5500,
-        token="9491ee65f2e5322d050021d4ceaca05d42c3ff2fc2a457fdffeb315619bf3f91",
+        port=7777,
+        token="fa1ccfd6a9fcac523f3af2f67575e54230b1aef5df69a6886a3bae140e39a13b",
     )
 )
 

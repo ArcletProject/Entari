@@ -218,7 +218,7 @@ class MessageEvent(Event):
     providers = [MessageContentProvider, QuoteProvider]
 
     def __post_init__(self):
-        self.content = MessageChain(self.message.content)
+        self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
             self.content = self.content.exclude(Quote)
@@ -260,7 +260,7 @@ class ReactionEvent(NoticeEvent):
     providers = [MessageContentProvider, QuoteProvider]
 
     def __post_init__(self):
-        self.content = MessageChain(self.message.content)
+        self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
             self.content = self.content.exclude(Quote)
@@ -338,7 +338,7 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
     providers = [MessageContentProvider, QuoteProvider]
 
     def __post_init__(self):
-        self.content = MessageChain(self.message.content)
+        self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
             self.content = self.content.exclude(Quote)

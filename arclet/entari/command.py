@@ -2,7 +2,7 @@ import asyncio
 from copy import deepcopy
 from dataclasses import dataclass, field
 import inspect
-from typing import Any, Callable, Generic, Optional, TypeVar, Union, cast, get_args, overload
+from typing import Any, Callable, Generic, Literal, Optional, TypeVar, Union, cast, get_args, overload
 
 from arclet.alconna import (
     Alconna,
@@ -34,7 +34,8 @@ from arclet.letoderea import (
 )
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
-from nepattern import DirectPattern, main
+from nepattern import DirectPattern
+from nepattern.util import CUnionType
 from pygtrie import CharTrie
 from satori.client import Account
 from satori.element import At, Text
@@ -174,7 +175,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
             context["alc_result"] = CommandResult(self.cmd, _res, may_help_text)
             return context
         elif may_help_text:
-            await account.send(context["$event"], may_help_text)
+            await account.send(context["$event"], MessageChain(may_help_text))
             return False
 
     @property
@@ -183,9 +184,9 @@ class AlconnaSuppiler(SupplyAuxiliary):
 
 
 class AlconnaProvider(Provider[Any]):
-    def __init__(self, type: str, extra: Optional[dict] = None):
+    def __init__(self, type_: str, extra: Optional[dict] = None):
         super().__init__()
-        self.type = type
+        self.type = type_
         self.extra = extra or {}
 
     async def __call__(self, context: Contexts):
@@ -221,7 +222,7 @@ class AlconnaProvider(Provider[Any]):
 class AlconnaProviderFactory(ProviderFactory):
     def validate(self, param: Param):
         annotation = get_origin(param.annotation)
-        if annotation in main._Contents:
+        if annotation in (Union, CUnionType, Literal):
             annotation = get_origin(get_args(param.annotation)[0])
         if annotation is CommandResult:
             return AlconnaProvider("result")
@@ -254,7 +255,11 @@ class EntariCommands:
         plugins["~command.EntariCommands"] = self.publisher
         self.need_tome = need_tome
         self.remove_tome = remove_tome
-        config.namespaces["Entari"] = Namespace(self.__namespace__)
+        config.namespaces["Entari"] = Namespace(
+            self.__namespace__,
+            to_text=lambda x: x.text if x.__class__ is Text else None,
+            converter=lambda x: MessageChain(x),
+        )
 
         @self.publisher.register(auxiliaries=[MessageJudger()])
         async def listener(event: MessageEvent):
@@ -340,8 +345,7 @@ class EntariCommands:
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
-    ) -> Callable[[TCallable], TCallable]:
-        ...
+    ) -> Callable[[TCallable], TCallable]: ...
 
     @overload
     def on(
@@ -354,8 +358,7 @@ class EntariCommands:
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
-    ) -> Callable[[TCallable], TCallable]:
-        ...
+    ) -> Callable[[TCallable], TCallable]: ...
 
     def on(
         self,
