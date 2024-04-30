@@ -8,10 +8,11 @@ from loguru import logger
 from satori.client import App
 from satori.client.account import Account
 from satori.client.session import Session
+from satori.config import Config
 from satori.model import Event
 
 from .event import event_parse
-from .plugin import plugins
+from .plugin import dispatchers
 from .session import ContextSession
 
 
@@ -33,10 +34,11 @@ global_providers.extend([SessionProvider(), ContextSessionProvider()])
 class Entari(App):
     id = "entari.service"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *configs: Config):
+        super().__init__(*configs)
         self.event_system = EventSystem()
         self.register(self.handle_event)
+        self._ref_tasks = set()
         # self.lifecycle(self.handle_lifecycle)
 
     async def handle_event(self, account: Account, event: Event):
@@ -45,8 +47,10 @@ class Entari(App):
             with suppress(NotImplementedError):
                 ev = event_parse(connection, raw)
                 self.event_system.publish(ev)
-                for plugin in plugins.values():
-                    loop.create_task(plugin.publish(ev))
+                for disp in dispatchers.values():
+                    task = loop.create_task(disp.publish(ev))
+                    self._ref_tasks.add(task)
+                    task.add_done_callback(self._ref_tasks.discard)
                 return
 
             logger.warning(f"received unsupported event {raw.type}: {raw}")

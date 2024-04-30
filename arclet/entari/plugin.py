@@ -1,13 +1,39 @@
 from __future__ import annotations
 
+import inspect
+from contextlib import suppress
 from dataclasses import dataclass, field
+from os import PathLike
+from pathlib import Path
 from typing import Callable
+from loguru import logger
+import importlib
 
 from arclet.letoderea import BaseEvent, Publisher, system_ctx
 
+dispatchers = {}
+
+
+class PluginDispatcher(Publisher):
+    def __init__(
+        self,
+        plugin: "Plugin",
+        *events: type[BaseEvent],
+        predicate: Callable[[BaseEvent], bool] | None = None,
+    ):
+        super().__init__(plugin.name, *events, predicate=predicate)  # type: ignore
+        self.plugin = plugin
+        if es := system_ctx.get():
+            es.register(self)
+        else:
+            dispatchers[self.id] = self
+
+    on = Publisher.register
+    handle = Publisher.register
+
 
 @dataclass
-class PluginMeta:
+class Plugin:
     author: list[str] = field(default_factory=list)
     name: str | None = None
     version: str | None = None
@@ -23,24 +49,49 @@ class PluginMeta:
     config_endpoints: list[str] = field(default_factory=list)
     component_endpoints: list[str] = field(default_factory=list)
 
+    _dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict, init=False)
 
-plugins = {}
+    def __post_init__(self):
+        self.name = self.name or self.__module__
+
+    def dispatch(self, *events: type[BaseEvent], predicate: Callable[[BaseEvent], bool] | None = None):
+        disp = PluginDispatcher(self, *events, predicate=predicate)
+        self._dispatchers[disp.id] = disp
+        return disp
+
+    def dispose(self):
+        for disp in self._dispatchers.values():
+            if disp.id in dispatchers:
+                del dispatchers[disp.id]
+            if es := system_ctx.get():
+                es.publishers.pop(disp.id, None)
+        self._dispatchers.clear()
 
 
-class Plugin(Publisher):
-    def __init__(
-        self,
-        *events: type[BaseEvent],
-        meta: PluginMeta | None = None,
-        predicate: Callable[[BaseEvent], bool] | None = None,
-    ):
-        meta = meta or PluginMeta()
-        super().__init__(meta.name or self.__module__, *events, predicate=predicate)
-        self.meta = meta
-        if es := system_ctx.get():
-            es.register(self)
-        else:
-            plugins[self.id] = self
+def load_plugin(path: str) -> list[Plugin] | None:
+    """
+    以导入路径方式加载模块
 
-    on = Publisher.register
-    handle = Publisher.register
+    Args:
+        path (str): 模块路径
+    """
+    with suppress(ModuleNotFoundError):
+        imported_module = importlib.import_module(path, path)
+        logger.success(f"loaded plugin {path!r}")
+        return [
+            m
+            for _, m in inspect.getmembers(
+                imported_module, lambda x: isinstance(x, Plugin)
+            )
+        ]
+    logger.warning(f"failed to load plugin {path!r}")
+
+
+def load_plugins(dir_: str | PathLike | Path):
+    path = dir_ if isinstance(dir_, Path) else Path(dir_)
+    if path.is_dir():
+        for p in path.iterdir():
+            if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
+                load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
+    elif path.is_file():
+        load_plugin(".".join(path.parts[:-1:1]) + "." + path.stem)

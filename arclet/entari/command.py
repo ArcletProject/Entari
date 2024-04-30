@@ -44,7 +44,7 @@ from tarina.string import split_once
 
 from .event import MessageEvent
 from .message import MessageChain
-from .plugin import plugins
+from .plugin import dispatchers
 
 T = TypeVar("T")
 TCallable = TypeVar("TCallable", bound=Callable[..., Any])
@@ -208,10 +208,10 @@ class AlconnaProvider(Provider[Any]):
             return Match(target, target != Empty)
         if self.type == "query":
             q = Query(self.extra["query"].path, self.extra["query"].result)
-            result = result.result.query(q.path, Empty)
-            q.available = result != Empty
+            res = result.result.query(q.path, Empty)
+            q.available = res != Empty
             if q.available:
-                q.result = result
+                q.result = res
             elif self.extra["query"].result != Empty:
                 q.available = True
             return q
@@ -252,7 +252,7 @@ class EntariCommands:
         self.trie: CharTrie = CharTrie()
         self.publisher = Publisher("EntariCommands", MessageEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
-        plugins["~command.EntariCommands"] = self.publisher
+        dispatchers["~command.EntariCommands"] = self.publisher
         self.need_tome = need_tome
         self.remove_tome = remove_tome
         config.namespaces["Entari"] = Namespace(
@@ -329,7 +329,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TCallable) -> TCallable:
@@ -344,7 +344,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ) -> Callable[[TCallable], TCallable]: ...
 
     @overload
@@ -354,7 +354,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
@@ -366,7 +366,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,

@@ -117,7 +117,7 @@ class ContextSession:
         return await self.account.session.channel_update(self.context.channel.id, data)
 
     async def channel_delete(self) -> None:
-        if not self.context.guild:
+        if not self.context.channel:
             raise RuntimeError("Event cannot use to delete channel!")
         return await self.account.session.channel_delete(
             self.context.channel.id,
