@@ -1,8 +1,7 @@
 from satori import Image
-from arclet.entari import ContextSession, Entari, WebsocketsInfo, commands, load_plugin
+from arclet.entari import ContextSession, Entari, WebsocketsInfo, EntariCommands, load_plugin
 
-
-load_plugin("example_plugin")
+commands = EntariCommands()
 
 
 @commands.on("echoimg {img}")
@@ -10,10 +9,7 @@ async def echoimg(img: Image, session: ContextSession):
     await session.send_message([img])
 
 
-@commands.on("add {a} {b}")
-async def add(a: int, b: int, session: ContextSession):
-    await session.send_message(f"{a + b =}")
-
+load_plugin("example_plugin")
 
 app = Entari(
     WebsocketsInfo(

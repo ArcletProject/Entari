@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass, field
 import importlib
@@ -32,6 +33,11 @@ class PluginDispatcher(Publisher):
     handle = Publisher.register
 
 
+class PluginDispatcherFactory(ABC):
+    @abstractmethod
+    def dispatch(self, plugin: Plugin) -> PluginDispatcher: ...
+
+
 @dataclass
 class Plugin:
     author: list[str] = field(default_factory=list)
@@ -56,6 +62,11 @@ class Plugin:
 
     def dispatch(self, *events: type[BaseEvent], predicate: Callable[[BaseEvent], bool] | None = None):
         disp = PluginDispatcher(self, *events, predicate=predicate)
+        self._dispatchers[disp.id] = disp
+        return disp
+
+    def mount(self, factory: PluginDispatcherFactory):
+        disp = factory.dispatch(self)
         self._dispatchers[disp.id] = disp
         return disp
 

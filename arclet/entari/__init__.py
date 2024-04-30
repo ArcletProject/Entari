@@ -38,7 +38,8 @@ from satori.client.session import Session as Session
 from satori.config import WebhookInfo as WebhookInfo
 from satori.config import WebsocketsInfo as WebsocketsInfo
 
-from .command import EntariCommands
+from .command import AlconnaDispatcher as AlconnaDispatcher
+from .command import EntariCommands as EntariCommands
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
@@ -47,5 +48,3 @@ from .plugin import Plugin as Plugin
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .session import ContextSession as ContextSession
-
-commands = EntariCommands()
