@@ -39,7 +39,6 @@ from satori.config import WebhookInfo as WebhookInfo
 from satori.config import WebsocketsInfo as WebsocketsInfo
 
 from .command import EntariCommands
-
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import inspect
 from contextlib import suppress
 from dataclasses import dataclass, field
+import importlib
+import inspect
 from os import PathLike
 from pathlib import Path
 from typing import Callable
-from loguru import logger
-import importlib
 
 from arclet.letoderea import BaseEvent, Publisher, system_ctx
+from loguru import logger
 
 dispatchers = {}
 
@@ -17,7 +17,7 @@ dispatchers = {}
 class PluginDispatcher(Publisher):
     def __init__(
         self,
-        plugin: "Plugin",
+        plugin: Plugin,
         *events: type[BaseEvent],
         predicate: Callable[[BaseEvent], bool] | None = None,
     ):
@@ -78,12 +78,7 @@ def load_plugin(path: str) -> list[Plugin] | None:
     with suppress(ModuleNotFoundError):
         imported_module = importlib.import_module(path, path)
         logger.success(f"loaded plugin {path!r}")
-        return [
-            m
-            for _, m in inspect.getmembers(
-                imported_module, lambda x: isinstance(x, Plugin)
-            )
-        ]
+        return [m for _, m in inspect.getmembers(imported_module, lambda x: isinstance(x, Plugin))]
     logger.warning(f"failed to load plugin {path!r}")
 
 

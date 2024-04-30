@@ -329,7 +329,9 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
+        providers: Optional[
+            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
+        ] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TCallable) -> TCallable:
@@ -344,7 +346,9 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
+        providers: Optional[
+            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
+        ] = None,
     ) -> Callable[[TCallable], TCallable]: ...
 
     @overload
@@ -354,7 +358,9 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
+        providers: Optional[
+            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
+        ] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
@@ -366,7 +372,9 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = False,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
+        providers: Optional[
+            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
+        ] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
