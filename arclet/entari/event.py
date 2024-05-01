@@ -33,7 +33,7 @@ class Event:
                 continue
             if attr := getattr(origin, fd.name, None):
                 attrs[fd.name] = attr
-        res = cls(**attrs)
+        res = cls(**attrs)  # type: ignore
         res._origin = origin
         return res
 
@@ -56,22 +56,32 @@ class Event:
             return param.name == "operator" and super().validate(param)
 
         async def __call__(self, context: Contexts):
+            if "operator" in context:
+                return context["operator"]
             return context["$origin_event"].operator
 
     class UserProvider(Provider[User]):
         async def __call__(self, context: Contexts):
+            if "user" in context:
+                return context["user"]
             return context["$origin_event"].user
 
     class MessageProvider(Provider[MessageObject]):
         async def __call__(self, context: Contexts):
+            if "$message_origin" in context:
+                return context["$message_origin"]
             return context["$origin_event"].message
 
     class ChannelProvider(Provider[Channel]):
         async def __call__(self, context: Contexts):
+            if "channel" in context:
+                return context["channel"]
             return context["$origin_event"].channel
 
     class GuildProvider(Provider[Guild]):
         async def __call__(self, context: Contexts):
+            if "guild" in context:
+                return context["guild"]
             return context["$origin_event"].guild
 
 

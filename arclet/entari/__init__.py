@@ -43,6 +43,8 @@ from .command import EntariCommands as EntariCommands
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
+from .filter import is_direct_message as is_direct_message
+from .filter import is_public_message as is_public_message
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import load_plugin as load_plugin

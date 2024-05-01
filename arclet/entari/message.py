@@ -15,7 +15,7 @@ TE1 = TypeVar("TE1", bound=Element)
 class MessageChain(list[TE]):
     """消息序列
 
-    参数:
+    Args:
         message: 消息内容
     """
 
@@ -101,10 +101,10 @@ class MessageChain(list[TE]):
     def __getitem__(self, args: type[TE1]) -> MessageChain[TE1]:
         """获取仅包含指定消息段类型的消息
 
-        参数:
+        Args:
             args: 消息段类型
 
-        返回:
+        Return:
             所有类型为 `args` 的消息段
         """
 
@@ -112,10 +112,10 @@ class MessageChain(list[TE]):
     def __getitem__(self, args: tuple[type[TE1], int]) -> TE1:
         """索引指定类型的消息段
 
-        参数:
+        Args:
             args: 消息段类型和索引
 
-        返回:
+        Return:
             类型为 `args[0]` 的消息段第 `args[1]` 个
         """
 
@@ -123,10 +123,10 @@ class MessageChain(list[TE]):
     def __getitem__(self, args: tuple[type[TE1], slice]) -> MessageChain[TE1]:
         """切片指定类型的消息段
 
-        参数:
+        Args:
             args: 消息段类型和切片
 
-        返回:
+        Return:
             类型为 `args[0]` 的消息段切片 `args[1]`
         """
 
@@ -134,10 +134,10 @@ class MessageChain(list[TE]):
     def __getitem__(self, args: int) -> TE:
         """索引消息段
 
-        参数:
+        Args:
             args: 索引
 
-        返回:
+        Return:
             第 `args` 个消息段
         """
 
@@ -145,10 +145,10 @@ class MessageChain(list[TE]):
     def __getitem__(self, args: slice) -> Self:
         """切片消息段
 
-        参数:
+        Args:
             args: 切片
 
-        返回:
+        Return:
             消息切片 `args`
         """
 
@@ -174,9 +174,9 @@ class MessageChain(list[TE]):
     def __contains__(self, value: str | Element | type[Element]) -> bool:
         """检查消息段是否存在
 
-        参数:
+        Args:
             value: 消息段或消息段类型
-        返回:
+        Return:
             消息内是否存在给定消息段或给定类型的消息段
         """
         if isinstance(value, type):
@@ -186,20 +186,19 @@ class MessageChain(list[TE]):
         return super().__contains__(value)
 
     def has(self, value: str | Element | type[Element]) -> bool:
-        """与 {ref}``__contains__` <nonebot.adapters.Message.__contains__>` 相同"""
         return value in self
 
     def index(self, value: str | Element | type[Element], *args: SupportsIndex) -> int:
         """索引消息段
 
-        参数:
+        Args:
             value: 消息段或者消息段类型
-            arg: start 与 end
+            args: start 与 end
 
-        返回:
+        Return:
             索引 index
 
-        异常:
+        Raise:
             ValueError: 消息段不存在
         """
         if isinstance(value, type):
@@ -214,11 +213,11 @@ class MessageChain(list[TE]):
     def get(self, type_: type[TE], count: int | None = None) -> MessageChain[TE]:
         """获取指定类型的消息段
 
-        参数:
+        Args:
             type_: 消息段类型
             count: 获取个数
 
-        返回:
+        Return:
             构建的新消息
         """
         if count is None:
@@ -235,10 +234,10 @@ class MessageChain(list[TE]):
     def count(self, value: type[Element] | str | Element) -> int:
         """计算指定消息段的个数
 
-        参数:
+        Args:
             value: 消息段或消息段类型
 
-        返回:
+        Return:
             个数
         """
         if isinstance(value, str):
@@ -252,10 +251,10 @@ class MessageChain(list[TE]):
     def only(self, value: type[Element] | str | Element) -> bool:
         """检查消息中是否仅包含指定消息段
 
-        参数:
+        Args:
             value: 指定消息段或消息段类型
 
-        返回:
+        Return:
             是否仅包含指定消息段
         """
         if isinstance(value, type):
@@ -267,10 +266,10 @@ class MessageChain(list[TE]):
     def join(self, iterable: Iterable[TE1 | MessageChain[TE1]]) -> MessageChain[TE | TE1]:
         """将多个消息连接并将自身作为分割
 
-        参数:
+        Args:
             iterable: 要连接的消息
 
-        返回:
+        Return:
             连接后的消息
         """
         ret = MessageChain()
@@ -287,24 +286,24 @@ class MessageChain(list[TE]):
         """深拷贝消息"""
         return deepcopy(self)
 
-    def include(self, *types: type[Element]) -> Self:
+    def include(self, *types: type[Element]) -> MessageChain:
         """过滤消息
 
-        参数:
+        Args:
             types: 包含的消息段类型
 
-        返回:
+        Return:
             新构造的消息
         """
         return MessageChain(seg for seg in self if seg.__class__ in types)
 
-    def exclude(self, *types: type[Element]) -> Self:
+    def exclude(self, *types: type[Element]) -> MessageChain:
         """过滤消息
 
-        参数:
+        Args:
             types: 不包含的消息段类型
 
-        返回:
+        Return:
             新构造的消息
         """
         return MessageChain(seg for seg in self if seg.__class__ not in types)
