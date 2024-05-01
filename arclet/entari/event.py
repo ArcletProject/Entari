@@ -101,6 +101,12 @@ class FriendEvent(NoticeEvent):
 class FriendRequestEvent(FriendEvent):
     type = EventType.FRIEND_REQUEST
 
+    message: MessageObject
+
+    async def gather(self, context: Contexts):
+        await super().gather(context)
+        context["$message_origin"] = self.message
+
 
 @dataclass
 class GuildEvent(NoticeEvent):
@@ -121,6 +127,12 @@ class GuildRemovedEvent(GuildEvent):
 
 class GuildRequestEvent(GuildEvent):
     type = EventType.GUILD_REQUEST
+
+    message: MessageObject
+
+    async def gather(self, context: Contexts):
+        await super().gather(context)
+        context["$message_origin"] = self.message
 
 
 class GuildUpdatedEvent(GuildEvent):
@@ -149,6 +161,12 @@ class GuildMemberRemovedEvent(GuildMemberEvent):
 
 class GuildMemberRequestEvent(GuildMemberEvent):
     type = EventType.GUILD_MEMBER_REQUEST
+
+    message: MessageObject
+
+    async def gather(self, context: Contexts):
+        await super().gather(context)
+        context["$message_origin"] = self.message
 
 
 class GuildMemberUpdatedEvent(GuildMemberEvent):

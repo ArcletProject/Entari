@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from satori.client.account import Account
+from satori.const import EventType
 from satori.element import Element
 from satori.model import Channel, Event, Member, MessageObject, PageResult, Role, User
 
@@ -258,3 +259,30 @@ class ContextSession:
         return await self.account.session.reaction_list(
             self.context.channel.id, self.context.message.id, emoji, next_token
         )
+
+    async def friend_approve(
+        self,
+        approve: bool,
+        comment: str,
+    ):
+        if self.context.type != EventType.FRIEND_REQUEST or not self.context.message:
+            raise RuntimeError("Event cannot approve friend request")
+        return await self.account.session.friend_approve(self.context.message.id, approve, comment)
+
+    async def guild_approve(
+        self,
+        approve: bool,
+        comment: str,
+    ):
+        if self.context.type != EventType.GUILD_REQUEST or not self.context.message:
+            raise RuntimeError("Event cannot approve guild request")
+        return await self.account.session.guild_approve(self.context.message.id, approve, comment)
+
+    async def guild_member_approve(
+        self,
+        approve: bool,
+        comment: str,
+    ):
+        if self.context.type != EventType.GUILD_MEMBER_REQUEST or not self.context.message:
+            raise RuntimeError("Event cannot approve guild member request")
+        return await self.account.session.guild_member_approve(self.context.message.id, approve, comment)
