@@ -1,12 +1,13 @@
 from asyncio import PriorityQueue
 from contextlib import ExitStack
-from typing import TYPE_CHECKING, Optional, Union, Type, TypeVar, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type, TypeVar, Union
+
 from arclet.letoderea.utils import search_event
 
+from .context import ctx_event, ctx_monomer, current_scene, edoves_instance
 from .event import EdovesBasicEvent
 from .medium import BaseMedium, MediumObserver
 from .utilles import IOStatus, MediumStatus
-from .context import ctx_event, edoves_instance, ctx_monomer, current_scene
 
 TM = TypeVar("TM", bound=BaseMedium)
 
@@ -27,11 +28,7 @@ class Screen:
         self.medium_done_list = {}
         self.medium_queue = PriorityQueue()
 
-    async def push(
-            self,
-            medium: TM,
-            in_time: bool = False
-    ):
+    async def push(self, medium: TM, in_time: bool = False):
         await self.medium_queue.put(medium)
         medium.status = MediumStatus.POSTING
         call = MediumObserver(medium, self.edoves.loop)
@@ -61,10 +58,7 @@ class Screen:
             call.set_result(result)
 
     async def broadcast(
-            self,
-            event_type: Union[str, Type[EdovesBasicEvent]],
-            medium_type: Optional[Type[TM]] = None,
-            **kwargs
+        self, event_type: Union[str, Type[EdovesBasicEvent]], medium_type: Optional[Type[TM]] = None, **kwargs
     ):
         evt = event_type if isinstance(event_type, str) else event_type.__class__.__name__
         medium = await self.get(medium_type=medium_type, event_type=evt)
@@ -81,8 +75,10 @@ class Screen:
             stack.enter_context(ctx_monomer.use(event.medium.purveyor))
             self.edoves.event_system.event_publish(event)
             protocol.record_event(medium, event.__class__.__name__)
-            for io in filter(lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list):
+            for io in filter(
+                lambda x: x.metadata.state in (IOStatus.ESTABLISHED, IOStatus.MEDIUM_GET_WAIT), io_list
+            ):
                 self.edoves.loop.create_task(
                     io.behavior.handler_medium(medium=medium, medium_type=medium_type, **kwargs),
-                    name=f"POST_TO_{io.metadata.identifier}<{medium.mid}>"
+                    name=f"POST_TO_{io.metadata.identifier}<{medium.mid}>",
                 )

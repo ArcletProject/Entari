@@ -77,6 +77,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
         elif may_help_text:
             await account.send(context["$event"], MessageChain(may_help_text))
             return False
+        return False
 
     @property
     def scopes(self) -> set[Scope]:

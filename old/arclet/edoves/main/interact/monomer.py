@@ -1,11 +1,11 @@
 from abc import abstractmethod
-from typing import Union, Optional, Any, List, Coroutine
 import inspect
+from typing import Any, Coroutine, List, Optional, Union
 
 from . import InteractiveObject, IOManager
-from ..typings import TProtocol
 from ..component import MetadataComponent
 from ..component.behavior import BaseBehavior
+from ..typings import TProtocol
 from ..utilles import IOStatus
 
 
@@ -27,17 +27,10 @@ class BaseMonoBehavior(BaseBehavior):
     io: "Monomer"
 
     @abstractmethod
-    def activate(self):
-        ...
+    def activate(self): ...
 
     @abstractmethod
-    async def change_metadata(
-            self,
-            meta: str,
-            value: Any,
-            target: Optional["Monomer"] = None,
-            **addition
-    ):
+    async def change_metadata(self, meta: str, value: Any, target: Optional["Monomer"] = None, **addition):
         await self.io.protocol.set_metadata(meta, value, target or self.io, **addition)
         raise NotImplementedError
 
@@ -53,12 +46,11 @@ class Monomer(InteractiveObject):
     behavior: BaseMonoBehavior
 
     def __init__(
-            self,
-            protocol: TProtocol,
-            name: str,
-            identifier: Union[int, str],
-            alias: Optional[str] = None,
-
+        self,
+        protocol: TProtocol,
+        name: str,
+        identifier: Union[int, str],
+        alias: Optional[str] = None,
     ):
         self.protocol = protocol
         data = self.prefab_metadata(self)
@@ -80,12 +72,12 @@ class Monomer(InteractiveObject):
         f = inspect.currentframe()
         lcs = f.f_back.f_back.f_locals
         self.__init__(
-            lcs['self'].protocol,
-            state['metadata']['name'],
-            state['metadata']['identifier'],
-            state['metadata']['alias']
+            lcs["self"].protocol,
+            state["metadata"]["name"],
+            state["metadata"]["identifier"],
+            state["metadata"]["alias"],
         )
-        self.add_tags(*state['metadata']['tags'])
+        self.add_tags(*state["metadata"]["tags"])
 
 
 def at_mono(**kwargs):
@@ -94,15 +86,22 @@ def at_mono(**kwargs):
     for key, value in kwargs.items():
         value = str(value)
         if key in ("id", "uid", "identifier"):
+
             def _(monomer: "Monomer", _value=value):
                 return monomer.metadata.identifier == _value
+
         elif key == "tag":
+
             def _(monomer: "Monomer", _value=value):
                 return monomer.prime_tag == _value
+
         elif key == "type":
+
             def _(monomer: "Monomer", _value=value):
                 return monomer.__class__.__name__ == _value
+
         else:
+
             def _(monomer: "Monomer", _key=key, _value=value):
                 return getattr(monomer.metadata, _key, None) == _value
 
@@ -113,9 +112,7 @@ def at_mono(**kwargs):
 class _EntitySelect:
 
     def __getitem__(self, item) -> List["Monomer"]:
-        return at_mono(**{
-            sl.start: sl.stop for sl in filter(lambda x: isinstance(x, slice), item)
-        })
+        return at_mono(**{sl.start: sl.stop for sl in filter(lambda x: isinstance(x, slice), item)})
 
 
 select = _EntitySelect()

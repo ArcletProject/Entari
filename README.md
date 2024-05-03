@@ -23,7 +23,7 @@ command = EntariCommands()
 
 @command.on("add {a} {b}")
 async def add(a: int, b: int, session: ContextSession):
-    await session.send_message(f"{a + b =}")
+    await session.send(f"{a + b =}")
 
 
 app = Entari()

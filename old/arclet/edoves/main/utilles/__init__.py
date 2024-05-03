@@ -1,11 +1,21 @@
-import json
 from datetime import datetime
 from enum import Enum
-from typing import Union, TYPE_CHECKING, Type, Generator, TypeVar, Dict, Any
-from pydantic import BaseModel, BaseConfig, Extra
+import json
+from typing import TYPE_CHECKING, Any, Dict, Generator, Type, TypeVar, Union
 
-from ..exceptions import InvalidVerifyKey, AccountNotFound, InvalidSession, UnVerifiedSession, \
-    UnknownTarget, AccountMuted, MessageTooLong, InvalidArgument, UnknownError
+from pydantic import BaseConfig, BaseModel, Extra
+
+from ..exceptions import (
+    AccountMuted,
+    AccountNotFound,
+    InvalidArgument,
+    InvalidSession,
+    InvalidVerifyKey,
+    MessageTooLong,
+    UnknownError,
+    UnknownTarget,
+    UnVerifiedSession,
+)
 
 if TYPE_CHECKING:
     from pydantic.typing import AbstractSetIntStr, DictStrAny, MappingIntStrAny
@@ -25,15 +35,15 @@ class DataStructure(BaseModel):
     """
 
     def dict(
-            self,
-            *,
-            include: Union["AbstractSetIntStr", "MappingIntStrAny"] = None,
-            exclude: Union["AbstractSetIntStr", "MappingIntStrAny"] = None,
-            by_alias: bool = False,
-            skip_defaults: bool = None,
-            exclude_unset: bool = False,
-            exclude_defaults: bool = False,
-            exclude_none: bool = False,
+        self,
+        *,
+        include: Union["AbstractSetIntStr", "MappingIntStrAny"] = None,
+        exclude: Union["AbstractSetIntStr", "MappingIntStrAny"] = None,
+        by_alias: bool = False,
+        skip_defaults: bool = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
     ) -> "DictStrAny":
         return super().dict(
             include=include,
@@ -131,7 +141,7 @@ code_exceptions_mapping: Dict[int, Type[Exception]] = {
     10: PermissionError,
     20: AccountMuted,
     30: MessageTooLong,
-    400: InvalidArgument
+    400: InvalidArgument,
 }
 
 

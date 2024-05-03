@@ -1,9 +1,9 @@
-from typing import List, TYPE_CHECKING, Type, Union, Iterable, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Type, Union
 
 from ..utilles import IOStatus
 
 if TYPE_CHECKING:
-    from ..interact import InteractiveObject, TC
+    from ..interact import TC, InteractiveObject
 
 _seminal = type("seminal", (), {})
 
@@ -69,8 +69,11 @@ class Component:
         if key == "_Component__enable":
             super(Component, self).__setattr__(key, value)
         elif self.__enable:
-            if key not in ("__limit__", "__ignore__", "additions") and \
-                    self.__limit__ and key not in self.__ignore__ + self.__limit__:
+            if (
+                key not in ("__limit__", "__ignore__", "additions")
+                and self.__limit__
+                and key not in self.__ignore__ + self.__limit__
+            ):
                 self.additions[key] = value
             else:
                 super(Component, self).__setattr__(key, value)
@@ -86,11 +89,10 @@ class Component:
             super().__delattr__(item)
 
     def __repr__(self):
-        attrs = [f'{k}={v}' for k, v in vars(self).items() if k not in self.__ignore__ and not k.startswith('_')]
-        return (
-            f"[{self.__class__.__name__}: "
-            f"{' '.join(attrs)}]"
-        )
+        attrs = [
+            f"{k}={v}" for k, v in vars(self).items() if k not in self.__ignore__ and not k.startswith("_")
+        ]
+        return f"[{self.__class__.__name__}: " f"{' '.join(attrs)}]"
 
 
 class MetadataComponent(Component, metaclass=ComponentMeta):

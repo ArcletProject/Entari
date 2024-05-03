@@ -1,21 +1,20 @@
 import asyncio
+from contextlib import contextmanager, suppress
 import importlib
-from contextlib import contextmanager
-from inspect import isclass, getmembers
-import shelve
+from inspect import getmembers, isclass
 from os import PathLike
 from pathlib import Path
-from contextlib import suppress
-from typing import Generic, TYPE_CHECKING, Optional, Type, Dict, TypeVar, Union, cast, List
+import shelve
+from typing import TYPE_CHECKING, Dict, Generic, List, Optional, Type, TypeVar, Union, cast
 
+from ..builtin.behavior import MiddlewareBehavior
 from .context import current_scene
-from .utilles import IOStatus, SceneStatus
-from .typings import TProtocol, TConfig
 from .exceptions import ValidationFailed
 from .interact import InteractiveObject, IOManager
-from .interact.monomer import MonoMetaComponent, Monomer
 from .interact.module import BaseModule
-from ..builtin.behavior import MiddlewareBehavior
+from .interact.monomer import Monomer, MonoMetaComponent
+from .typings import TConfig, TProtocol
+from .utilles import IOStatus, SceneStatus
 
 TMde = TypeVar("TMde", bound=BaseModule)
 
@@ -32,6 +31,7 @@ class EdovesMainBehavior(MiddlewareBehavior):
 
     async def start(self):
         from ..builtin.medium import DictMedium
+
         self.protocol = self.io.protocol
         pak = DictMedium().create(self.io, {"start": True})
         connected = await self.protocol.screen.post(pak, self.protocol.docker, event_type="DockerOperate")
@@ -57,12 +57,7 @@ class EdovesScene(Generic[TProtocol]):
     status: SceneStatus
     sig_exit: asyncio.Event
 
-    def __init__(
-            self,
-            name: str,
-            screen: "Screen",
-            config: TConfig
-    ):
+    def __init__(self, name: str, screen: "Screen", config: TConfig):
         self.edoves = screen.edoves
         self.modules = []  # 存储模块类型
         self.monomers = []  # 不存储protocol的标识符
@@ -75,9 +70,7 @@ class EdovesScene(Generic[TProtocol]):
             screen.edoves.protocol_list[config.protocol] = config.protocol(self)
             try:
                 self.protocol.docker = self.config.docker_type(self.protocol, self.config.client())
-                self.edoves.logger.debug(
-                    f"{self.config.docker_type.__name__} activate successful"
-                )
+                self.edoves.logger.debug(f"{self.config.docker_type.__name__} activate successful")
             except ValidationFailed:
                 self.edoves.logger.warning(
                     f"{self.config.docker_type.__name__} does not supply the dock server you chosen"
@@ -89,10 +82,7 @@ class EdovesScene(Generic[TProtocol]):
         with self.context() as self_scene:
             self_scene.require_modules(path=config.modules_base_path)
             self_scene.protagonist = EdovesSelf(
-                self_scene.protocol,
-                "Edoves Application",
-                self_scene.config.get("account"),
-                "edoves"
+                self_scene.protocol, "Edoves Application", self_scene.config.get("account"), "edoves"
             )
 
     @property
@@ -146,34 +136,35 @@ class EdovesScene(Generic[TProtocol]):
             path.mkdir(parents=True)
         monomers = self.monomer_map
         relation_table = {
-            i: {'parents': m.relation['parents'], 'children': m.relation['children']}
+            i: {"parents": m.relation["parents"], "children": m.relation["children"]}
             for i, m in monomers.items()
         }
         monomer = {
-            v.metadata.identifier: v for v in monomers.values()
+            v.metadata.identifier: v
+            for v in monomers.values()
             if v.metadata.identifier != str(self.config.account)
         }
         with shelve.open(f"{self.cache_path}/monomerSnap.db") as db:
-            db['rtable'] = relation_table
-            db['monomer'] = monomer
+            db["rtable"] = relation_table
+            db["monomer"] = monomer
         self.edoves.logger.debug(f"{self.scene_name}: save monomerSnap.db in {self.cache_path}")
 
     def load_snap(self):
         try:
             db = shelve.open(f"{self.cache_path}/monomerSnap.db")
             try:
-                monomers = cast(Dict, db['monomer'])
+                monomers = cast(Dict, db["monomer"])
                 self.monomers.extend(list(monomers.keys()))
-                r_table = db['rtable']
+                r_table = db["rtable"]
             except (KeyError, ModuleNotFoundError):
                 db.close()
                 Path(f"{self.cache_path}/monomerSnap.db").unlink()
                 return
             for i, r in r_table.items():
                 m = self.monomer_map.get(i)
-                for ri in r['parents']:
+                for ri in r["parents"]:
                     m.set_parent(self.monomer_map.get(ri))
-                for ri in r['children']:
+                for ri in r["children"]:
                     m.set_child(self.monomer_map.get(ri))
             db.close()
             self.edoves.logger.debug(f"{self.scene_name}: load monomerSnap.db in {self.cache_path}")
@@ -190,7 +181,7 @@ class EdovesScene(Generic[TProtocol]):
         with suppress(ModuleNotFoundError):
             imported_module = importlib.import_module(path, path)
             for _, m in getmembers(
-                    imported_module, lambda x: isclass(x) and issubclass(x, BaseModule) and x is not BaseModule
+                imported_module, lambda x: isclass(x) and issubclass(x, BaseModule) and x is not BaseModule
             ):
                 return self.require_module(m)
 
@@ -203,7 +194,7 @@ class EdovesScene(Generic[TProtocol]):
             new_module: 激活完成的模块
         """
         _name = module_type.__qualname__
-        _path = f'{module_type.__module__}.{_name}'
+        _path = f"{module_type.__module__}.{_name}"
         if m := self.module_map.get(module_type.__qualname__):
             return m
         try:
@@ -214,12 +205,12 @@ class EdovesScene(Generic[TProtocol]):
             self.edoves.logger.debug(f"{self.scene_name}: {_name} activate successful")
             return new_module
         except ValidationFailed:
-            self.edoves.logger.warning(f"{self.scene_name}: {_name} does not supply the dock server you chosen")
+            self.edoves.logger.warning(
+                f"{self.scene_name}: {_name} does not supply the dock server you chosen"
+            )
 
     def require_modules(
-            self,
-            *module_type: Type[BaseModule],
-            path: Optional[Union[str, PathLike, Path]] = None
+        self, *module_type: Type[BaseModule], path: Optional[Union[str, PathLike, Path]] = None
     ) -> None:
         """激活多个模块
 
@@ -231,7 +222,7 @@ class EdovesScene(Generic[TProtocol]):
         count = 0
         for mt in module_type:
             _name = module_type.__qualname__
-            _path = f'{module_type.__module__}.{_name}'
+            _path = f"{module_type.__module__}.{_name}"
             if self.module_map.get(mt.__qualname__):
                 continue
             try:
@@ -297,9 +288,11 @@ class EdovesScene(Generic[TProtocol]):
                     if v.metadata.state == IOStatus.CLOSE_WAIT:
                         v.metadata.state = IOStatus.CLOSED
                     if v.metadata.state not in (IOStatus.CLOSED, IOStatus.UNKNOWN):
-                        tasks.append(asyncio.create_task(
-                            v.behavior.update(), name=f"{self.scene_name}_IO_Update @AllIO[{i}]"
-                        ))
+                        tasks.append(
+                            asyncio.create_task(
+                                v.behavior.update(), name=f"{self.scene_name}_IO_Update @AllIO[{i}]"
+                            )
+                        )
                 with suppress(NotImplementedError):
                     await asyncio.gather(*tasks)
 

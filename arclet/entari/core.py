@@ -24,7 +24,7 @@ class SessionProvider(Provider[Session]):
 
 class ContextSessionProvider(Provider[ContextSession]):
     async def __call__(self, context: Contexts):
-        if "$origin_event" and "$account" in context:
+        if "$origin_event" in context and "$account" in context:
             return ContextSession(context["$account"], context["$origin_event"])
 
 
@@ -48,6 +48,8 @@ class Entari(App):
                 ev = event_parse(connection, raw)
                 self.event_system.publish(ev)
                 for disp in dispatchers.values():
+                    if not disp.validate(ev):
+                        continue
                     task = loop.create_task(disp.publish(ev))
                     self._ref_tasks.add(task)
                     task.add_done_callback(self._ref_tasks.discard)

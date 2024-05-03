@@ -1,5 +1,5 @@
-from typing import Type, TypeVar, Optional, Dict, Tuple, Any
 from types import FunctionType
+from typing import Any, Dict, Optional, Tuple, Type, TypeVar
 
 _T = TypeVar("_T")
 
@@ -20,14 +20,14 @@ def _create_init(needy_args, optional_args):
         local_param.setdefault(v[0].__name__, v[0])
 
     args = ", ".join(args)
-    local_vars = ', '.join(local_param.keys())
+    local_vars = ", ".join(local_param.keys())
     header = f"{header}({args}):"
-    body = '\n'.join(f'  {b}' for b in body)
-    txt = f'{header}\n{body}'
+    body = "\n".join(f"  {b}" for b in body)
+    txt = f"{header}\n{body}"
     txt = f"def __create_fn__({local_vars}):\n{txt}\n return __init__"
     ns = {}
     exec(txt, {}, ns)
-    return ns['__create_fn__'](**local_param)
+    return ns["__create_fn__"](**local_param)
 
 
 def create_model(cls: Type[_T]) -> Type[_T]:

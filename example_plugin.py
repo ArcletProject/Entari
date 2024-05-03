@@ -1,22 +1,35 @@
-from arclet.entari import MessageCreatedEvent, Plugin, EntariCommands, ContextSession, AlconnaDispatcher, is_direct_message
-from arclet.alconna import Alconna, Args, AllParam
+from arclet.alconna import Alconna, AllParam, Args
+
+from arclet.entari import (
+    ContextSession,
+    EntariCommands,
+    MessageChain,
+    MessageCreatedEvent,
+    Plugin,
+    is_direct_message,
+)
+from arclet.entari.command import Match
 
 plug = Plugin()
 
 disp_message = plug.dispatch(MessageCreatedEvent)
 
 
-@disp_message.on(auxiliaries=[is_direct_message])
+@disp_message.on(auxiliaries=[])
 async def _(event: MessageCreatedEvent):
     print(event.content)
 
 
-on_alconna = plug.mount(AlconnaDispatcher(Alconna("chat", Args["content", AllParam])))
+on_alconna = plug.mount(Alconna("echo", Args["content?", AllParam]))
 
 
 @on_alconna.on()
-async def _(event: MessageCreatedEvent):
-    print("matched:", event.content)
+async def _(content: Match[MessageChain], session: ContextSession):
+    if content.available:
+        await session.send(content.result)
+        return
+
+    await session.send(await session.prompt("请输入内容"))
 
 
 commands = EntariCommands.current()

@@ -1,5 +1,6 @@
 import inspect
-from typing import Optional, Union, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Union
+
 from arclet.edoves.main.action import ExecutiveAction
 
 from .medium import Message, Request
@@ -22,9 +23,7 @@ class GetMonomer(ExecutiveAction):
     async def execute(self) -> "Monomer":
         entity = self.target.protocol.current_scene.monomer_map.get(self.mono_id)
         if not entity:
-            return await self.target.action(self.action)(
-                self.mono_id, self.rs, **self.rest
-            )
+            return await self.target.action(self.action)(self.mono_id, self.rs, **self.rest)
         return entity
 
 
@@ -53,9 +52,7 @@ class MessageAction(ExecutiveAction):
         self.data = message
 
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.data, target=self.target
-        )
+        return await self.target.action(self.action)(self.data, target=self.target)
 
 
 class MessageRevoke(MessageAction):
@@ -66,9 +63,7 @@ class MessageRevoke(MessageAction):
         self.message_id = target
 
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.data, target=self.message_id
-        )
+        return await self.target.action(self.action)(self.data, target=self.message_id)
 
 
 class MessageSend(MessageAction):
@@ -90,9 +85,7 @@ class MessageSend(MessageAction):
 
 class MessageSendDirectly(MessageSend):
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.data, type=self.data.type
-        )
+        return await self.target.action(self.action)(self.data, type=self.data.type)
 
 
 class RequestAction(ExecutiveAction):
@@ -105,9 +98,7 @@ class RequestAction(ExecutiveAction):
         self.data = request
 
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.data, msg=self.msg
-        )
+        return await self.target.action(self.action)(self.data, msg=self.msg)
 
 
 class RequestAccept(RequestAction):

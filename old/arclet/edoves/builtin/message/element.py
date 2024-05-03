@@ -1,13 +1,12 @@
+from abc import ABC
+from base64 import b64decode, b64encode
 import json
 from pathlib import Path
 from typing import Optional, Union
-from base64 import b64decode, b64encode
+
 import aiohttp
-from abc import ABC
-
-from pydantic import Field
-
 from arclet.edoves.main.utilles import DataStructure
+from pydantic import Field
 
 
 class MessageElement(ABC, DataStructure):
@@ -17,7 +16,9 @@ class MessageElement(ABC, DataStructure):
         return hash((type(self),) + tuple(self.__dict__.values()))
 
     def to_serialization(self) -> str:
-        return f"[{self.type}:{json.dumps(self.dict(exclude={'type'}))}]".replace('\n', '\\n').replace('\t', '\\t')
+        return f"[{self.type}:{json.dumps(self.dict(exclude={'type'}))}]".replace("\n", "\\n").replace(
+            "\t", "\\t"
+        )
 
     def to_text(self) -> str:
         return ""
@@ -56,7 +57,7 @@ class MediaElement(MessageElement):
                 if response.status != 200:
                     raise ConnectionError(response.status, await response.text())
                 data = await response.content.readexactly(response.content_length)
-                self.base64 = str(b64encode(data), encoding='utf-8')
+                self.base64 = str(b64encode(data), encoding="utf-8")
                 return data
         if self.base64:
             return b64decode(self.base64)
@@ -69,9 +70,9 @@ class MediaElement(MessageElement):
                 path = Path(path)
             if not path.exists():
                 raise FileNotFoundError(f"{path} is not exist!")
-            self.base64 = str(b64encode(path.read_bytes()), encoding='utf-8')
+            self.base64 = str(b64encode(path.read_bytes()), encoding="utf-8")
         elif data_bytes:
-            self.base64 = str(b64encode(data_bytes), encoding='utf-8')
+            self.base64 = str(b64encode(data_bytes), encoding="utf-8")
 
 
 class Text(MessageElement):
@@ -87,10 +88,10 @@ class Text(MessageElement):
         super().__init__(text=text, **kwargs)
 
     def to_text(self):
-        return self.text.replace('\n', '\\n').replace('\t', '\\t')
+        return self.text.replace("\n", "\\n").replace("\t", "\\t")
 
     def to_serialization(self) -> str:
-        return self.text.replace('\n', '\\n').replace('\t', '\\t')
+        return self.text.replace("\n", "\\n").replace("\t", "\\t")
 
 
 class At(MessageElement):
@@ -114,6 +115,7 @@ class At(MessageElement):
 
 class AtAll(MessageElement):
     """该消息元素用于群组中的管理员提醒群组中的所有成员"""
+
     type: str = "AtAll"
 
     def to_text(self) -> str:
@@ -132,6 +134,7 @@ class Voice(MediaElement):
 
 class Image(MediaElement):
     """该消息元素用于承载消息中所附带的图片."""
+
     type = "Image"
     id: Optional[str] = Field(None, alias="imageId")
 

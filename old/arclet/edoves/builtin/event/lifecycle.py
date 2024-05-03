@@ -1,5 +1,5 @@
-from arclet.edoves.main.event import EdovesBasicEvent
 from arclet.edoves.main.context import edoves_instance
+from arclet.edoves.main.event import EdovesBasicEvent
 
 
 class LifeCycle(EdovesBasicEvent):

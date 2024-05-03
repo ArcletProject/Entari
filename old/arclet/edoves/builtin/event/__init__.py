@@ -1,11 +1,17 @@
 from arclet.edoves.main.event import EdovesBasicEvent
 
+from ..medium import Request
+from .lifecycle import StartRunning, StopRunning
 from .message import MessageReceived, MessageRevoked
 from .network import DockerOperate
-from .lifecycle import StartRunning, StopRunning
-from .notice import NoticeMe, MonomerStatusUpdate, MonomerMetadataUpdate, RelationshipSetup, RelationshipSevered, \
-    RelationshipTerminate
-from ..medium import Request
+from .notice import (
+    MonomerMetadataUpdate,
+    MonomerStatusUpdate,
+    NoticeMe,
+    RelationshipSetup,
+    RelationshipSevered,
+    RelationshipTerminate,
+)
 
 
 class RequestReceived(EdovesBasicEvent):

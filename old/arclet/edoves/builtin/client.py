@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
-from typing import Union, Dict, Any, Optional, List
 import json
-from aiohttp import ClientSession, ClientWebSocketResponse, ClientResponse, WSMessage, FormData
-from yarl import URL
+from typing import Any, Dict, List, Optional, Union
 
-from arclet.edoves.main.network import NetworkClient, HTTP_METHODS, NetworkResponse, NetworkConnection
+from aiohttp import ClientResponse, ClientSession, ClientWebSocketResponse, FormData, WSMessage
+from arclet.edoves.main.network import HTTP_METHODS, NetworkClient, NetworkConnection, NetworkResponse
+from yarl import URL
 
 
 class AiohttpResponse(NetworkResponse):
@@ -73,7 +73,7 @@ class AiohttpWSConnection(NetworkConnection):
     async def pong(self) -> None:
         return await self.response.pong()
 
-    async def close(self, code: int = 1000, message: bytes = b'') -> None:
+    async def close(self, code: int = 1000, message: bytes = b"") -> None:
         await self.response.close(code=code, message=message)
 
 
@@ -92,81 +92,55 @@ class AiohttpClient(NetworkClient):
 
     @asynccontextmanager
     async def ensure_network(
-            self,
-            url: Union[str, URL],
-            *,
-            method: str = "GET",
-            timeout: float = 10.0,
-            **kwargs: Any
+        self, url: Union[str, URL], *, method: str = "GET", timeout: float = 10.0, **kwargs: Any
     ):
-        resp: ClientWebSocketResponse = await self.session.ws_connect(url, timeout=timeout, **kwargs).__aenter__()
+        resp: ClientWebSocketResponse = await self.session.ws_connect(
+            url, timeout=timeout, **kwargs
+        ).__aenter__()
         self.resp_list.append(resp)
         yield AiohttpWSConnection(resp)
         pass
 
     @asynccontextmanager
     async def request(
-            self,
-            method: "HTTP_METHODS",
-            url: Union[str, URL],
-            headers: Dict[str, str] = None,
-            data: Union[str, bytes] = None,
-            **kwargs: Any
+        self,
+        method: "HTTP_METHODS",
+        url: Union[str, URL],
+        headers: Dict[str, str] = None,
+        data: Union[str, bytes] = None,
+        **kwargs: Any,
     ):
-        async with self.session.request(
-                method, url, **{"headers": headers, "data": data, **kwargs}
-        ) as resp:
+        async with self.session.request(method, url, **{"headers": headers, "data": data, **kwargs}) as resp:
             yield AiohttpResponse(resp)
 
     @asynccontextmanager
-    async def get(
-            self,
-            url: Union[str, URL],
-            headers: Dict[str, str] = None,
-            **kwargs: Any
-    ):
-        async with self.session.get(
-                url, **{"headers": headers, **kwargs}
-        ) as resp:
+    async def get(self, url: Union[str, URL], headers: Dict[str, str] = None, **kwargs: Any):
+        async with self.session.get(url, **{"headers": headers, **kwargs}) as resp:
             yield AiohttpResponse(resp)
 
     @asynccontextmanager
     async def post(
-            self, url: Union[str, URL],
-            data: Union[str, bytes, FormData],
-            headers: Dict[str, str] = None,
-            **kwargs: Any
+        self,
+        url: Union[str, URL],
+        data: Union[str, bytes, FormData],
+        headers: Dict[str, str] = None,
+        **kwargs: Any,
     ):
-        async with self.session.post(
-                url, **{"headers": headers, "data": data, **kwargs}
-        ) as resp:
+        async with self.session.post(url, **{"headers": headers, "data": data, **kwargs}) as resp:
             yield AiohttpResponse(resp)
 
     @asynccontextmanager
     async def put(
-            self,
-            url: Union[str, URL],
-            data: Union[str, bytes],
-            headers: Dict[str, str] = None,
-            **kwargs: Any
+        self, url: Union[str, URL], data: Union[str, bytes], headers: Dict[str, str] = None, **kwargs: Any
     ):
         pass
 
     @asynccontextmanager
-    async def delete(
-            self,
-            url: Union[str, URL],
-            headers: Dict[str, str] = None,
-            **kwargs: Any
-    ):
+    async def delete(self, url: Union[str, URL], headers: Dict[str, str] = None, **kwargs: Any):
         pass
 
     @asynccontextmanager
     async def patch(
-            self,
-            url: Union[str, URL],
-            data: Union[str, bytes],
-            headers: Dict[str, str] = None,
-            **kwargs: Any
+        self, url: Union[str, URL], data: Union[str, bytes], headers: Dict[str, str] = None, **kwargs: Any
     ):
         pass

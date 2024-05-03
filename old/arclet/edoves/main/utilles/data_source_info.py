@@ -7,12 +7,7 @@ class DataSourceInfo(DataStructure):
     name: str
     version: str
 
-    def __init__(
-            self,
-            platform: str,
-            name: str,
-            version: str
-    ):
+    def __init__(self, platform: str, name: str, version: str):
         super().__init__(platform=platform, name=name, version=version)
         self.__identifier = generate_identifier(f"{self.platform}_{self.name}_{self.version}")
 

@@ -1,10 +1,10 @@
 from abc import abstractmethod
 from typing import Sequence
 
-from . import InteractiveObject, BaseBehavior, MetadataComponent
+from . import BaseBehavior, InteractiveObject, MetadataComponent
+from ..exceptions import DataMissing
 from ..medium import BaseMedium
 from ..protocol import AbstractProtocol
-from ..exceptions import DataMissing
 
 
 class ParserMetadata(MetadataComponent):

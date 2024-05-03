@@ -1,17 +1,11 @@
-from arclet.alconna import (
-    Alconna,
-    AlconnaString,
-    output_manager,
-    command_manager,
-    split_once,
-    config
-)
-from arclet.letoderea.entities.subscriber import Subscriber
-from arclet.letoderea.handler import await_exec_target
 from typing import Callable, Dict, Optional
-from arclet.edoves.main.interact.module import BaseModule, ModuleMetaComponent, Component
+
+from arclet.alconna import Alconna, AlconnaString, command_manager, config, output_manager, split_once
+from arclet.edoves.main.interact.module import BaseModule, Component, ModuleMetaComponent
 from arclet.edoves.main.typings import TProtocol
 from arclet.edoves.main.utilles.security import EDOVES_DEFAULT
+from arclet.letoderea.entities.subscriber import Subscriber
+from arclet.letoderea.handler import await_exec_target
 
 from .event.message import MessageReceived
 from .medium import Message
@@ -47,12 +41,7 @@ class CommandParsers(Component):
         super(CommandParsers, self).__init__(io)
         self.parsers = {}
 
-    def command(
-            self,
-            command: str,
-            *option: str,
-            sep: str = " "
-    ):
+    def command(self, command: str, *option: str, sep: str = " "):
         alc = AlconnaString(command, *option, sep=sep)
 
         def __wrapper(func):
@@ -104,25 +93,20 @@ class Commander(BaseModule):
                             "message": message,
                             "sender": message.purveyor,
                             "edoves": self.protocol.screen.edoves,
-                            "scene": self.protocol.current_scene
+                            "scene": self.protocol.current_scene,
                         }
                     )
                     break
 
         @self.command("help <page:int:1> #显示帮助")
         async def _(message: Message, page: int):
-            await message.set(command_manager.all_command_help(
-                self.metadata.command_namespace,
-                max_length=self.metadata.max_command_length,
-                page=page
-            )).send()
+            await message.set(
+                command_manager.all_command_help(
+                    self.metadata.command_namespace, max_length=self.metadata.max_command_length, page=page
+                )
+            ).send()
 
-    def command(
-            __commander_self__,
-            command: str,
-            *option: str,
-            sep: str = " "
-    ):
+    def command(__commander_self__, command: str, *option: str, sep: str = " "):
         alc = AlconnaString(command, *option, sep=sep).reset_namespace(
             __commander_self__.metadata.command_namespace
         )

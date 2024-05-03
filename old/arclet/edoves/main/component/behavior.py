@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Optional
+
 from . import Component
 
 if TYPE_CHECKING:
@@ -21,10 +22,7 @@ class BaseBehavior(Component, metaclass=ABCMeta):
             await self.on_disable()
 
     async def handler_medium(
-            self,
-            medium: Optional["BaseMedium"] = None,
-            medium_type: Optional["BaseMedium"] = None,
-            **kwargs
+        self, medium: Optional["BaseMedium"] = None, medium_type: Optional["BaseMedium"] = None, **kwargs
     ):
         if not medium:
             await self.io.protocol.get_medium(medium_type, **kwargs)

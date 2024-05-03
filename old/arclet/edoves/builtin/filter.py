@@ -1,6 +1,6 @@
-from typing import List, Any
+from typing import Any, List
 
-from arclet.edoves.main.utilles.event_filter import EventFilter, EdovesBasicEvent
+from arclet.edoves.main.utilles.event_filter import EdovesBasicEvent, EventFilter
 
 
 class MediumTypeLimit(EventFilter):
@@ -33,17 +33,17 @@ class MonomerMetaLimit(EventFilter):
     path: List[str]
 
     def __init__(self, meta_name: str, value: Any):
-        self.path = meta_name.split('.')
+        self.path = meta_name.split(".")
         if len(self.path) == 1:
-            self.path.insert(0, '')
+            self.path.insert(0, "")
         self.value = value
         super().__init__()
 
         @self.set_aux("before_parse", "judge")
         def judge(sf: MonomerMetaLimit, event: EdovesBasicEvent) -> bool:
-            if sf.path[0] == '':
+            if sf.path[0] == "":
                 return event.medium.purveyor.__getattribute__(sf.path[1]) == sf.value
-            if sf.path[0] == 'metadata':
+            if sf.path[0] == "metadata":
                 return event.medium.purveyor.metadata.__getitem__(sf.path[1]) == sf.value
-            if sf.path[0] == 'behavior':
+            if sf.path[0] == "behavior":
                 return event.medium.purveyor.behavior.__getitem__(sf.path[1]) == sf.value

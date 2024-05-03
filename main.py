@@ -1,5 +1,6 @@
 from satori import Image
-from arclet.entari import ContextSession, Entari, WebsocketsInfo, EntariCommands, load_plugin
+
+from arclet.entari import ContextSession, Entari, EntariCommands, WebsocketsInfo, load_plugin
 
 commands = EntariCommands()
 
@@ -11,11 +12,6 @@ async def echoimg(img: Image, session: ContextSession):
 
 load_plugin("example_plugin")
 
-app = Entari(
-    WebsocketsInfo(
-        port=12345,
-        path="foo"
-    )
-)
+app = Entari(WebsocketsInfo(host="127.0.0.1", port=5140, path="satori"))
 
 app.run()

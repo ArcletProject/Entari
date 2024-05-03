@@ -1,5 +1,6 @@
 from arclet.edoves.builtin.medium import DictMedium, Request
 from arclet.edoves.main.interact.parser import BaseDataParser, ParserBehavior, ParserMetadata
+
 from ..protocol import MAHProtocol
 
 
@@ -15,7 +16,7 @@ class RequestOperateMeta(ParserMetadata):
 
 class RequestOperateParserBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
-        friend = protocol.include_temporary_monomer(data.content.pop('nick'), data.content.pop('fromId'))
+        friend = protocol.include_temporary_monomer(data.content.pop("nick"), data.content.pop("fromId"))
         request = Request().create(
             friend, data.content, self.io.metadata.select_type, event=str(data.content.pop("eventId"))
         )
@@ -23,18 +24,18 @@ class RequestOperateParserBehavior(ParserBehavior):
         await protocol.screen.broadcast("RequestReceived")
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
-        rtype = data.content.get('type')
+        rtype = data.content.get("type")
         await protocol.docker.behavior.session_handle(
             "post",
             f"resp/{rtype[0].lower() + rtype[1:]}",
             {
                 "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
-                "eventId": data.content.get('eventId'),
-                "fromId": data.content['content'].get('fromId'),
-                "groupId": data.content['content'].get('groupId'),
-                "operate": data.content.get('operate'),
-                "message": data.content.get('msg')
-            }
+                "eventId": data.content.get("eventId"),
+                "fromId": data.content["content"].get("fromId"),
+                "groupId": data.content["content"].get("groupId"),
+                "operate": data.content.get("operate"),
+                "message": data.content.get("msg"),
+            },
         )
 
 

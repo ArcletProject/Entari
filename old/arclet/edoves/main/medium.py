@@ -1,10 +1,10 @@
+from asyncio import AbstractEventLoop, Future, wait_for
 from datetime import datetime
-from typing import Optional, Callable, Coroutine, Any, Set, Generic, TypeVar
-from asyncio import Future, AbstractEventLoop, wait_for
+from typing import Any, Callable, Coroutine, Generic, Optional, Set, TypeVar
 
+from .interact.monomer import Monomer
 from .typings import TMeta
 from .utilles import MediumStatus
-from .interact.monomer import Monomer
 
 
 class MediumObserver:
@@ -87,7 +87,7 @@ class MediumMeta(type):
 T = TypeVar("T")
 
 
-class BaseMedium(Generic[T] , metaclass=MediumMeta):
+class BaseMedium(Generic[T], metaclass=MediumMeta):
     purveyor: Monomer
     type: str
     content: TMeta
@@ -133,6 +133,4 @@ class BaseMedium(Generic[T] , metaclass=MediumMeta):
             return func
 
     def __repr__(self):
-        return (
-            f"<{self.__class__.__name__}; {', '.join([f'{k}={v}' for k, v in vars(self).items() if v])}>"
-        )
+        return f"<{self.__class__.__name__}; {', '.join([f'{k}={v}' for k, v in vars(self).items() if v])}>"

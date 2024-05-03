@@ -7,12 +7,15 @@ import importlib
 import inspect
 from os import PathLike
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, TypeVar, overload
+from typing_extensions import Unpack
 
-from arclet.letoderea import BaseEvent, Publisher, system_ctx
+from arclet.letoderea import BaseAuxiliary, BaseEvent, Provider, Publisher, StepOut, system_ctx
+from arclet.letoderea.builtin.breakpoint import R
+from arclet.letoderea.typing import TTarget
 from loguru import logger
 
-dispatchers = {}
+dispatchers: dict[str, PluginDispatcher] = {}
 
 
 class PluginDispatcher(Publisher):
@@ -28,6 +31,23 @@ class PluginDispatcher(Publisher):
             es.register(self)
         else:
             dispatchers[self.id] = self
+        self._events = events
+
+    def waiter(
+        self,
+        *events: type[BaseEvent],
+        providers: list[Provider | type[Provider]] | None = None,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        priority: int = 15,
+        block: bool = False,
+    ) -> Callable[[TTarget[R]], StepOut[R]]:
+        def wrapper(func: TTarget[R]):
+            nonlocal events
+            if not events:
+                events = self._events
+            return StepOut(list(events), func, providers, auxiliaries, priority, block)  # type: ignore
+
+        return wrapper
 
     on = Publisher.register
     handle = Publisher.register
@@ -36,6 +56,15 @@ class PluginDispatcher(Publisher):
 class PluginDispatcherFactory(ABC):
     @abstractmethod
     def dispatch(self, plugin: Plugin) -> PluginDispatcher: ...
+
+
+MAPPING: dict[type, Callable[..., PluginDispatcherFactory]] = {}
+
+T = TypeVar("T")
+
+
+def register_factory(cls: type[T], factory: Callable[[T, Unpack[tuple[Any, ...]]], PluginDispatcherFactory]):
+    MAPPING[cls] = factory
 
 
 @dataclass
@@ -65,8 +94,19 @@ class Plugin:
         self._dispatchers[disp.id] = disp
         return disp
 
-    def mount(self, factory: PluginDispatcherFactory):
-        disp = factory.dispatch(self)
+    @overload
+    def mount(self, factory: PluginDispatcherFactory) -> PluginDispatcher: ...
+
+    @overload
+    def mount(self, factory: object, *args, **kwargs) -> PluginDispatcher: ...
+
+    def mount(self, factory: Any, *args, **kwargs):
+        if isinstance(factory, PluginDispatcherFactory):
+            disp = factory.dispatch(self)
+        elif factory_cls := MAPPING.get(factory.__class__):
+            disp = factory_cls(factory, *args, **kwargs).dispatch(self)
+        else:
+            raise TypeError(f"unsupported factory {factory!r}")
         self._dispatchers[disp.id] = disp
         return disp
 

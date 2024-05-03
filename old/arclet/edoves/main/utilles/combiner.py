@@ -1,5 +1,6 @@
-from typing import TypeVar, Union, Type, Optional
 from inspect import isclass
+from typing import Optional, Type, TypeVar, Union
+
 from ..component.behavior import BaseBehavior
 
 TB = TypeVar("TB", bound=BaseBehavior)
@@ -30,4 +31,5 @@ def combine_behaviors(*behavior: Union[Type[TB], TB]) -> Optional[Type[BaseBehav
 
     class CombineBehavior(*behavior):
         pass
+
     return CombineBehavior

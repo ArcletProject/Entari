@@ -2,8 +2,9 @@ from typing import cast
 
 from arclet.edoves.builtin.medium import DictMedium, Notice
 from arclet.edoves.main.interact.parser import BaseDataParser, ParserBehavior, ParserMetadata
-from ...protocol import MAHProtocol
+
 from ...monomers import MahEntity
+from ...protocol import MAHProtocol
 
 
 class MemberStatusMeta(ParserMetadata):
@@ -11,23 +12,18 @@ class MemberStatusMeta(ParserMetadata):
         "MemberPermissionChangeEvent",
         "MemberMuteEvent",
         "MemberUnmuteEvent",
-        "ChangeMonomerStatus"
-
+        "ChangeMonomerStatus",
     )
 
 
 class MemberDataUpdateMeta(ParserMetadata):
-    parser_targets = (
-        "MemberCardChangeEvent",
-        "MemberSpecialTitleChangeEvent",
-        "MemberHonorChangeEvent"
-    )
+    parser_targets = ("MemberCardChangeEvent", "MemberSpecialTitleChangeEvent", "MemberHonorChangeEvent")
 
 
 class MemberChangeStatusBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
-        member_data = data.content.pop('member')
-        group_data = member_data.pop('group')
+        member_data = data.content.pop("member")
+        group_data = member_data.pop("group")
         group = protocol.include_monomer("group", group_data)
 
         member = protocol.include_monomer("member", member_data)
@@ -40,7 +36,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
             await protocol.screen.push(notice)
             await protocol.screen.broadcast("MonomerStatusUpdate")
         else:
-            if operator_data := data.content.pop('operator'):
+            if operator_data := data.content.pop("operator"):
                 operator = protocol.include_monomer("member", operator_data)
                 if not group.get_child(operator.metadata.identifier):
                     group.set_child(group)
@@ -51,7 +47,7 @@ class MemberChangeStatusBehavior(ParserBehavior):
             notice.operator = operator
             await protocol.screen.push(notice)
             await protocol.screen.broadcast(
-                "MonomerStatusUpdate", active=False, action=ev_type.replace('Member', '').replace('Event', '')
+                "MonomerStatusUpdate", active=False, action=ev_type.replace("Member", "").replace("Event", "")
             )
 
     async def to_docker(self, protocol: MAHProtocol, data: DictMedium):
@@ -64,28 +60,32 @@ class MemberChangeStatusBehavior(ParserBehavior):
                     "post",
                     "mute",
                     {
-                        "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
+                        "sessionKey": protocol.docker.metadata.session_keys[
+                            protocol.current_scene.scene_name
+                        ],
                         "target": target.metadata.group_id,
                         "memberId": target.metadata.identifier,
-                        "time": mute_time
-                    }
+                        "time": mute_time,
+                    },
                 )
             else:
                 await protocol.docker.behavior.session_handle(
                     "post",
                     "unmute",
                     {
-                        "sessionKey": protocol.docker.metadata.session_keys[protocol.current_scene.scene_name],
+                        "sessionKey": protocol.docker.metadata.session_keys[
+                            protocol.current_scene.scene_name
+                        ],
                         "target": target.metadata.group_id,
-                        "memberId": target.metadata.identifier
-                    }
+                        "memberId": target.metadata.identifier,
+                    },
                 )
 
 
 class MemberChangeDataBehavior(ParserBehavior):
     async def from_docker(self, protocol: MAHProtocol, data: DictMedium):
-        member_data = data.content.pop('member')
-        group_data = member_data.pop('group')
+        member_data = data.content.pop("member")
+        group_data = member_data.pop("group")
         group = protocol.include_monomer("group", group_data)
 
         member = protocol.include_monomer("member", member_data)

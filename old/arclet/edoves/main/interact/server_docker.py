@@ -1,13 +1,14 @@
-from typing import Dict, Any, Union, Optional
 from abc import abstractmethod
+from typing import Any, Dict, Optional, Union
+
 from aiohttp import FormData
 
-from .module import BaseModule, ModuleMetaComponent, ModuleBehavior
-from ..network import NetworkClient, HTTP_METHODS, NetworkStatus
 from ..medium import BaseMedium
+from ..network import HTTP_METHODS, NetworkClient, NetworkStatus
 from ..typings import TProtocol
 from ..utilles import IOStatus
 from ..utilles.security import UNKNOWN
+from .module import BaseModule, ModuleBehavior, ModuleMetaComponent
 
 
 class BaseDockerMetaComponent(ModuleMetaComponent):
@@ -31,23 +32,19 @@ class DockerBehavior(ModuleBehavior):
 
     @abstractmethod
     async def connect(self):
-        async with self.data.client.ensure_network(
-                self.io.protocol.current_scene.config.get("host")
-        ):
+        async with self.data.client.ensure_network(self.io.protocol.current_scene.config.get("host")):
             raise NotImplementedError
 
     @abstractmethod
     async def session_handle(
-            self,
-            method: HTTP_METHODS,
-            action: str,
-            content: Optional[Union[Dict[str, Any], str, FormData]] = None,
-            **kwargs
+        self,
+        method: HTTP_METHODS,
+        action: str,
+        content: Optional[Union[Dict[str, Any], str, FormData]] = None,
+        **kwargs,
     ):
         async with self.data.client.request(
-            method,
-            self.io.protocol.current_scene.config.url(action, **content),
-            **kwargs
+            method, self.io.protocol.current_scene.config.url(action, **content), **kwargs
         ):
             raise NotImplementedError
 

@@ -1,9 +1,11 @@
-from typing import Dict, Any, Literal, Optional, cast
+from typing import Any, Dict, Literal, Optional, cast
+
+from arclet.edoves.builtin.medium import Message
+from arclet.edoves.main.medium import BaseMedium
 from arclet.edoves.main.protocol import AbstractProtocol
 from arclet.edoves.main.utilles import IOStatus
-from arclet.edoves.main.medium import BaseMedium
-from arclet.edoves.builtin.medium import Message
 from arclet.edoves.main.utilles.data_source_info import DataSourceInfo
+
 from .monomers import MahEntity
 from .server_docker import MAHServerDocker
 
@@ -16,10 +18,14 @@ class MAHProtocol(AbstractProtocol):
     def record_event(self, medium: BaseMedium, event: str):
         log_level: str = "INFO"
         group_message_log_format: str = (
-            "{scene_name} >>> {bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}")
-        friend_message_log_format: str = "{scene_name} >>> {bot_id}: [{friend_name}({friend_id})] -> {message_string}"
+            "{scene_name} >>> {bot_id}: [{group_name}({group_id})] {member_name}({member_id}) -> {message_string}"
+        )
+        friend_message_log_format: str = (
+            "{scene_name} >>> {bot_id}: [{friend_name}({friend_id})] -> {message_string}"
+        )
         other_client_message_log_format: str = (
-            "{scene_name} >>> {bot_id}: [{platform_name}({platform_id})] -> {message_string}")
+            "{scene_name} >>> {bot_id}: [{platform_name}({platform_id})] -> {message_string}"
+        )
 
         if self.current_scene.config.use_event_record:
             if event == "MessageReceived":
@@ -63,15 +69,15 @@ class MAHProtocol(AbstractProtocol):
         return friend
 
     def include_monomer(
-            self,
-            mono_type: Literal["friend", "member", "group"],
-            monomer_data: Optional[Dict[str, Any]] = None,
-            target: Optional[str] = None,
-            **kwargs
+        self,
+        mono_type: Literal["friend", "member", "group"],
+        monomer_data: Optional[Dict[str, Any]] = None,
+        target: Optional[str] = None,
+        **kwargs,
     ) -> MahEntity:
-        mono_id = str(monomer_data.get('id'))
+        mono_id = str(monomer_data.get("id"))
         mono_identifier = f"{mono_id}@{self.identifier}"
-        if mono_type == 'friend':
+        if mono_type == "friend":
             if not (friend := self.current_scene.monomer_map.get(mono_identifier)):
                 friend = MahEntity(self, monomer_data.get("nickname"), mono_id, monomer_data.get("remark"))
                 friend.set_parent(self.current_scene.protagonist)
@@ -82,7 +88,7 @@ class MAHProtocol(AbstractProtocol):
                 friend.metadata.alias = monomer_data.get("remark")
             friend.set_prime_tag("Friend")
             return friend
-        if mono_type == 'member':
+        if mono_type == "member":
             if not (member := self.current_scene.monomer_map.get(mono_identifier)):
                 member = MahEntity(self, monomer_data.get("memberName"), mono_id)
                 self.dispatch_metadata(member, monomer_data)
@@ -95,7 +101,7 @@ class MAHProtocol(AbstractProtocol):
                 member.metadata.name = monomer_data.get("memberName")
             member.set_prime_tag("Member")
             return member
-        if mono_type == 'group':
+        if mono_type == "group":
             if not (group := self.current_scene.monomer_map.get(mono_identifier)):
                 group = MahEntity(self, monomer_data.get("name"), mono_id)
                 self.dispatch_metadata(group, monomer_data)
@@ -108,48 +114,45 @@ class MAHProtocol(AbstractProtocol):
             return group
 
     def exclude_monomer(
-            self,
-            mono_type: Literal["friend", "member", "group"],
-            monomer_data: Dict[str, Any],
-            **kwargs
+        self, mono_type: Literal["friend", "member", "group"], monomer_data: Dict[str, Any], **kwargs
     ):
-        mono_id = str(monomer_data.get('id'))
+        mono_id = str(monomer_data.get("id"))
         mono_identifier = self.encode_unique_identifier(mono_id)
-        if mono_type == 'friend':
+        if mono_type == "friend":
             if not (friend := self.current_scene.monomer_map.get(mono_identifier)):
                 friend = MahEntity(self, monomer_data.get("nickname"), mono_id, monomer_data.get("remark"))
             else:
-                self.current_scene.protagonist.relation['children'].remove(friend.identifier)
+                self.current_scene.protagonist.relation["children"].remove(friend.identifier)
                 if not friend.compare("Member"):
                     friend.metadata.state = IOStatus.DELETE_WAIT
                     self.current_scene.monomers.remove(friend.metadata.identifier)
             friend.set_prime_tag("Friend")
             return friend
-        if mono_type == 'member':
+        if mono_type == "member":
             if not (member := self.current_scene.monomer_map.get(mono_identifier)):
                 member = MahEntity(self, monomer_data.get("memberName"), mono_id)
                 self.dispatch_metadata(member, monomer_data)
             else:
                 group_id = kwargs.get("group_id")
-                member.get_parent(group_id).relation['children'].remove(member.identifier)
-                member.relation['parents'].remove(self.encode_unique_identifier(group_id))
-                if not member.compare('Friend') and not member.parents:
+                member.get_parent(group_id).relation["children"].remove(member.identifier)
+                member.relation["parents"].remove(self.encode_unique_identifier(group_id))
+                if not member.compare("Friend") and not member.parents:
                     member.metadata.state = IOStatus.DELETE_WAIT
                     self.current_scene.monomers.remove(member.metadata.identifier)
             member.set_prime_tag("Member")
             return member
-        if mono_type == 'group':
+        if mono_type == "group":
             if not (group := self.current_scene.monomer_map.get(mono_identifier)):
                 group = MahEntity(self, monomer_data.get("name"), mono_id)
                 self.dispatch_metadata(group, monomer_data)
             else:
                 self.current_scene.monomers.remove(mono_id)
-                self.current_scene.protagonist.relation['parents'].remove(mono_identifier)
+                self.current_scene.protagonist.relation["parents"].remove(mono_identifier)
                 group.metadata.state = IOStatus.DELETE_WAIT
 
                 for m in group.children:
                     # 群组与群组成员的关系解除
-                    m.relation['parents'].remove(mono_identifier)
+                    m.relation["parents"].remove(mono_identifier)
                     if len(m.parents) == 0:
                         # 群组成员与bot的所有关系解除
                         m.metadata.state = IOStatus.DELETE_WAIT
@@ -160,18 +163,14 @@ class MAHProtocol(AbstractProtocol):
             return group
 
     def event_type_predicate(self, content) -> str:
-        return content.get('type')
+        return content.get("type")
 
     async def ensure_self(self):
         profile = await self.docker.behavior.session_handle(
             "get",
             "botProfile",
-            {"sessionKey": self.docker.metadata.session_keys[self.current_scene.scene_name]}
+            {"sessionKey": self.docker.metadata.session_keys[self.current_scene.scene_name]},
         )
         self.current_scene.protagonist.metadata.name = profile.get("nickname")
 
-    source_information = DataSourceInfo(
-        platform="Tencent",
-        name="mirai-api-http",
-        version="Default"
-    )
+    source_information = DataSourceInfo(platform="Tencent", name="mirai-api-http", version="Default")

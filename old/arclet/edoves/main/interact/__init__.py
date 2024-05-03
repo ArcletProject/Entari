@@ -1,10 +1,11 @@
 import asyncio
 from inspect import isclass
-from typing import Dict, Type, Union, TypeVar, Optional, TypedDict, List, Callable, Coroutine
+from typing import Callable, Coroutine, Dict, List, Optional, Type, TypedDict, TypeVar, Union
+
 from ..component import Component, MetadataComponent
 from ..component.behavior import BaseBehavior
-from ..utilles import IOStatus
 from ..typings import TProtocol
+from ..utilles import IOStatus
 
 TC = TypeVar("TC", bound=Component)
 TI = TypeVar("TI")
@@ -65,19 +66,19 @@ class InteractiveObject(metaclass=InteractiveMeta):
         return super().__new__(cls)
 
     def __init__(
-            self,
-            metadata: Optional[Union[prefab_metadata, Type[prefab_metadata]]] = None,
-            behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None,
+        self,
+        metadata: Optional[Union[prefab_metadata, Type[prefab_metadata]]] = None,
+        behavior: Optional[Union[prefab_behavior, Type[prefab_behavior]]] = None,
     ):
         self._components = {}
         self.relation = {"parents": [], "children": []}
         self.metadata = (
-            metadata(self) if isclass(metadata) else metadata
-        ) if metadata else self.prefab_metadata(self)
+            (metadata(self) if isclass(metadata) else metadata) if metadata else self.prefab_metadata(self)
+        )
         self.metadata.state = IOStatus.ACTIVATE_WAIT
         self.behavior = (
-            behavior(self) if isclass(behavior) else behavior
-        ) if behavior else self.prefab_behavior(self)
+            (behavior(self) if isclass(behavior) else behavior) if behavior else self.prefab_behavior(self)
+        )
         IOManager.storage[self.identifier] = self
 
     def compare(self, *tag: str):
@@ -96,7 +97,10 @@ class InteractiveObject(metaclass=InteractiveMeta):
         """设置首要tag"""
         if self.compare(tag):
             index = self.metadata.tags.index(tag)
-            self.metadata.tags[0], self.metadata.tags[index] = self.metadata.tags[index], self.metadata.tags[0]
+            self.metadata.tags[0], self.metadata.tags[index] = (
+                self.metadata.tags[index],
+                self.metadata.tags[0],
+            )
         else:
             self.metadata.tags.append(tag)
             self.metadata.tags[0], self.metadata.tags[-1] = self.metadata.tags[-1], self.metadata.tags[0]
@@ -108,7 +112,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
         否则返回自身的identifier
         """
-        if hasattr(self, 'protocol'):
+        if hasattr(self, "protocol"):
             return self.protocol.encode_unique_identifier(self.metadata.identifier)
         return self.metadata.identifier
 
@@ -126,20 +130,20 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
     @property
     def parents(self) -> List["InteractiveObject"]:
-        return [IOManager.storage[i] for i in self.relation['parents']]
+        return [IOManager.storage[i] for i in self.relation["parents"]]
 
     @property
     def children(self) -> List["InteractiveObject"]:
-        return [IOManager.storage[i] for i in self.relation['children']]
+        return [IOManager.storage[i] for i in self.relation["children"]]
 
     def get_parent(self, identifier: str) -> Optional["InteractiveObject"]:
         may_parent = IOManager.storage.get(self.protocol.encode_unique_identifier(identifier))
-        if may_parent and may_parent.identifier in self.relation['parents']:
+        if may_parent and may_parent.identifier in self.relation["parents"]:
             return may_parent
 
     def get_child(self, identifier: str) -> Optional["InteractiveObject"]:
         may_child = IOManager.storage.get(self.protocol.encode_unique_identifier(identifier))
-        if may_child and may_child.identifier in self.relation['children']:
+        if may_child and may_child.identifier in self.relation["children"]:
             return may_child
 
     def filter_parents(self, *tag):
@@ -151,22 +155,22 @@ class InteractiveObject(metaclass=InteractiveMeta):
         return list(filter(lambda x: x.compare(*tag), self.children))
 
     def set_parent(self, parent: "InteractiveObject"):
-        parent.relation['children'].append(self.identifier)
-        self.relation['parents'].append(parent.identifier)
-        self.relation['parents'] = list(set(self.relation['parents']))
-        parent.relation['children'] = list(set(parent.relation['children']))
+        parent.relation["children"].append(self.identifier)
+        self.relation["parents"].append(parent.identifier)
+        self.relation["parents"] = list(set(self.relation["parents"]))
+        parent.relation["children"] = list(set(parent.relation["children"]))
 
     def set_child(self, child: "InteractiveObject"):
-        child.relation['parents'].append(self.identifier)
-        self.relation['children'].append(child.identifier)
-        self.relation['children'] = list(set(self.relation['children']))
-        child.relation['parents'] = list(set(child.relation['parents']))
+        child.relation["parents"].append(self.identifier)
+        self.relation["children"].append(child.identifier)
+        self.relation["children"] = list(set(self.relation["children"]))
+        child.relation["parents"] = list(set(child.relation["parents"]))
 
     def find_parent(self, *tag: str):
         p_table = set()
 
         def __parent_generator(parent: "InteractiveObject"):
-            for _i in parent.relation['parents']:
+            for _i in parent.relation["parents"]:
                 if _i in p_table:
                     continue
                 p_table.add(_i)
@@ -183,7 +187,7 @@ class InteractiveObject(metaclass=InteractiveMeta):
         c_table = set()
 
         def __child_generator(child: "InteractiveObject"):
-            for _i in child.relation['children']:
+            for _i in child.relation["children"]:
                 if _i in c_table:
                     continue
                 c_table.add(_i)
@@ -238,15 +242,15 @@ class InteractiveObject(metaclass=InteractiveMeta):
 
     def __repr__(self):
         return (
-            f"<{self.__class__.__name__}; "
-            f"{', '.join([f'{k}={v}' for k, v in self._components.items()])}>"
+            f"<{self.__class__.__name__}; " f"{', '.join([f'{k}={v}' for k, v in self._components.items()])}>"
         )
 
     def __getstate__(self):
         return {
-            "metadata": {k: v for k, v in self.metadata.__dict__.items()
-                         if k not in self.metadata.__ignore__},
-            "behavior": self.prefab_behavior
+            "metadata": {
+                k: v for k, v in self.metadata.__dict__.items() if k not in self.metadata.__ignore__
+            },
+            "behavior": self.prefab_behavior,
         }
 
     def __eq__(self, other: "InteractiveObject"):

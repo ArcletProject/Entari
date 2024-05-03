@@ -1,7 +1,8 @@
 from typing import cast
 
-from arclet.edoves.builtin.actions import MessageSend, GetMonomer, Union, ChangeStatus, ExecutiveAction
+from arclet.edoves.builtin.actions import ChangeStatus, ExecutiveAction, GetMonomer, MessageSend, Union
 from arclet.edoves.main.context import ctx_event
+
 from .monomers import MahEntity, MEMetadata
 
 
@@ -48,7 +49,7 @@ class GetMember(GetMonomer):
         self.rest = {"group": self.target.current_group}
 
     async def execute(self) -> MahEntity:
-        member = await (super().execute())
+        member = await super().execute()
         gid = self.target.get_component(MEMetadata).group_id
         if gid:
             member.metadata.group_id = gid
@@ -61,16 +62,12 @@ class Reply(MessageSend):
             mid = self.data.id if self.data.id else ctx_event.get().medium.mid
         except AttributeError:
             raise ValueError("No message to reply to.")
-        return await self.target.action(self.action)(
-            self.data, target=self.target, reply=True, quote=mid
-        )
+        return await self.target.action(self.action)(self.data, target=self.target, reply=True, quote=mid)
 
 
 class NudgeWith(MessageSend):
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.data, target=self.target, nudge=True
-        )
+        return await self.target.action(self.action)(self.data, target=self.target, nudge=True)
 
 
 class Nudge(ExecutiveAction):
@@ -79,9 +76,7 @@ class Nudge(ExecutiveAction):
         super().__init__("nudge")
 
     async def execute(self):
-        return await self.target.action(self.action)(
-            self.target.metadata.identifier
-        )
+        return await self.target.action(self.action)(self.target.metadata.identifier)
 
 
 send_message = MessageSend

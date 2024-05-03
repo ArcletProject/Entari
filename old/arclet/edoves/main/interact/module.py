@@ -1,19 +1,19 @@
 import asyncio
-from typing import Type, Dict, Callable, Optional, Set, List, Union
-from arclet.letoderea.utils import search_event, TEvent
+from typing import Callable, Dict, List, Optional, Set, Type, Union
+
 from arclet.letoderea.entities.auxiliary import BaseAuxiliary
 from arclet.letoderea.entities.delegate import EventDelegate, Subscriber
-from arclet.letoderea.utils import run_always_await
+from arclet.letoderea.utils import TEvent, run_always_await, search_event
 
 from . import InteractiveObject
-from ..typings import TProtocol
+from ..component import Component, MetadataComponent
+from ..component.behavior import BaseBehavior
+from ..context import ctx_event, ctx_module
+from ..event import EdovesBasicEvent
 from ..medium import BaseMedium
+from ..typings import TProtocol
 from ..utilles import IOStatus
 from ..utilles.security import UNKNOWN, VerifyCodeChecker
-from ..component.behavior import BaseBehavior
-from ..event import EdovesBasicEvent
-from ..component import MetadataComponent, Component
-from ..context import ctx_module, ctx_event
 
 
 class ModuleMetaComponent(MetadataComponent, VerifyCodeChecker):
@@ -44,7 +44,10 @@ class MediumHandlers(Component):
         """
         if self.delegates:
             last_delegate = self.delegates[-1]
-            if last_delegate.bind_event == delegate.bind_event and last_delegate.priority == delegate.priority:
+            if (
+                last_delegate.bind_event == delegate.bind_event
+                and last_delegate.priority == delegate.priority
+            ):
                 last_delegate += delegate.subscribers
         self.delegates.append(delegate)
 
@@ -57,9 +60,9 @@ class MediumHandlers(Component):
                 self.delegates.remove(delegate)
 
     def require(
-            self,
-            event: Union[str, TEvent],
-            priority: Optional[int] = None,
+        self,
+        event: Union[str, TEvent],
+        priority: Optional[int] = None,
     ) -> Optional[Union[EventDelegate, List[EventDelegate]]]:
         """
         依据event名称或者event对象，返回对应的delegate
@@ -74,11 +77,7 @@ class MediumHandlers(Component):
                 return delegate
         return _delegates
 
-    def add_handlers(
-            self,
-            event_type: Type[EdovesBasicEvent],
-            handlers: List[Subscriber]
-    ):
+    def add_handlers(self, event_type: Type[EdovesBasicEvent], handlers: List[Subscriber]):
         delegate = EventDelegate(event_type)
         delegate += handlers
         self.add_delegate(delegate)
@@ -87,10 +86,7 @@ class MediumHandlers(Component):
         self.remove_handler(event_type)
 
     def __repr__(self):
-        return (
-                f"[{self.__class__.__name__}: " +
-                f"{len(self.delegates)} delegates]"
-        )
+        return f"[{self.__class__.__name__}: " + f"{len(self.delegates)} delegates]"
 
 
 class ModuleBehavior(BaseBehavior):
@@ -124,9 +120,10 @@ class ModuleBehavior(BaseBehavior):
         return method_name in self.invoke_list
 
     def add_handlers(
-            self, event_type: Type[EdovesBasicEvent],
-            *reaction: Callable,
-            auxiliaries: Optional[List[BaseAuxiliary]] = None
+        self,
+        event_type: Type[EdovesBasicEvent],
+        *reaction: Callable,
+        auxiliaries: Optional[List[BaseAuxiliary]] = None,
     ):
         handlers = self.get_component(MediumHandlers)
 
@@ -144,11 +141,11 @@ class ModuleBehavior(BaseBehavior):
         __wrapper(reaction)
 
     async def handler_medium(
-            self,
-            medium: Optional[BaseMedium] = None,
-            medium_type: Optional[BaseMedium] = None,
-            event_type: Optional[Union[str, Type[EdovesBasicEvent]]] = None,
-            **kwargs
+        self,
+        medium: Optional[BaseMedium] = None,
+        medium_type: Optional[BaseMedium] = None,
+        event_type: Optional[Union[str, Type[EdovesBasicEvent]]] = None,
+        **kwargs,
     ):
         if not medium:
             medium = await self.io.protocol.screen.get(medium_type, **kwargs)
@@ -167,9 +164,7 @@ class ModuleBehavior(BaseBehavior):
             return
         self.io.metadata.state = IOStatus.PROCESSING
         with ctx_module.use(self.io):
-            await self.io.protocol.screen.edoves.event_system.delegate_exec(
-                delegates, event
-            )
+            await self.io.protocol.screen.edoves.event_system.delegate_exec(delegates, event)
             self.io.metadata.state = IOStatus.ESTABLISHED
 
 
@@ -187,8 +182,8 @@ class BaseModule(InteractiveObject):
     def __init__(self, protocol: TProtocol):
         self.protocol = protocol
         metadata = self.prefab_metadata(self)
-        if not hasattr(metadata, 'identifier'):
-            metadata.identifier = f'{self.__class__.__module__}.{self.__class__.__qualname__}'
+        if not hasattr(metadata, "identifier"):
+            metadata.identifier = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         super().__init__(metadata)
         self.handlers = MediumHandlers(self)
         if self.local_storage.get(self.__class__):
@@ -213,24 +208,26 @@ class BaseModule(InteractiveObject):
 
     @classmethod
     def inject_handler(
-            __module_self__,
-            event_type: Type[EdovesBasicEvent],
-            *reaction: Callable,
-            auxiliaries: Optional[List[BaseAuxiliary]] = None
+        __module_self__,
+        event_type: Type[EdovesBasicEvent],
+        *reaction: Callable,
+        auxiliaries: Optional[List[BaseAuxiliary]] = None,
     ):
         if not __module_self__.local_storage.get(__module_self__):
             __module_self__.local_storage.setdefault(__module_self__, [])
         __module_self__.local_storage[__module_self__].append([event_type, [reaction, auxiliaries]])
 
     def add_handler(
-            __module_self__,
-            event_type: Type[EdovesBasicEvent],
-            *reaction: Callable,
-            auxiliaries: Optional[List[BaseAuxiliary]] = None
+        __module_self__,
+        event_type: Type[EdovesBasicEvent],
+        *reaction: Callable,
+        auxiliaries: Optional[List[BaseAuxiliary]] = None,
     ):
         try:
             return __module_self__.behavior.add_handlers(event_type, *reaction, auxiliaries=auxiliaries)
         except AttributeError:
             if not __module_self__.local_storage.get(__module_self__.__class__):
                 __module_self__.local_storage.setdefault(__module_self__.__class__, [])
-            __module_self__.local_storage[__module_self__.__class__].append([event_type, [reaction, auxiliaries]])
+            __module_self__.local_storage[__module_self__.__class__].append(
+                [event_type, [reaction, auxiliaries]]
+            )

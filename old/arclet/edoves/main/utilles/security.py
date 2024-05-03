@@ -10,14 +10,14 @@ GO_CQHTTP_DEFAULT = "1731916"
 
 
 def generate_identifier(extremal_data_source_id: str):
-    tls = [(c, i) for i, c in enumerate(extremal_data_source_id.upper().replace('-', '_'))]
+    tls = [(c, i) for i, c in enumerate(extremal_data_source_id.upper().replace("-", "_"))]
     rand = Random()
     rand.seed(sum([(ord(c) // (i + 1) + i + 1) for c, i in tls]))
     rand.shuffle(tls)
     h = 0
     for i, c in enumerate(tls):
-        h = 0x1f * (h + c[1] - i) + ord(c[0]) ^ h
-    return str(h % 0x1ffffff)
+        h = 0x1F * (h + c[1] - i) + ord(c[0]) ^ h
+    return str(h % 0x1FFFFFF)
 
 
 class VerifyCodeChecker:

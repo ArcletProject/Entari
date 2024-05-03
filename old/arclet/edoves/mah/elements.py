@@ -1,9 +1,10 @@
-import json as JSON
 from datetime import datetime
-from xml import sax
 from enum import Enum
-from typing import Optional, TYPE_CHECKING, Union, List
-from arclet.edoves.builtin.message import MessageElement, DataStructure, Text, Image, At, AtAll
+import json as JSON
+from typing import TYPE_CHECKING, List, Optional, Union
+from xml import sax
+
+from arclet.edoves.builtin.message import At, AtAll, DataStructure, Image, MessageElement, Text
 from pydantic import Field, validator
 
 if TYPE_CHECKING:
@@ -16,6 +17,7 @@ class Plain(Text):
 
 class Quote(MessageElement):
     """表示消息中回复其他消息/用户的部分, 通常包含一个完整的消息链(`origin` 属性)"""
+
     type: str = "Quote"
     id: int
     groupId: int
@@ -26,14 +28,16 @@ class Quote(MessageElement):
     @validator("origin", pre=True, allow_reuse=True)
     def _(cls, v):
         from .chain import MessageChain
+
         return MessageChain(v)
 
     def to_serialization(self) -> str:
-        return f"[mirai:Quote:{{\"id\":{self.id},\"origin\":{self.origin}}}]"
+        return f'[mirai:Quote:{{"id":{self.id},"origin":{self.origin}}}]'
 
 
 class Source(MessageElement):
     """表示消息在一个特定聊天区域内的唯一标识"""
+
     type: str = "Source"
     id: int
     time: datetime
@@ -41,6 +45,7 @@ class Source(MessageElement):
 
 class Face(MessageElement):
     """表示消息中所附带的表情, 这些表情大多都是聊天工具内置的."""
+
     type: str = "Face"
     faceId: int
     name: Optional[str] = None
@@ -87,7 +92,7 @@ class App(MessageElement):
         return f"[APP消息:{JSON.loads(self.content)['prompt']}]"
 
     def get_meta_content(self) -> dict:
-        return JSON.loads(self.content)['meta']
+        return JSON.loads(self.content)["meta"]
 
 
 class PokeMethods(Enum):
@@ -132,7 +137,7 @@ class File(MessageElement):
     size: int
 
     def to_text(self) -> str:
-        return f'[文件:{self.name}]'
+        return f"[文件:{self.name}]"
 
 
 class ImageType(Enum):
@@ -144,6 +149,7 @@ class ImageType(Enum):
 
 class FlashImage(Image):
     """该消息元素用于承载消息中所附带的图片."""
+
     type = "FlashImage"
 
     def to_text(self) -> str:
@@ -174,6 +180,7 @@ class MusicShare(MessageElement):
 
 class ForwardNode(DataStructure):
     """表示合并转发中的一个节点"""
+
     senderId: int
     time: int
     senderName: str

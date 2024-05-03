@@ -1,20 +1,19 @@
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, Union, Type, List, Any, Optional, Dict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
+from .exceptions import DataMissing, ValidationFailed
 from .medium import BaseMedium
-from .utilles.security import EDOVES_DEFAULT
-from .utilles.data_source_info import DataSourceInfo
-from .utilles import IOStatus
-from .exceptions import ValidationFailed, DataMissing
 from .typings import TData
-
+from .utilles import IOStatus
+from .utilles.data_source_info import DataSourceInfo
+from .utilles.security import EDOVES_DEFAULT
 
 if TYPE_CHECKING:
-    from .screen import Screen
-    from .scene import EdovesScene
-    from .interact.server_docker import BaseServerDocker
     from .interact.monomer import Monomer
     from .interact.parser import BaseDataParser
+    from .interact.server_docker import BaseServerDocker
+    from .scene import EdovesScene
+    from .screen import Screen
 
 
 class AbstractProtocol(metaclass=ABCMeta):
@@ -32,6 +31,7 @@ class AbstractProtocol(metaclass=ABCMeta):
 
     if TYPE_CHECKING:
         from .interact.module import BaseModule
+
         verify_check_list: Type[Union[str, "BaseModule"]] = Union[str, "BaseModule"]
     else:
         verify_check_list = str
@@ -51,11 +51,7 @@ class AbstractProtocol(metaclass=ABCMeta):
             raise DataMissing(f"{cls.__name__} missing its Regular Monomer")
         return super(AbstractProtocol, cls).__new__(cls)
 
-    def __init__(
-            self,
-            scene: "EdovesScene",
-            verify_code: str = None
-    ):
+    def __init__(self, scene: "EdovesScene", verify_code: str = None):
         self.screen = scene.edoves.screen
         self.__scenes = [scene.scene_name]
         self.__current_scene = scene
@@ -98,7 +94,7 @@ class AbstractProtocol(metaclass=ABCMeta):
         )
 
     async def execution_handle(
-            self,
+        self,
     ) -> Optional[BaseMedium]:
         if self.docker.metadata.state in (IOStatus.CLOSED, IOStatus.CLOSE_WAIT):
             return

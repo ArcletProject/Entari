@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
+from typing import TYPE_CHECKING
+
 from .context import ctx_monomer
 from .interact.monomer import Monomer, at_mono
 

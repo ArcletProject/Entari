@@ -1,10 +1,9 @@
-import time
 from datetime import datetime, timedelta
+import time
 
 
 def every_second():
-    """每秒执行一次
-    """
+    """每秒执行一次"""
     return lambda: timedelta(seconds=1)
 
 
@@ -20,8 +19,7 @@ def every_custom_seconds(seconds: int):
 
 
 def every_minute():
-    """每分钟执行一次
-    """
+    """每分钟执行一次"""
     return lambda: timedelta(minutes=1)
 
 
@@ -37,8 +35,7 @@ def every_custom_minutes(minutes: int):
 
 
 def every_hour():
-    """每小时执行一次
-    """
+    """每小时执行一次"""
     return lambda: timedelta(hours=1)
 
 
@@ -54,8 +51,7 @@ def every_custom_hours(hours: int):
 
 
 def every_week():
-    """每隔一周执行一次
-    """
+    """每隔一周执行一次"""
     return lambda: timedelta(weeks=1)
 
 
@@ -71,8 +67,7 @@ def every_custom_weeks(weeks: int):
 
 
 def every_day():
-    """每隔一天执行一次
-    """
+    """每隔一天执行一次"""
     return lambda: timedelta(days=1)
 
 
@@ -87,24 +82,20 @@ def every_custom_days(days: int):
     return lambda: timedelta(days=days)
 
 
-def set_special_day(
-        month: int,
-        day: int,
-        hour: int = 0,
-        minute: int = 0,
-        second: int = 0
-):
-    interval = {'month': month, 'day': day, 'hour': hour, 'minute': minute, 'second': second}
+def set_special_day(month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0):
+    interval = {"month": month, "day": day, "hour": hour, "minute": minute, "second": second}
     now = datetime.now()
     year = now.year
-    if interval['month'] < now.month:
+    if interval["month"] < now.month:
         year += 1
     return lambda: datetime(year=year, **interval) - now
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     def route_time(timer):
         import time
+
         now = datetime.now()
         year = now.year
         month = now.month
@@ -137,6 +128,7 @@ if __name__ == '__main__':
             minute = 0
             second = 0
         return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+
     while True:
         time.sleep(0.5)
         print(route_time(every_second()))

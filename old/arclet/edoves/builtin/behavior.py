@@ -1,8 +1,9 @@
-from typing import Optional, Union, Any
+from typing import Any, Optional, Union
+
 from arclet.edoves.main.interact.monomer import BaseMonoBehavior, Monomer
 from arclet.edoves.main.protocol import AbstractProtocol
 
-from .medium import Message, Request, DictMedium
+from .medium import DictMedium, Message, Request
 
 
 class MiddlewareBehavior(BaseMonoBehavior):
@@ -14,11 +15,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
     async def revoke(self, medium: Message, target_message_id: int = None):
         await self.protocol.screen.push(
             DictMedium().create(
-                self.io,
-                {
-                    "target": target_message_id if target_message_id else medium.id
-                },
-                "MessageRevoke"
+                self.io, {"target": target_message_id if target_message_id else medium.id}, "MessageRevoke"
             )
         )
         await self.protocol.execution_handle()
@@ -27,11 +24,8 @@ class MiddlewareBehavior(BaseMonoBehavior):
         resp = await self.protocol.screen.push(
             DictMedium().create(
                 self.io,
-                {
-                    "target": target if isinstance(target, str) else target.metadata.identifier,
-                    "rest": rest
-                },
-                "NudgeSend"
+                {"target": target if isinstance(target, str) else target.metadata.identifier, "rest": rest},
+                "NudgeSend",
             )
         )
         await self.protocol.execution_handle()
@@ -42,12 +36,12 @@ class MiddlewareBehavior(BaseMonoBehavior):
         )
 
     async def send_with(
-            self,
-            medium: Message,
-            target: Optional[Monomer] = None,
-            reply: bool = False,
-            nudge: bool = False,
-            **rest
+        self,
+        medium: Message,
+        target: Optional[Monomer] = None,
+        reply: bool = False,
+        nudge: bool = False,
+        **rest,
     ):
         target = target or medium.purveyor
         if nudge:
@@ -60,9 +54,9 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "target": target.metadata.identifier,
                     "reply": reply,
                     "content": medium.content.to_sendable(),
-                    "rest": rest
+                    "rest": rest,
                 },
-                "MessageSend"
+                "MessageSend",
             )
         )
         await self.protocol.execution_handle()
@@ -72,7 +66,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
             f"{resp_data.type}({resp_data.content.get('id') or target.metadata.identifier})"
             f" <- {medium.content.to_text()}"
         )
-        return resp_data.content.get('messageId')
+        return resp_data.content.get("messageId")
 
     async def request_accept(self, medium: Request, msg: str = None):
         await self.protocol.screen.push(
@@ -83,9 +77,9 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "operate": 0,
                     "eventId": medium.event,
                     "msg": msg,
-                    "content": medium.content
+                    "content": medium.content,
                 },
-                "Accept"
+                "Accept",
             )
         )
         await self.protocol.execution_handle()
@@ -99,14 +93,14 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "operate": 1,
                     "eventId": medium.event,
                     "msg": msg,
-                    "content": medium.content
+                    "content": medium.content,
                 },
-                "Reject"
+                "Reject",
             )
         )
         await self.protocol.execution_handle()
 
-    async def relationship_remove(self, target: Union[str, Monomer],  relationship: str = None):
+    async def relationship_remove(self, target: Union[str, Monomer], relationship: str = None):
         target = await self.relationship_get(target, relationship) if isinstance(target, str) else target
         await self.protocol.screen.push(
             DictMedium().create(
@@ -115,7 +109,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "relationship": target.prime_tag,
                     "target": target,
                 },
-                "RelationshipRemove"
+                "RelationshipRemove",
             )
         )
         await self.protocol.execution_handle()
@@ -123,13 +117,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
     async def relationship_get(self, target: str, relationship: str, **rest):
         resp = await self.protocol.screen.push(
             DictMedium().create(
-                self.io,
-                {
-                    "relationship": relationship,
-                    "target": target,
-                    "rest": rest
-                },
-                "RelationshipGet"
+                self.io, {"relationship": relationship, "target": target, "rest": rest}, "RelationshipGet"
             )
         )
         await self.protocol.execution_handle()
@@ -144,18 +132,12 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "status": status,
                     "rest": rest,
                 },
-                "ChangeMonomerStatus"
+                "ChangeMonomerStatus",
             )
         )
         await self.protocol.execution_handle()
 
-    async def change_metadata(
-            self,
-            meta: str,
-            value: Any,
-            target: Optional["Monomer"] = None,
-            **addition
-    ):
+    async def change_metadata(self, meta: str, value: Any, target: Optional["Monomer"] = None, **addition):
         await self.protocol.screen.push(
             DictMedium().create(
                 self.io,
@@ -164,7 +146,7 @@ class MiddlewareBehavior(BaseMonoBehavior):
                     "meta": meta,
                     "rest": addition,
                 },
-                "ChangeMonomerMetadata"
+                "ChangeMonomerMetadata",
             )
         )
         await self.protocol.execution_handle()

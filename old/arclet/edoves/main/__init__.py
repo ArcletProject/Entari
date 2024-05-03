@@ -1,22 +1,24 @@
 import asyncio
 import importlib.metadata
 import time
-from typing import Dict, Optional, Type, Tuple, Union
+from typing import Dict, Optional, Tuple, Type, Union
+
 from arclet.letoderea import EventSystem
-from .interact import IOManager
-from .screen import Screen
-from .protocol import AbstractProtocol
-from .context import edoves_instance
-from .network import NetworkStatus
+
 from .config import TemplateConfig
+from .context import edoves_instance
 from .exceptions import DataMissing, ValidationFailed
+from .interact import IOManager
+from .interact.module import BaseModule
+from .interact.monomer import Monomer, MonoMetaComponent
+from .interact.server_docker import BaseServerDocker
+from .network import NetworkStatus
+from .protocol import AbstractProtocol
+from .scene import EdovesScene
+from .screen import Screen
 from .utilles import SceneStatus
 from .utilles.logger import Logger, replace_traceback
 from .utilles.security import check_name
-from .interact.module import BaseModule
-from .interact.server_docker import BaseServerDocker
-from .interact.monomer import Monomer, MonoMetaComponent
-from .scene import EdovesScene
 
 AE_LOGO = "\n".join(
     (
@@ -25,7 +27,7 @@ AE_LOGO = "\n".join(
         r"  //_\\| '_// ___| |/ __ \ __|   / __\ /__` |/ _ \ \ / / __ \/ __| ",
         r" /  _  \ | | (___| |  ___/ |_   / /__ |(__| | (_) \ V /  ___\___ \ ",
         r" \_/ \_/_|  \____|_|\____|\__|  \___/  \__,_|\___ /\_/ \____|____/ ",
-        ""
+        "",
     )
 )
 
@@ -39,17 +41,17 @@ class Edoves:
     protocol_list: Dict[Type[AbstractProtocol], AbstractProtocol] = {}
 
     def __init__(
-            self,
-            *,
-            configs: Dict[str, Union[TemplateConfig, Tuple[Type[TemplateConfig], Dict]]],
-            event_system: Optional[EventSystem] = None,
-            debug: bool = False
+        self,
+        *,
+        configs: Dict[str, Union[TemplateConfig, Tuple[Type[TemplateConfig], Dict]]],
+        event_system: Optional[EventSystem] = None,
+        debug: bool = False,
     ):
         if self.__instance:
             return
         self.event_system: EventSystem = event_system or EventSystem()
         self.loop = self.event_system.loop
-        self.logger = Logger(level='DEBUG' if debug else 'INFO').logger
+        self.logger = Logger(level="DEBUG" if debug else "INFO").logger
         self.screen = Screen(self)
         replace_traceback(self.event_system.loop)
 
@@ -59,12 +61,9 @@ class Edoves:
                 cur_scene = EdovesScene(
                     name,
                     self.screen,
-                    t_config[0].parse_obj(t_config[1]) if isinstance(t_config, tuple) else t_config
+                    t_config[0].parse_obj(t_config[1]) if isinstance(t_config, tuple) else t_config,
                 )
-                self.scene_list.setdefault(
-                    name,
-                    cur_scene
-                )
+                self.scene_list.setdefault(name, cur_scene)
             except ValidationFailed as e:
                 self.logger.error(e)
             except ValueError as e:
@@ -73,7 +72,7 @@ class Edoves:
         self.__instance = True
 
     @classmethod
-    def current(cls) -> 'Edoves':
+    def current(cls) -> "Edoves":
         return edoves_instance.get()
 
     @classmethod
@@ -81,7 +80,9 @@ class Edoves:
         return cls.scene_list.get(name)
 
     async def launch_task(self):
-        self.logger.opt(colors=True, raw=True).info("=--------------------------------------------------------=\n")
+        self.logger.opt(colors=True, raw=True).info(
+            "=--------------------------------------------------------=\n"
+        )
         self.logger.opt(colors=True, raw=True).info(f"<cyan>{AE_LOGO}</>")
         official = []
         for dist in importlib.metadata.distributions():
@@ -91,17 +92,16 @@ class Edoves:
                 official.append((" ".join(name.split("-")[1:]).title(), version))
 
         for name, version in official:
-            self.logger.opt(colors=True, raw=True).info(
-                f"<magenta>{name}</> version: <yellow>{version}</>\n"
-            )
-        self.logger.opt(colors=True, raw=True).info("=--------------------------------------------------------=\n")
+            self.logger.opt(colors=True, raw=True).info(f"<magenta>{name}</> version: <yellow>{version}</>\n")
+        self.logger.opt(colors=True, raw=True).info(
+            "=--------------------------------------------------------=\n"
+        )
         all_time: float = 0
         self.logger.info("Edoves Application Start...")
         for name, cur_scene in self.scene_list.items():
             start_time = time.time()
             running_task = self.event_system.loop.create_task(
-                cur_scene.start_running(),
-                name=f"Edoves_{name}_Start_Task"
+                cur_scene.start_running(), name=f"Edoves_{name}_Start_Task"
             )
             await running_task
             if cur_scene.status == SceneStatus.RUNNING:
@@ -118,8 +118,7 @@ class Edoves:
         update_task = []
         for name, cur_scene in self.scene_list.items():
             running_task = self.event_system.loop.create_task(
-                cur_scene.update(),
-                name=f"Edoves_{name}_Running_Task"
+                cur_scene.update(), name=f"Edoves_{name}_Running_Task"
             )
             update_task.append(running_task)
             self.logger.debug(f"{name} Running...")
@@ -131,8 +130,7 @@ class Edoves:
         start_task = []
         for name, cur_scene in self.scene_list.items():
             running_task = self.event_system.loop.create_task(
-                cur_scene.stop_running(),
-                name=f"Edoves_{name}_Stop_Task"
+                cur_scene.stop_running(), name=f"Edoves_{name}_Stop_Task"
             )
             start_task.append(running_task)
         await asyncio.gather(*start_task)

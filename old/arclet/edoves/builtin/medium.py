@@ -1,13 +1,15 @@
-from typing import Dict, Union, Iterable, Optional
 import json as JSON
+from typing import Dict, Iterable, Optional, Union
 
-from arclet.edoves.main.typings import TData
 from arclet.edoves.main.medium import BaseMedium, Monomer
+from arclet.edoves.main.typings import TData
+
 from .message.chain import MessageChain, MessageElement
 
 
 class DictMedium(BaseMedium):
     """基础的Medium，用于存储字典数据。"""
+
     content: Dict[str, TData]
 
     def json_loads(self, json: Union[dict, str]):
@@ -21,7 +23,9 @@ class Message(BaseMedium):
     id: str
     content: MessageChain
 
-    def __init__(self, *elements: Union[Iterable[MessageElement], MessageElement, str], target: Monomer = None):
+    def __init__(
+        self, *elements: Union[Iterable[MessageElement], MessageElement, str], target: Monomer = None
+    ):
         super().__init__()
         self.id = ""
         self.content = MessageChain.create(*elements)
@@ -44,9 +48,9 @@ class Message(BaseMedium):
         return self.set(*args)
 
     async def send(
-            self,
-            target: Optional[Union[int, str, Monomer]] = None,
-            reply: bool = False,
+        self,
+        target: Optional[Union[int, str, Monomer]] = None,
+        reply: bool = False,
     ):
         if target:
             return await self.action("send_with")(self, target, reply)

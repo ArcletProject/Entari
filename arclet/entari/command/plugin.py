@@ -1,7 +1,7 @@
 from arclet.alconna import Alconna
 
 from ..event import MessageEvent
-from ..plugin import Plugin, PluginDispatcher, PluginDispatcherFactory
+from ..plugin import Plugin, PluginDispatcher, PluginDispatcherFactory, register_factory
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger
 
 
@@ -22,3 +22,9 @@ class AlconnaDispatcher(PluginDispatcherFactory):
         disp.bind(MessageJudger(), AlconnaSuppiler(self.command, self.need_tome, self.remove_tome))
         disp.bind(AlconnaProviderFactory())
         return disp
+
+
+register_factory(
+    Alconna,
+    lambda cmd, *args, **kwargs: AlconnaDispatcher(cmd, *args, **kwargs),
+)

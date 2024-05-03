@@ -1,7 +1,9 @@
-from typing import List, Iterable, Type, Union, TypeVar, Iterator, SupportsIndex
+from typing import Iterable, Iterator, List, SupportsIndex, Type, TypeVar, Union
+
 from arclet.edoves.main.utilles import DataStructure, gen_subclass
 
 from .element import MessageElement
+
 TMElement = TypeVar("TMElement", bound=MessageElement)
 
 
@@ -43,6 +45,7 @@ class MessageChain(DataStructure):
                 element_list.append(ele)
             elif isinstance(ele, str):
                 from .element import Text
+
                 element_list.append(Text(ele))
             else:
                 element_list.extend(list(ele))
@@ -62,17 +65,18 @@ class MessageChain(DataStructure):
         Returns:
             str: 序列化的字符串形式的消息链
         """
-        return "__root__: " + "".join(i.to_serialization()
-                                      for i in self.replace_text('[', '[_').replace_text(']', '_]').__root__)
+        return "__root__: " + "".join(
+            i.to_serialization() for i in self.replace_text("[", "[_").replace_text("]", "_]").__root__
+        )
 
     @staticmethod
     def from_text(text: str) -> "MessageChain":
         from .element import Text
+
         return MessageChain([Text(text)])
 
     def only_text(self) -> str:
-        """获取消息链中的纯文字部分
-        """
+        """获取消息链中的纯文字部分"""
         return "".join(i.to_text() if i else "" for i in self.findall("Plain"))
 
     def is_instance(self, element_type: Union[str, Type[TMElement]]) -> bool:
@@ -121,8 +125,9 @@ class MessageChain(DataStructure):
         else:
             raise ValueError(f"{element_type} is not in this MessageChain")
 
-    def replace(self, element_type: Union[str, Type[TMElement]],
-                new_element: TMElement, counts: int = None) -> "MessageChain":
+    def replace(
+        self, element_type: Union[str, Type[TMElement]], new_element: TMElement, counts: int = None
+    ) -> "MessageChain":
         """替换消息链中的所有指定的消息元素类型为新的消息元素实例；不改变消息链本身
 
         Args:
@@ -160,13 +165,18 @@ class MessageChain(DataStructure):
         """
         new_message = MessageChain(self.__root__)
         from .element import Text
+
         for ele in new_message:
             if isinstance(ele, Text):
                 ele.text = ele.text.replace(old_text, new_text, counts)
         return new_message
 
-    def replace_type(self, element_type: Union[str, Type[TMElement]],
-                     new_element_type: Union[str, Type[TMElement]], counts: int = None):
+    def replace_type(
+        self,
+        element_type: Union[str, Type[TMElement]],
+        new_element_type: Union[str, Type[TMElement]],
+        counts: int = None,
+    ):
         """替换消息链中的所有指定的消息元素类型为新的消息元素类型, 不改变元素内容；不改变消息链本身
 
         Args:
@@ -283,7 +293,7 @@ class MessageChain(DataStructure):
         return self.to_text()
 
     def __repr__(self) -> str:
-        return fr"MessageChain({repr(self.__root__)})"
+        return rf"MessageChain({repr(self.__root__)})"
 
     def __iter__(self) -> Iterator[TMElement]:
         yield from self.__root__

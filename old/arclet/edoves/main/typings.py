@@ -1,5 +1,5 @@
-from datetime import timedelta, datetime
-from typing import TypeVar, TYPE_CHECKING, Union, List, Dict
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Dict, List, TypeVar, Union
 
 if TYPE_CHECKING:
     from .config import TemplateConfig
@@ -10,5 +10,3 @@ TData = Union[TMeta, List[TMeta], Dict[str, TMeta]]
 
 TProtocol = TypeVar("TProtocol", bound="AbstractProtocol")
 TConfig = TypeVar("TConfig", bound="TemplateConfig")
-
-

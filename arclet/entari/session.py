@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import NoReturn
 
+from arclet.letoderea import ParsingStop, StepOut
 from satori.client.account import Account
 from satori.const import EventType
 from satori.element import Element
-from satori.model import Channel, Event, Member, MessageObject, PageResult, Role, User
+from satori.model import Channel, Event, Guild, Member, MessageObject, PageResult, Role, User
+
+from .event import MessageEvent
+from .message import MessageChain
 
 
 class ContextSession:
@@ -14,6 +19,75 @@ class ContextSession:
     def __init__(self, account: Account, event: Event):
         self.account = account
         self.context = event
+
+    async def prompt(
+        self,
+        message: str | Iterable[str | Element],
+        timeout: float = 120,
+        timeout_message: str | Iterable[str | Element] = "等待超时",
+    ) -> MessageChain:
+        """发送提示消息, 并等待回复
+
+        参数:
+            message: 要发送的消息
+        """
+        if self.context.type != EventType.MESSAGE_CREATED:
+            raise RuntimeError("Event cannot be prompted!")
+
+        await self.send(message)
+
+        async def waiter(content: MessageChain, session: ContextSession):
+            if (
+                self.context.channel
+                and session.context.channel
+                and self.context.channel.id == session.context.channel.id
+            ):
+                return content
+            if self.context.user and session.context.user and self.context.user.id == session.context.user.id:
+                return content
+
+        waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
+
+        step = StepOut([MessageEvent], waiter)
+
+        result = await step.wait(timeout=timeout)
+        if not result:
+            await self.send(timeout_message)
+            raise ParsingStop()
+        return result
+
+    def stop(self) -> NoReturn:
+        raise ParsingStop()
+
+    @property
+    def user(self) -> User:
+        if not self.context.user:
+            raise RuntimeError(f"Event {self.context.type!r} has no User")
+        return self.context.user
+
+    @property
+    def guild(self) -> Guild:
+        if not self.context.guild:
+            raise RuntimeError(f"Event {self.context.type!r} has no Guild")
+        return self.context.guild
+
+    @property
+    def channel(self) -> Channel:
+        if not self.context.channel:
+            raise RuntimeError(f"Event {self.context.type!r} has no Channel")
+        return self.context.channel
+
+    @property
+    def member(self) -> Member:
+        if not self.context.member:
+            raise RuntimeError(f"Event {self.context.type!r} has no Member")
+        return self.context.member
+
+    @property
+    def content(self) -> str:
+        if not self.context.message:
+            raise RuntimeError(f"Event {self.context.type!r} has no Content")
+        return self.context.message.content
 
     def __getattr__(self, item):
         return getattr(self.account.session, item)
