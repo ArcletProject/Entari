@@ -1,6 +1,6 @@
 [project]
 name = "arclet-entari"
-version = "0.4.0"
+version = "0.4.1"
 description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
@@ -60,7 +60,7 @@ include = ["arclet/**.py"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "UP", "C", "T", "PYI", "PT", "Q"]
-ignore = ["C901", "T201", "E731", "E402"]
+ignore = ["C901", "T201", "E731", "E402", "PYI055"]
 
 [tool.pyright]
 pythonVersion = "3.9"

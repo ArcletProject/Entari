@@ -28,8 +28,10 @@ class ContextSession:
     ) -> MessageChain:
         """发送提示消息, 并等待回复
 
-        参数:
+        Args:
             message: 要发送的消息
+            timeout: 等待超时时间
+            timeout_message: 超时后发送的消息
         """
         if self.context.type != EventType.MESSAGE_CREATED:
             raise RuntimeError("Event cannot be prompted!")
@@ -104,7 +106,7 @@ class ContextSession:
     ) -> list[MessageObject]:
         """发送消息
 
-        参数:
+        Args:
             message: 要发送的消息
         """
         if not self.context.channel:
@@ -117,7 +119,7 @@ class ContextSession:
     ) -> list[MessageObject]:
         """发送私聊消息
 
-        参数:
+        Args:
             message: 要发送的消息
         """
         if not self.context.user:
@@ -130,7 +132,7 @@ class ContextSession:
     ):
         """更新消息
 
-        参数:
+        Args:
             message: 要更新的消息
         """
         if not self.context.channel:

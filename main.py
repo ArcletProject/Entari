@@ -14,4 +14,9 @@ load_plugin("example_plugin")
 
 app = Entari(WebsocketsInfo(host="127.0.0.1", port=5140, path="satori"))
 
+
+@app.on_message()
+async def repeat(session: ContextSession):
+    await session.send(session.content)
+
 app.run()

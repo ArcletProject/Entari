@@ -50,3 +50,6 @@ from .plugin import Plugin as Plugin
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .session import ContextSession as ContextSession
+
+WS = WebsocketsInfo
+WH = WebhookInfo

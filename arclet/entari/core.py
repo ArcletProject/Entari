@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 
-from arclet.letoderea import Contexts, EventSystem, Provider, global_providers
+from arclet.letoderea import BaseAuxiliary, Contexts, EventSystem, Provider, ProviderFactory, global_providers
 from loguru import logger
 from satori.client import App
 from satori.client.account import Account
@@ -11,7 +11,7 @@ from satori.client.session import Session
 from satori.config import Config
 from satori.model import Event
 
-from .event import event_parse
+from .event import MessageEvent, event_parse
 from .plugin import dispatchers
 from .session import ContextSession
 
@@ -40,6 +40,25 @@ class Entari(App):
         self.register(self.handle_event)
         self._ref_tasks = set()
         # self.lifecycle(self.handle_lifecycle)
+
+    def on(
+        self,
+        *events: type,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
+    ):
+        return self.event_system.on(*events, priority=priority, auxiliaries=auxiliaries, providers=providers)
+
+    def on_message(
+        self,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
+    ):
+        return self.event_system.on(
+            MessageEvent, priority=priority, auxiliaries=auxiliaries, providers=providers
+        )
 
     async def handle_event(self, account: Account, event: Event):
         async def event_parse_task(connection: Account, raw: Event):

@@ -104,7 +104,7 @@ class MessageChain(list[TE]):
         Args:
             args: 消息段类型
 
-        Return:
+        Returns:
             所有类型为 `args` 的消息段
         """
 
@@ -115,7 +115,7 @@ class MessageChain(list[TE]):
         Args:
             args: 消息段类型和索引
 
-        Return:
+        Returns:
             类型为 `args[0]` 的消息段第 `args[1]` 个
         """
 
@@ -126,7 +126,7 @@ class MessageChain(list[TE]):
         Args:
             args: 消息段类型和切片
 
-        Return:
+        Returns:
             类型为 `args[0]` 的消息段切片 `args[1]`
         """
 
@@ -137,7 +137,7 @@ class MessageChain(list[TE]):
         Args:
             args: 索引
 
-        Return:
+        Returns:
             第 `args` 个消息段
         """
 
@@ -148,7 +148,7 @@ class MessageChain(list[TE]):
         Args:
             args: 切片
 
-        Return:
+        Returns:
             消息切片 `args`
         """
 
@@ -160,15 +160,15 @@ class MessageChain(list[TE]):
         if isinstance(arg1, int) and arg2 is None:
             return super().__getitem__(arg1)
         if isinstance(arg1, slice) and arg2 is None:
-            return MessageChain(super().__getitem__(arg1))
+            return MessageChain(super().__getitem__(arg1))  # type: ignore
         if TYPE_CHECKING:
             assert not isinstance(arg1, (slice, int))
         if issubclass(arg1, Element) and arg2 is None:
-            return MessageChain(seg for seg in self if isinstance(seg, arg1))
+            return MessageChain(seg for seg in self if isinstance(seg, arg1))  # type: ignore
         if issubclass(arg1, Element) and isinstance(arg2, int):
             return [seg for seg in self if isinstance(seg, arg1)][arg2]
         if issubclass(arg1, Element) and isinstance(arg2, slice):
-            return MessageChain([seg for seg in self if isinstance(seg, arg1)][arg2])
+            return MessageChain([seg for seg in self if isinstance(seg, arg1)][arg2])  # type: ignore
         raise ValueError("Incorrect arguments to slice")  # pragma: no cover
 
     def __contains__(self, value: str | Element | type[Element]) -> bool:
@@ -176,7 +176,7 @@ class MessageChain(list[TE]):
 
         Args:
             value: 消息段或消息段类型
-        Return:
+        Returns:
             消息内是否存在给定消息段或给定类型的消息段
         """
         if isinstance(value, type):
@@ -195,7 +195,7 @@ class MessageChain(list[TE]):
             value: 消息段或者消息段类型
             args: start 与 end
 
-        Return:
+        Returns:
             索引 index
 
         Raise:
@@ -217,7 +217,7 @@ class MessageChain(list[TE]):
             type_: 消息段类型
             count: 获取个数
 
-        Return:
+        Returns:
             构建的新消息
         """
         if count is None:
@@ -229,7 +229,7 @@ class MessageChain(list[TE]):
             if seg is None:
                 break
             filtered.append(seg)
-        return filtered
+        return filtered  # type: ignore
 
     def count(self, value: type[Element] | str | Element) -> int:
         """计算指定消息段的个数
@@ -237,7 +237,7 @@ class MessageChain(list[TE]):
         Args:
             value: 消息段或消息段类型
 
-        Return:
+        Returns:
             个数
         """
         if isinstance(value, str):
@@ -254,7 +254,7 @@ class MessageChain(list[TE]):
         Args:
             value: 指定消息段或消息段类型
 
-        Return:
+        Returns:
             是否仅包含指定消息段
         """
         if isinstance(value, type):
@@ -269,7 +269,7 @@ class MessageChain(list[TE]):
         Args:
             iterable: 要连接的消息
 
-        Return:
+        Returns:
             连接后的消息
         """
         ret = MessageChain()
@@ -280,7 +280,7 @@ class MessageChain(list[TE]):
                 ret.append(msg)
             else:
                 ret.extend(msg.copy())
-        return ret
+        return ret  # type: ignore
 
     def copy(self) -> MessageChain[TE]:
         """深拷贝消息"""
@@ -292,7 +292,7 @@ class MessageChain(list[TE]):
         Args:
             types: 包含的消息段类型
 
-        Return:
+        Returns:
             新构造的消息
         """
         return MessageChain(seg for seg in self if seg.__class__ in types)
@@ -303,7 +303,7 @@ class MessageChain(list[TE]):
         Args:
             types: 不包含的消息段类型
 
-        Return:
+        Returns:
             新构造的消息
         """
         return MessageChain(seg for seg in self if seg.__class__ not in types)
