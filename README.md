@@ -2,7 +2,7 @@
   
 # Entari
 
-  > _lo su etheclim, ti zo entaem rish._
+  > _lí no etheclim, nann ze entám rish._
   
 </div>
 
