@@ -1,7 +1,7 @@
 from arclet.alconna import Alconna, AllParam, Args
 
 from arclet.entari import (
-    ContextSession,
+    Session,
     EntariCommands,
     MessageChain,
     MessageCreatedEvent,
@@ -24,7 +24,7 @@ on_alconna = plug.mount(Alconna("echo", Args["content?", AllParam]))
 
 
 @on_alconna.on()
-async def _(content: Match[MessageChain], session: ContextSession):
+async def _(content: Match[MessageChain], session: Session):
     if content.available:
         await session.send(content.result)
         return
@@ -36,5 +36,5 @@ commands = EntariCommands.current()
 
 
 @commands.on("add {a} {b}")
-async def add(a: int, b: int, session: ContextSession):
+async def add(a: int, b: int, session: Session):
     await session.send_message(f"{a + b =}")

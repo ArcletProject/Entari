@@ -34,7 +34,7 @@ from satori import User as User
 from satori import Video as Video
 from satori import transform as transform
 from satori.client import Account as Account
-from satori.client.session import Session as Session
+from satori.client.protocol import ApiProtocol as ApiProtocol
 from satori.config import WebhookInfo as WebhookInfo
 from satori.config import WebsocketsInfo as WebsocketsInfo
 
@@ -49,7 +49,7 @@ from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
-from .session import ContextSession as ContextSession
+from .session import Session as Session
 
 WS = WebsocketsInfo
 WH = WebhookInfo

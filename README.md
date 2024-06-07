@@ -18,27 +18,29 @@
 复读:
 
 ```python
-from arclet.entari import ContextSession, Entari, WS
+from arclet.entari import Session, Entari, WS
 
 app = Entari(WS(host="127.0.0.1", port=5140, path="satori"))
 
 
 @app.on_message()
-async def repeat(session: ContextSession):
+async def repeat(session: Session):
     await session.send(session.content)
+
 
 app.run()
 ```
 
-指令 `add {a} {b}`: 
+指令 `add {a} {b}`:
+
 ```python
-from arclet.entari import ContextSession, Entari, EntariCommands, WS
+from arclet.entari import Session, Entari, EntariCommands, WS
 
 command = EntariCommands()
 
 
 @command.on("add {a} {b}")
-async def add(a: int, b: int, session: ContextSession):
+async def add(a: int, b: int, session: Session):
     await session.send(f"{a + b = }")
 
 

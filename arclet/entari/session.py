@@ -13,12 +13,15 @@ from .event import MessageEvent
 from .message import MessageChain
 
 
-class ContextSession:
+class Session:
     """在 Satori-Python 的 Session 的基础上存储了当次事件的信息"""
 
     def __init__(self, account: Account, event: Event):
         self.account = account
         self.context = event
+        self._content = None
+        if event.message:
+            self._content = MessageChain(event.message.message)
 
     async def prompt(
         self,
@@ -38,7 +41,7 @@ class ContextSession:
 
         await self.send(message)
 
-        async def waiter(content: MessageChain, session: ContextSession):
+        async def waiter(content: MessageChain, session: Session):
             if (
                 self.context.channel
                 and session.context.channel
@@ -87,18 +90,28 @@ class ContextSession:
 
     @property
     def content(self) -> str:
-        if not self.context.message:
-            raise RuntimeError(f"Event {self.context.type!r} has no Content")
-        return self.context.message.content
+        if self._content:
+            return str(self._content)
+        raise RuntimeError(f"Event {self.context.type!r} has no Content")
+
+    @content.setter
+    def content(self, value: str):
+        self._content = MessageChain(value)
+
+    @property
+    def elements(self) -> MessageChain:
+        if self._content:
+            return self._content
+        raise RuntimeError(f"Event {self.context.type!r} has no Content")
 
     def __getattr__(self, item):
-        return getattr(self.account.session, item)
+        return getattr(self.account.protocol, item)
 
     async def send(
         self,
         message: str | Iterable[str | Element],
     ) -> list[MessageObject]:
-        return await self.account.session.send(self.context, message)
+        return await self.account.protocol.send(self.context, message)
 
     async def send_message(
         self,
@@ -111,7 +124,7 @@ class ContextSession:
         """
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.session.send_message(self.context.channel, message)
+        return await self.account.protocol.send_message(self.context.channel, message)
 
     async def send_private_message(
         self,
@@ -124,7 +137,7 @@ class ContextSession:
         """
         if not self.context.user:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.session.send_private_message(self.context.user, message)
+        return await self.account.protocol.send_private_message(self.context.user, message)
 
     async def update_message(
         self,
@@ -139,7 +152,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot update message")
-        return await self.account.session.update_message(
+        return await self.account.protocol.update_message(
             self.context.channel, self.context.message.id, message
         )
 
@@ -149,14 +162,14 @@ class ContextSession:
     ) -> list[MessageObject]:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.session.message_create(self.context.channel.id, content)
+        return await self.account.protocol.message_create(self.context.channel.id, content)
 
     async def message_delete(self) -> None:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot update message")
-        await self.account.session.message_delete(
+        await self.account.protocol.message_delete(
             self.context.channel.id,
             self.context.message.id,
         )
@@ -169,7 +182,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot update message")
-        await self.account.session.message_update(
+        await self.account.protocol.message_update(
             self.context.channel.id,
             self.context.message.id,
             content,
@@ -178,12 +191,12 @@ class ContextSession:
     async def channel_create(self, data: Channel) -> Channel:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to create channel!")
-        return await self.account.session.channel_create(self.context.guild.id, data)
+        return await self.account.protocol.channel_create(self.context.guild.id, data)
 
     async def channel_list(self, next_token: str | None = None) -> PageResult[Channel]:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to list channel!")
-        return await self.account.session.channel_list(self.context.guild.id, next_token)
+        return await self.account.protocol.channel_list(self.context.guild.id, next_token)
 
     async def channel_update(
         self,
@@ -191,44 +204,44 @@ class ContextSession:
     ) -> None:
         if not self.context.channel:
             raise RuntimeError("Event cannot use to update channel!")
-        return await self.account.session.channel_update(self.context.channel.id, data)
+        return await self.account.protocol.channel_update(self.context.channel.id, data)
 
     async def channel_delete(self) -> None:
         if not self.context.channel:
             raise RuntimeError("Event cannot use to delete channel!")
-        return await self.account.session.channel_delete(
+        return await self.account.protocol.channel_delete(
             self.context.channel.id,
         )
 
     async def user_channel_create(self) -> Channel:
         if not self.context.user:
             raise RuntimeError("Event cannot use to create user channel!")
-        return await self.account.session.user_channel_create(
+        return await self.account.protocol.user_channel_create(
             self.context.user.id, self.context.guild.id if self.context.guild else None
         )
 
     async def guild_member_list(self, next_token: str | None = None) -> PageResult[Member]:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to list member!")
-        return await self.account.session.guild_member_list(self.context.guild.id, next_token)
+        return await self.account.protocol.guild_member_list(self.context.guild.id, next_token)
 
     async def guild_member_get(self, user_id: str | None = None) -> Member:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to get member!")
         if user_id:
-            return await self.account.session.guild_member_get(self.context.guild.id, user_id)
+            return await self.account.protocol.guild_member_get(self.context.guild.id, user_id)
         if not self.context.user:
             raise RuntimeError("Event cannot use to get member!")
-        return await self.account.session.guild_member_get(self.context.guild.id, self.context.user.id)
+        return await self.account.protocol.guild_member_get(self.context.guild.id, self.context.user.id)
 
     async def guild_member_kick(self, user_id: str | None = None, permanent: bool = False) -> None:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to kick member!")
         if user_id:
-            return await self.account.session.guild_member_kick(self.context.guild.id, user_id, permanent)
+            return await self.account.protocol.guild_member_kick(self.context.guild.id, user_id, permanent)
         if not self.context.user:
             raise RuntimeError("Event cannot use to kick member!")
-        return await self.account.session.guild_member_kick(
+        return await self.account.protocol.guild_member_kick(
             self.context.guild.id, self.context.user.id, permanent
         )
 
@@ -236,10 +249,10 @@ class ContextSession:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to guild member role set!")
         if user_id:
-            return await self.account.session.guild_member_role_set(self.context.guild.id, user_id, role_id)
+            return await self.account.protocol.guild_member_role_set(self.context.guild.id, user_id, role_id)
         if not self.context.user:
             raise RuntimeError("Event cannot use to guild member role set!")
-        return await self.account.session.guild_member_role_set(
+        return await self.account.protocol.guild_member_role_set(
             self.context.guild.id, self.context.user.id, role_id
         )
 
@@ -247,17 +260,19 @@ class ContextSession:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to guild member role unset!")
         if user_id:
-            return await self.account.session.guild_member_role_unset(self.context.guild.id, user_id, role_id)
+            return await self.account.protocol.guild_member_role_unset(
+                self.context.guild.id, user_id, role_id
+            )
         if not self.context.user:
             raise RuntimeError("Event cannot use to guild member role unset!")
-        return await self.account.session.guild_member_role_unset(
+        return await self.account.protocol.guild_member_role_unset(
             self.context.guild.id, self.context.user.id, role_id
         )
 
     async def guild_role_list(self, next_token: str | None = None) -> PageResult[Role]:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to list role!")
-        return await self.account.session.guild_role_list(self.context.guild.id, next_token)
+        return await self.account.protocol.guild_role_list(self.context.guild.id, next_token)
 
     async def guild_role_create(
         self,
@@ -265,7 +280,7 @@ class ContextSession:
     ) -> Role:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to create role!")
-        return await self.account.session.guild_role_create(self.context.guild.id, role)
+        return await self.account.protocol.guild_role_create(self.context.guild.id, role)
 
     async def guild_role_update(
         self,
@@ -274,12 +289,12 @@ class ContextSession:
     ) -> None:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to update role!")
-        return await self.account.session.guild_role_update(self.context.guild.id, role_id, role)
+        return await self.account.protocol.guild_role_update(self.context.guild.id, role_id, role)
 
     async def guild_role_delete(self, role_id: str) -> None:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to delete role!")
-        return await self.account.session.guild_role_delete(
+        return await self.account.protocol.guild_role_delete(
             self.context.guild.id,
             role_id,
         )
@@ -292,7 +307,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot create reaction")
-        return await self.account.session.reaction_create(
+        return await self.account.protocol.reaction_create(
             self.context.channel.id, self.context.message.id, emoji
         )
 
@@ -305,7 +320,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot delete reaction")
-        return await self.account.session.reaction_delete(
+        return await self.account.protocol.reaction_delete(
             self.context.channel.id, self.context.message.id, emoji, user_id
         )
 
@@ -317,7 +332,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot clear reaction")
-        return await self.account.session.reaction_clear(
+        return await self.account.protocol.reaction_clear(
             self.context.channel.id,
             self.context.message.id,
             emoji,
@@ -332,7 +347,7 @@ class ContextSession:
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot list reaction")
-        return await self.account.session.reaction_list(
+        return await self.account.protocol.reaction_list(
             self.context.channel.id, self.context.message.id, emoji, next_token
         )
 
@@ -343,7 +358,7 @@ class ContextSession:
     ):
         if self.context.type != EventType.FRIEND_REQUEST or not self.context.message:
             raise RuntimeError("Event cannot approve friend request")
-        return await self.account.session.friend_approve(self.context.message.id, approve, comment)
+        return await self.account.protocol.friend_approve(self.context.message.id, approve, comment)
 
     async def guild_approve(
         self,
@@ -352,7 +367,7 @@ class ContextSession:
     ):
         if self.context.type != EventType.GUILD_REQUEST or not self.context.message:
             raise RuntimeError("Event cannot approve guild request")
-        return await self.account.session.guild_approve(self.context.message.id, approve, comment)
+        return await self.account.protocol.guild_approve(self.context.message.id, approve, comment)
 
     async def guild_member_approve(
         self,
@@ -361,4 +376,4 @@ class ContextSession:
     ):
         if self.context.type != EventType.GUILD_MEMBER_REQUEST or not self.context.message:
             raise RuntimeError("Event cannot approve guild member request")
-        return await self.account.session.guild_member_approve(self.context.message.id, approve, comment)
+        return await self.account.protocol.guild_member_approve(self.context.message.id, approve, comment)
