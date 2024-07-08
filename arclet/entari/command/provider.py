@@ -4,7 +4,16 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
-from arclet.letoderea import Contexts, JudgeAuxiliary, Param, Provider, Scope, Subscriber, SupplyAuxiliary
+from arclet.letoderea import (
+    Contexts,
+    Interface,
+    JudgeAuxiliary,
+    Param,
+    Provider,
+    Scope,
+    Subscriber,
+    SupplyAuxiliary,
+)
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
 from satori.client import Account
@@ -38,8 +47,8 @@ def _remove_tome(message: MessageChain, account: Account):
 
 
 class MessageJudger(JudgeAuxiliary):
-    async def __call__(self, scope: Scope, context: Contexts) -> Optional[bool]:
-        return "$message_content" in context
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        return "$message_content" in interface.ctx
 
     @property
     def scopes(self) -> set[Scope]:
@@ -57,9 +66,9 @@ class AlconnaSuppiler(SupplyAuxiliary):
         self.need_tome = need_tome
         self.remove_tome = remove_tome
 
-    async def __call__(self, scope: Scope, context: Contexts) -> Optional[Union[bool, Contexts]]:
-        account: Account = context["$account"]
-        message: MessageChain = context["$message_content"]
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
+        account: Account = interface.ctx["$account"]
+        message: MessageChain = interface.ctx["$message_content"]
         if self.need_tome and not _is_tome(message, account):
             return False
         with output_manager.capture(self.cmd.name) as cap:
@@ -72,10 +81,9 @@ class AlconnaSuppiler(SupplyAuxiliary):
                 _res = Arparma(self.cmd.path, message, False, error_info=e)
             may_help_text: Optional[str] = cap.get("output", None)
         if _res.matched:
-            context["alc_result"] = CommandResult(self.cmd, _res, may_help_text)
-            return context
+            return interface.update(alc_result=CommandResult(self.cmd, _res, may_help_text))
         elif may_help_text:
-            await account.send(context["$event"], MessageChain(may_help_text))
+            await account.send(interface.event, MessageChain(may_help_text))
             return False
         return False
 

@@ -1,14 +1,13 @@
 from typing import Optional
 
-from arclet.letoderea import Contexts, JudgeAuxiliary, Scope
+from arclet.letoderea import Interface, JudgeAuxiliary, Scope
 from satori import Channel, ChannelType
 
 
 class DirectMessageJudger(JudgeAuxiliary):
-    async def __call__(self, scope: Scope, context: Contexts) -> Optional[bool]:
-        if "channel" not in context:
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        if not (channel := interface.query(Channel, "channel", force_return=True)):
             return False
-        channel: Channel = context["channel"]
         return channel.type == ChannelType.DIRECT
 
     @property
@@ -20,10 +19,9 @@ is_direct_message = DirectMessageJudger()
 
 
 class PublicMessageJudger(JudgeAuxiliary):
-    async def __call__(self, scope: Scope, context: Contexts) -> Optional[bool]:
-        if "channel" not in context:
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        if not (channel := interface.query(Channel, "channel", force_return=True)):
             return False
-        channel: Channel = context["channel"]
         return channel.type != ChannelType.DIRECT
 
     @property

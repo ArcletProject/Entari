@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from contextlib import suppress
 from dataclasses import dataclass, field
 import importlib
 import inspect
@@ -10,10 +9,12 @@ from pathlib import Path
 from typing import Any, Callable, TypeVar, overload
 from typing_extensions import Unpack
 
-from arclet.letoderea import BaseAuxiliary, BaseEvent, Provider, Publisher, StepOut, system_ctx
+from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
 from loguru import logger
+
+from .event import Event
 
 dispatchers: dict[str, PluginDispatcher] = {}
 
@@ -22,8 +23,8 @@ class PluginDispatcher(Publisher):
     def __init__(
         self,
         plugin: Plugin,
-        *events: type[BaseEvent],
-        predicate: Callable[[BaseEvent], bool] | None = None,
+        *events: type[Event],
+        predicate: Callable[[Event], bool] | None = None,
     ):
         super().__init__(plugin.name, *events, predicate=predicate)  # type: ignore
         self.plugin = plugin
@@ -35,7 +36,7 @@ class PluginDispatcher(Publisher):
 
     def waiter(
         self,
-        *events: type[BaseEvent],
+        *events: type[Event],
         providers: list[Provider | type[Provider]] | None = None,
         auxiliaries: list[BaseAuxiliary] | None = None,
         priority: int = 15,
@@ -79,17 +80,17 @@ class Plugin:
     classifier: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
 
-    standards: list[str] = field(default_factory=list)
-    frameworks: list[str] = field(default_factory=list)
-    config_endpoints: list[str] = field(default_factory=list)
-    component_endpoints: list[str] = field(default_factory=list)
+    # standards: list[str] = field(default_factory=list)
+    # frameworks: list[str] = field(default_factory=list)
+    # config_endpoints: list[str] = field(default_factory=list)
+    # component_endpoints: list[str] = field(default_factory=list)
 
     _dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict, init=False)
 
     def __post_init__(self):
         self.name = self.name or self.__module__
 
-    def dispatch(self, *events: type[BaseEvent], predicate: Callable[[BaseEvent], bool] | None = None):
+    def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
         disp = PluginDispatcher(self, *events, predicate=predicate)
         self._dispatchers[disp.id] = disp
         return disp
@@ -126,11 +127,12 @@ def load_plugin(path: str) -> list[Plugin] | None:
     Args:
         path (str): 模块路径
     """
-    with suppress(ModuleNotFoundError):
+    try:
         imported_module = importlib.import_module(path, path)
         logger.success(f"loaded plugin {path!r}")
         return [m for _, m in inspect.getmembers(imported_module, lambda x: isinstance(x, Plugin))]
-    logger.warning(f"failed to load plugin {path!r}")
+    except Exception as e:
+        logger.error(f"failed to load plugin {path!r} caused by {e!r}")
 
 
 def load_plugins(dir_: str | PathLike | Path):

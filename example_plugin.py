@@ -14,10 +14,14 @@ plug = Plugin()
 
 disp_message = plug.dispatch(MessageCreatedEvent)
 
+from satori import select, Author
 
 @disp_message.on(auxiliaries=[])
 async def _(event: MessageCreatedEvent):
     print(event.content)
+    if event.quote and (authors := select(event.quote, Author)):
+        author = authors[0]
+        reply_self = author.id == event.account.self_id
 
 
 on_alconna = plug.mount(Alconna("echo", Args["content?", AllParam]))

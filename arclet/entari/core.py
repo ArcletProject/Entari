@@ -3,13 +3,22 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 
-from arclet.letoderea import BaseAuxiliary, Contexts, EventSystem, Provider, ProviderFactory, global_providers
+from arclet.letoderea import (
+    BaseAuxiliary,
+    Contexts,
+    EventSystem,
+    Param,
+    Provider,
+    ProviderFactory,
+    global_providers,
+)
 from loguru import logger
 from satori.client import App
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.config import Config
 from satori.model import Event
+from tarina.generic import get_origin
 
 from .event import MessageEvent, event_parse
 from .plugin import dispatchers
@@ -23,9 +32,12 @@ class ApiProtocolProvider(Provider[ApiProtocol]):
 
 
 class SessionProvider(Provider[Session]):
+    def validate(self, param: Param):
+        return get_origin(param.annotation) == Session
+
     async def __call__(self, context: Contexts):
         if "$origin_event" in context and "$account" in context:
-            return Session(context["$account"], context["$origin_event"])
+            return Session(context["$account"], context["$event"])
 
 
 global_providers.extend([ApiProtocolProvider(), SessionProvider()])

@@ -14,7 +14,7 @@ from arclet.alconna import (
 )
 from arclet.alconna.args import TAValue
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
-from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber
+from arclet.letoderea import BaseAuxiliary, Provider, Scope, Subscriber
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
 from nepattern import DirectPattern
@@ -25,7 +25,7 @@ from tarina.string import split
 
 from ..event import MessageEvent
 from ..message import MessageChain
-from ..plugin import dispatchers
+from ..plugin import Plugin, PluginDispatcher, dispatchers
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger, get_cmd
@@ -45,9 +45,10 @@ class EntariCommands:
         return cx_command.get()
 
     def __init__(self, need_tome: bool = False, remove_tome: bool = False):
+        self._plugin = Plugin(["RF-Tar-Railt"], "EntariCommands")
         cx_command.set(self)
         self.trie: CharTrie = CharTrie()
-        self.publisher = Publisher("EntariCommands", MessageEvent)
+        self.publisher = PluginDispatcher(self._plugin, MessageEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
         dispatchers["~command.EntariCommands"] = self.publisher
         self.need_tome = need_tome
