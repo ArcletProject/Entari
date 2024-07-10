@@ -22,7 +22,6 @@ from arclet.entari import Session, Entari, WS
 
 app = Entari(WS(host="127.0.0.1", port=5140, path="satori"))
 
-
 @app.on_message()
 async def repeat(session: Session):
     await session.send(session.content)
@@ -34,10 +33,7 @@ app.run()
 指令 `add {a} {b}`:
 
 ```python
-from arclet.entari import Session, Entari, EntariCommands, WS
-
-command = EntariCommands()
-
+from arclet.entari import Session, Entari, WS, command
 
 @command.on("add {a} {b}")
 async def add(a: int, b: int, session: Session):
@@ -46,4 +42,23 @@ async def add(a: int, b: int, session: Session):
 
 app = Entari(WS(port=5500, token="XXX"))
 app.run()
+```
+
+编写插件:
+
+```python
+from arclet.entari import Session, MessageEvent, PluginMetadata
+
+__plugin_metadata__ = PluginMetadata(
+    name="Hello, World!",
+    author=["Arclet"],
+    version="0.1.0",
+    description="A simple plugin that replies 'Hello, World!' to every message."
+)
+
+on_message = MessageEvent.dispatch()
+
+@on_message()
+async def _(session: Session):
+    await session.send("Hello, World!")
 ```

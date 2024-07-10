@@ -38,15 +38,14 @@ from satori.client.protocol import ApiProtocol as ApiProtocol
 from satori.config import WebhookInfo as WebhookInfo
 from satori.config import WebsocketsInfo as WebsocketsInfo
 
-from .command import AlconnaDispatcher as AlconnaDispatcher
-from .command import EntariCommands as EntariCommands
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
 from .filter import is_direct_message as is_direct_message
 from .filter import is_public_message as is_public_message
 from .message import MessageChain as MessageChain
-from .plugin import Plugin as Plugin
+from .plugin import PluginMetadata as PluginMetadata
+from .plugin import dispose as dispose_plugin  # noqa: F401
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .session import Session as Session

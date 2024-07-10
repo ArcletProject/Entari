@@ -20,8 +20,9 @@ from satori.config import Config
 from satori.model import Event
 from tarina.generic import get_origin
 
+from .command import _commands
 from .event import MessageEvent, event_parse
-from .plugin import dispatchers
+from .plugin.model import _plugins
 from .session import Session
 
 
@@ -49,6 +50,7 @@ class Entari(App):
     def __init__(self, *configs: Config):
         super().__init__(*configs)
         self.event_system = EventSystem()
+        self.event_system.register(_commands.publisher)
         self.register(self.handle_event)
         self._ref_tasks = set()
 
@@ -77,12 +79,15 @@ class Entari(App):
             with suppress(NotImplementedError):
                 ev = event_parse(connection, raw)
                 self.event_system.publish(ev)
-                for disp in dispatchers.values():
-                    if not disp.validate(ev):
-                        continue
-                    task = loop.create_task(disp.publish(ev))
-                    self._ref_tasks.add(task)
-                    task.add_done_callback(self._ref_tasks.discard)
+                for plugin in _plugins.values():
+                    for disp in plugin.dispatchers.values():
+                        if not disp.validate(ev):
+                            continue
+                        if disp._run_by_system:
+                            continue
+                        task = loop.create_task(disp.publish(ev))
+                        self._ref_tasks.add(task)
+                        task.add_done_callback(self._ref_tasks.discard)
                 return
 
             logger.warning(f"received unsupported event {raw.type}: {raw}")

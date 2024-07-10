@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 from datetime import datetime
-from typing import ClassVar
+from typing import Callable, ClassVar, TypeVar
 
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
@@ -13,6 +13,9 @@ from satori.model import MessageObject
 from tarina import gen_subclass
 
 from .message import MessageChain
+from .plugin import dispatch
+
+TE = TypeVar("TE", bound="Event")
 
 
 @dataclass
@@ -23,6 +26,10 @@ class Event:
     id: int
     timestamp: datetime
     account: Account
+
+    @classmethod
+    def dispatch(cls: type[TE], predicate: Callable[[TE], bool] | None = None):
+        return dispatch(cls, predicate=predicate)
 
     @classmethod
     def parse(cls, account: Account, origin: SatoriEvent):
