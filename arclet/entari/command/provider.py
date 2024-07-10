@@ -128,6 +128,38 @@ class AlconnaProvider(Provider[Any]):
             return result.result.all_matched_args[self.extra["name"]]
 
 
+_seminal = type("_seminal", (object,), {})
+
+
+class Assign(JudgeAuxiliary):
+    def __init__(self, path: str, value: Any = _seminal, or_not: bool = False):
+        super().__init__()
+        self.path = path
+        self.value = value
+        self.or_not = or_not
+
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        result = interface.query(CommandResult, "alc_result", force_return=True)
+        if result is None:
+            return False
+        if self.value == _seminal:
+            if self.path == "$main" or self.or_not:
+                if not result.result.components:
+                    return True
+                return False
+            return result.result.query(self.path, "\1") != "\1"
+        else:
+            if result.result.query(self.path) == self.value:
+                return True
+            if self.or_not and result.result.query(self.path) == Empty:
+                return True
+            return False
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+
 class AlconnaProviderFactory(ProviderFactory):
     def validate(self, param: Param):
         annotation = get_origin(param.annotation)

@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+from typing import Any
+
 from arclet.alconna import Alconna, command_manager
+from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
 
 from ..event import MessageEvent
 from ..plugin import Plugin, PluginDispatcher
 from .model import Match, Query
-from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger
+from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudger, _seminal
 
 
 class AlconnaPluginDispatcher(PluginDispatcher):
@@ -20,6 +25,19 @@ class AlconnaPluginDispatcher(PluginDispatcher):
 
         self.bind(MessageJudger(), self.supplier)
         self.bind(AlconnaProviderFactory())
+
+    def assign(
+        self,
+        path: str,
+        value: Any = _seminal,
+        or_not: bool = False,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
+    ):
+        _auxiliaries = auxiliaries or []
+        _auxiliaries.append(Assign(path, value, or_not))
+        return self.register(priority, _auxiliaries, providers)
 
     def dispose(self):
         super().dispose()
