@@ -12,7 +12,7 @@ from arclet.entari import (
 )
 from arclet.entari.command import Match
 
-__plugin_metadata__ = PluginMetadata()
+__plugin_metadata__ = PluginMetadata(__file__)
 
 disp_message = MessageCreatedEvent.dispatch()
 

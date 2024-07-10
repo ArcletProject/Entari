@@ -9,24 +9,6 @@ from typing import Optional
 from .model import Plugin, PluginMetadata, _current_plugin, _plugins
 
 
-class PluginFinder(MetaPathFinder):
-    def find_spec(
-        self,
-        fullname: str,
-        path: Optional[Sequence[str]],
-        target: Optional[ModuleType] = None,
-    ):
-        module_spec = PathFinder.find_spec(fullname, path, target)
-        if not module_spec:
-            return
-        module_origin = module_spec.origin
-        if not module_origin:
-            return
-
-        module_spec.loader = PluginLoader(fullname, module_origin)
-        return module_spec
-
-
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str) -> None:
         self.loaded = False
@@ -51,9 +33,9 @@ class PluginLoader(SourceFileLoader):
 
         try:
             super().exec_module(module)
-        # except Exception:
-        #     # _revert_plugin(plugin)
-        #     raise
+        except Exception:
+            plugin.dispose()
+            raise
         finally:
             # leave plugin context
             _current_plugin.reset(_plugin_token)
@@ -62,9 +44,6 @@ class PluginLoader(SourceFileLoader):
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
         plugin.metadata = metadata
         return
-
-
-_finder = PluginFinder()
 
 
 def find_spec(name, package=None):
@@ -81,7 +60,14 @@ def find_spec(name, package=None):
             ) from e
     else:
         parent_path = None
-    return _finder.find_spec(fullname, parent_path)
+    module_spec = PathFinder.find_spec(fullname, parent_path, None)
+    if not module_spec:
+        return
+    module_origin = module_spec.origin
+    if not module_origin:
+        return
+    module_spec.loader = PluginLoader(fullname, module_origin)
+    return module_spec
 
 
 def import_plugin(name, package=None):
@@ -94,4 +80,23 @@ def import_plugin(name, package=None):
     return
 
 
-sys.meta_path.insert(0, _finder)
+class _PluginFinder(MetaPathFinder):
+    def find_spec(
+        self,
+        fullname: str,
+        path: Optional[Sequence[str]],
+        target: Optional[ModuleType] = None,
+    ):
+        module_spec = PathFinder.find_spec(fullname, path, target)
+        if not module_spec:
+            return
+        module_origin = module_spec.origin
+        if not module_origin:
+            return
+        if module_spec.name in _plugins:
+            module_spec.loader = PluginLoader(fullname, module_origin)
+            return module_spec
+        return
+
+
+sys.meta_path.insert(0, _PluginFinder())
