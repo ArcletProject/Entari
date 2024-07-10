@@ -47,18 +47,17 @@ app.run()
 编写插件:
 
 ```python
-from arclet.entari import Session, MessageEvent, PluginMetadata
+from arclet.entari import Session, MessageCreatedEvent, Plugin
 
-__plugin_metadata__ = PluginMetadata(
+Plugin.current().meta(
     name="Hello, World!",
     author=["Arclet"],
     version="0.1.0",
     description="A simple plugin that replies 'Hello, World!' to every message."
 )
+# or __plugin_metadata__ = PluginMetadata(...)
 
-on_message = MessageEvent.dispatch()
-
-@on_message()
+@MessageCreatedEvent.dispatch()
 async def _(session: Session):
     await session.send("Hello, World!")
 ```

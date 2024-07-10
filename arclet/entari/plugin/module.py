@@ -42,7 +42,8 @@ class PluginLoader(SourceFileLoader):
 
         # get plugin metadata
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
-        plugin.metadata = metadata
+        if metadata and not plugin.metadata:
+            plugin.metadata = metadata
         return
 
 

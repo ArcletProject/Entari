@@ -1,3 +1,4 @@
+from arclet.letoderea import bind as bind
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
@@ -44,6 +45,7 @@ from .event import MessageEvent as MessageEvent
 from .filter import is_direct_message as is_direct_message
 from .filter import is_public_message as is_public_message
 from .message import MessageChain as MessageChain
+from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
 from .plugin import dispose as dispose_plugin  # noqa: F401
 from .plugin import load_plugin as load_plugin

@@ -9,6 +9,7 @@ from weakref import WeakValueDictionary, finalize
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
+from tarina import init_spec
 
 if TYPE_CHECKING:
     from ..event import Event
@@ -59,7 +60,9 @@ class PluginDispatcher(Publisher):
 
     on = Publisher.register
     handle = Publisher.register
-    __call__ = Publisher.register
+
+    def __call__(self, func):
+        return self.register()(func)
 
 
 @dataclass
@@ -89,12 +92,17 @@ class Plugin:
     _is_disposed: bool = False
 
     @staticmethod
-    def current() -> Plugin | None:
-        return _current_plugin.get()
+    def current() -> Plugin:
+        return _current_plugin.get()  # type: ignore
 
     def __post_init__(self):
         _plugins[self.id] = self
         finalize(self, self.dispose)
+
+    @init_spec(PluginMetadata, True)
+    def meta(self, metadata: PluginMetadata):
+        self.metadata = metadata
+        return self
 
     def dispose(self):
         if self._is_disposed:

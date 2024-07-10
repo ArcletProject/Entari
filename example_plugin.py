@@ -6,18 +6,20 @@ from arclet.entari import (
     Session,
     MessageChain,
     MessageCreatedEvent,
-    PluginMetadata,
+    Plugin,
     command,
-    is_direct_message,
+    is_public_message,
+    bind,
 )
 from arclet.entari.command import Match
 
-__plugin_metadata__ = PluginMetadata(__file__)
+Plugin.current().meta(__file__)
 
 disp_message = MessageCreatedEvent.dispatch()
 
 
-@disp_message.on()
+@disp_message
+@bind(is_public_message)
 async def _(msg: MessageChain):
     content = msg.extract_plain_text()
     if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
@@ -28,7 +30,7 @@ async def _(msg: MessageChain):
 from satori import select, Author
 
 
-@disp_message.on(auxiliaries=[])
+@disp_message.on(auxiliaries=[is_public_message])
 async def _(event: MessageCreatedEvent):
     print(event.content)
     if event.quote and (authors := select(event.quote, Author)):
@@ -36,10 +38,10 @@ async def _(event: MessageCreatedEvent):
         reply_self = author.id == event.account.self_id
 
 
-on_alconna = command.mount(Alconna("echo", Args["content?", AllParam]))
+on_alc = command.mount(Alconna("echo", Args["content?", AllParam]))
 
 
-@on_alconna()
+@on_alc
 async def _(content: Match[MessageChain], session: Session):
     if content.available:
         await session.send(content.result)
