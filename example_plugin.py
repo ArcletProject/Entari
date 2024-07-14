@@ -13,7 +13,18 @@ from arclet.entari import (
 )
 from arclet.entari.command import Match
 
-Plugin.current().meta(__file__)
+plug = Plugin.current().meta(__file__)
+
+
+@plug.on_prepare
+async def prepare():
+    print("Preparing")
+
+
+@plug.on_cleanup
+async def cleanup():
+    print("Cleanup")
+
 
 disp_message = MessageCreatedEvent.dispatch()
 
@@ -26,16 +37,19 @@ async def _(msg: MessageChain):
         return "上传设定的帮助是..."
 
 
+disp_message1 = plug.dispatch(MessageCreatedEvent)
+
 
 from satori import select, Author
 
 
-@disp_message.on(auxiliaries=[is_public_message])
+@disp_message1.on(auxiliaries=[is_public_message])
 async def _(event: MessageCreatedEvent):
     print(event.content)
     if event.quote and (authors := select(event.quote, Author)):
         author = authors[0]
         reply_self = author.id == event.account.self_id
+        print(reply_self)
 
 
 on_alc = command.mount(Alconna("echo", Args["content?", AllParam]))

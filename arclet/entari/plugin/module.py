@@ -6,7 +6,8 @@ import sys
 from types import ModuleType
 from typing import Optional
 
-from .model import Plugin, PluginMetadata, _current_plugin, _plugins
+from .model import Plugin, PluginMetadata, _current_plugin
+from .service import service
 
 
 class PluginLoader(SourceFileLoader):
@@ -15,9 +16,9 @@ class PluginLoader(SourceFileLoader):
         super().__init__(fullname, path)
 
     def create_module(self, spec) -> Optional[ModuleType]:
-        if self.name in _plugins:
+        if self.name in service.plugins:
             self.loaded = True
-            return _plugins[self.name].module
+            return service.plugins[self.name].module
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType) -> None:
@@ -94,7 +95,7 @@ class _PluginFinder(MetaPathFinder):
         module_origin = module_spec.origin
         if not module_origin:
             return
-        if module_spec.name in _plugins:
+        if module_spec.name in service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec
         return

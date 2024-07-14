@@ -8,8 +8,9 @@ from loguru import logger
 
 from .model import Plugin, PluginDispatcher
 from .model import PluginMetadata as PluginMetadata
-from .model import _current_plugin, _plugins
+from .model import _current_plugin
 from .module import import_plugin
+from .service import service
 
 if TYPE_CHECKING:
     from ..event import Event
@@ -29,8 +30,8 @@ def load_plugin(path: str) -> Plugin | None:
     Args:
         path (str): 模块路径
     """
-    if path in _plugins:
-        return _plugins[path]
+    if path in service.plugins:
+        return service.plugins[path]
     try:
         mod = import_plugin(path)
         if not mod:
@@ -53,7 +54,7 @@ def load_plugins(dir_: str | PathLike | Path):
 
 
 def dispose(plugin: str):
-    if plugin not in _plugins:
+    if plugin not in service.plugins:
         return
-    _plugin = _plugins[plugin]
+    _plugin = service.plugins[plugin]
     _plugin.dispose()

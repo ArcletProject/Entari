@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import ModuleType
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from weakref import WeakValueDictionary, finalize
 
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
+from satori.client import Account
 from tarina import init_spec
+
+from .service import service
 
 if TYPE_CHECKING:
     from ..event import Event
 
 _current_plugin: ContextVar[Plugin | None] = ContextVar("_current_plugin", default=None)
-
-_plugins: dict[str, Plugin] = {}
 
 
 class PluginDispatcher(Publisher):
@@ -83,6 +85,10 @@ class PluginMetadata:
     # component_endpoints: list[str] = field(default_factory=list)
 
 
+_Lifespan = Callable[..., Awaitable[Any]]
+_AccountUpdate = Callable[[Account], Awaitable[Any]]
+
+
 @dataclass
 class Plugin:
     id: str
@@ -91,12 +97,33 @@ class Plugin:
     metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
+    _preparing: list[_Lifespan] = field(init=False, default_factory=list)
+    _cleanup: list[_Lifespan] = field(init=False, default_factory=list)
+    _connected: list[_AccountUpdate] = field(init=False, default_factory=list)
+    _disconnected: list[_AccountUpdate] = field(init=False, default_factory=list)
+
+    def on_prepare(self, func: _Lifespan):
+        self._preparing.append(func)
+        return func
+
+    def on_cleanup(self, func: _Lifespan):
+        self._cleanup.append(func)
+        return func
+
+    def on_connect(self, func: _AccountUpdate):
+        self._connected.append(func)
+        return func
+
+    def on_disconnect(self, func: _AccountUpdate):
+        self._disconnected.append(func)
+        return func
+
     @staticmethod
     def current() -> Plugin:
         return _current_plugin.get()  # type: ignore
 
     def __post_init__(self):
-        _plugins[self.id] = self
+        service.plugins[self.id] = self
         finalize(self, self.dispose)
 
     @init_spec(PluginMetadata, True)
@@ -111,5 +138,8 @@ class Plugin:
         for disp in self.dispatchers.values():
             disp.dispose()
         self.dispatchers.clear()
-        del _plugins[self.id]
+        del service.plugins[self.id]
         del self.module
+
+    def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
+        return PluginDispatcher(self, *events, predicate=predicate)
