@@ -57,6 +57,14 @@ class Entari(App):
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
 
+        @self.on_message(priority=0)
+        def log(event: MessageEvent):
+            logger.info(
+                f"[{event.channel.name or event.channel.id}{f'({event.channel.id})' if event.channel.name else ''})] "
+                f"{event.member.nick if event.member else (event.user.name or event.user.id)}({event.user.id}) ->"
+                f" {event.message.content!r}"
+            )
+
     def on(
         self,
         *events: type,
