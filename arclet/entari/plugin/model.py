@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable
-from weakref import WeakValueDictionary, finalize
+from weakref import finalize
 
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
@@ -28,9 +28,8 @@ class PluginDispatcher(Publisher):
         *events: type[Event],
         predicate: Callable[[Event], bool] | None = None,
     ):
-        super().__init__(f"{plugin.id}@{id(plugin)}", *events, predicate=predicate)  # type: ignore
+        super().__init__(f"{plugin.id}@{id(self)}", *events, predicate=predicate)  # type: ignore
         self.plugin = plugin
-        plugin.dispatchers[self.id] = self
         self._run_by_system = False
         if es := system_ctx.get():
             es.register(self)
@@ -93,7 +92,7 @@ _AccountUpdate = Callable[[Account], Awaitable[Any]]
 class Plugin:
     id: str
     module: ModuleType
-    dispatchers: WeakValueDictionary[str, PluginDispatcher] = field(default_factory=WeakValueDictionary)
+    dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
@@ -142,4 +141,8 @@ class Plugin:
         del self.module
 
     def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
-        return PluginDispatcher(self, *events, predicate=predicate)
+        disp = PluginDispatcher(self, *events, predicate=predicate)
+        if disp.id in self.dispatchers:
+            return self.dispatchers[disp.id]
+        self.dispatchers[disp.id] = disp
+        return disp

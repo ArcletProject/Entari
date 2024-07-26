@@ -29,12 +29,13 @@ class PluginService(Service):
     async def launch(self, manager: Launart):
         _preparing = []
         _cleanup = []
-        for plug in self.plugins.values():
-            _preparing.extend([func() for func in plug._preparing])
-            _cleanup.extend([func() for func in plug._cleanup])
         async with self.stage("preparing"):
+            for plug in self.plugins.values():
+                _preparing.extend([func() for func in plug._preparing])
             await asyncio.gather(*_preparing, return_exceptions=True)
         async with self.stage("cleanup"):
+            for plug in self.plugins.values():
+                _cleanup.extend([func() for func in plug._cleanup])
             await asyncio.gather(*_cleanup, return_exceptions=True)
         ids = [*self.plugins.keys()]
         for plug_id in ids:

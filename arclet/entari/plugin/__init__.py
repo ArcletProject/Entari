@@ -19,8 +19,7 @@ if TYPE_CHECKING:
 def dispatch(*events: type[Event], predicate: Callable[[Event], bool] | None = None):
     if not (plugin := _current_plugin.get()):
         raise LookupError("no plugin context found")
-    disp = PluginDispatcher(plugin, *events, predicate=predicate)
-    return disp
+    return plugin.dispatch(*events, predicate=predicate)
 
 
 def load_plugin(path: str) -> Plugin | None:
