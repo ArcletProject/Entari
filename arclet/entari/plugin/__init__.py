@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
 
-from .model import Plugin, PluginDispatcher
+from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import _current_plugin
 from .module import import_plugin
