@@ -6,7 +6,7 @@ from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
 
 from ..event import MessageEvent
-from ..plugin import Plugin, PluginDispatcher
+from ..plugin.model import Plugin, PluginDispatcher
 from .model import Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudger, _seminal
 
