@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import inspect
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
+from tarina import init_spec
 
-from .model import Plugin
+from .model import Plugin, RegisterNotInPluginError
 from .model import PluginMetadata as PluginMetadata
 from .model import _current_plugin
 from .module import import_plugin
+from .module import package as package
 from .service import service
 
 if TYPE_CHECKING:
@@ -17,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def dispatch(*events: type[Event], predicate: Callable[[Event], bool] | None = None):
-    if not (plugin := _current_plugin.get()):
+    if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     return plugin.dispatch(*events, predicate=predicate)
 
@@ -38,6 +41,8 @@ def load_plugin(path: str) -> Plugin | None:
             return
         logger.success(f"loaded plugin {path!r}")
         return mod.__plugin__
+    except RegisterNotInPluginError as e:
+        logger.exception(f"{e.args[0]}", exc_info=e)
     except Exception as e:
         logger.error(f"failed to load plugin {path!r} caused by {e!r}")
 
@@ -57,3 +62,8 @@ def dispose(plugin: str):
         return
     _plugin = service.plugins[plugin]
     _plugin.dispose()
+
+
+@init_spec(PluginMetadata)
+def metadata(data: PluginMetadata):
+    inspect.currentframe().f_back.f_globals["__plugin_metadata__"] = data  # type: ignore

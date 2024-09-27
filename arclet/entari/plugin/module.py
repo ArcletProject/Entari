@@ -10,6 +10,14 @@ from .model import Plugin, PluginMetadata, _current_plugin
 from .service import service
 
 
+_SUBMODULE_WAITLIST = set()
+
+
+def package(*names: str):
+    """手动指定特定模块作为插件的子模块"""
+    _SUBMODULE_WAITLIST.update(names)
+
+
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str) -> None:
         self.loaded = False
@@ -22,6 +30,19 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType) -> None:
+        if plugin := _current_plugin.get(None):
+            if module.__name__ == plugin.module.__name__:  # from . import xxxx
+                return
+            setattr(module, "__plugin__", plugin)
+            try:
+                super().exec_module(module)
+            except Exception:
+                delattr(module, "__plugin__")
+                raise
+            else:
+                plugin.submodules[module.__name__] = module
+            return
+
         if self.loaded:
             return
 
@@ -44,7 +65,7 @@ class PluginLoader(SourceFileLoader):
         # get plugin metadata
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
         if metadata and not plugin.metadata:
-            plugin.metadata = metadata
+            plugin._metadata = metadata
         return
 
 
@@ -95,6 +116,17 @@ class _PluginFinder(MetaPathFinder):
         module_origin = module_spec.origin
         if not module_origin:
             return
+        if plug := _current_plugin.get(None):
+            if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
+                return plug.module.__spec__
+            if module_spec.parent and module_spec.parent == plug.module.__name__:
+                module_spec.loader = PluginLoader(fullname, module_origin)
+                return module_spec
+            elif module_spec.name in _SUBMODULE_WAITLIST:
+                module_spec.loader = PluginLoader(fullname, module_origin)
+                _SUBMODULE_WAITLIST.remove(module_spec.name)
+                return module_spec
+
         if module_spec.name in service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec

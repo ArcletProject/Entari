@@ -10,20 +10,23 @@ from arclet.entari import (
     command,
     is_public_message,
     bind,
+    metadata,
 )
 from arclet.entari.command import Match
 
-plug = Plugin.current().meta(__file__)
+metadata(__file__)
+
+plug = Plugin.current()
 
 
 @plug.on_prepare
 async def prepare():
-    print("Preparing")
+    print("example: Preparing")
 
 
 @plug.on_cleanup
 async def cleanup():
-    print("Cleanup")
+    print("example: Cleanup")
 
 
 disp_message = MessageCreatedEvent.dispatch()
@@ -31,10 +34,10 @@ disp_message = MessageCreatedEvent.dispatch()
 
 @disp_message
 @bind(is_public_message)
-async def _(msg: MessageChain):
+async def _(msg: MessageChain, session: Session):
     content = msg.extract_plain_text()
     if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
-        return "上传设定的帮助是..."
+        return await session.send("上传设定的帮助是...")
 
 
 disp_message1 = plug.dispatch(MessageCreatedEvent)
@@ -45,11 +48,11 @@ from satori import select, Author
 
 @disp_message1.on(auxiliaries=[is_public_message])
 async def _(event: MessageCreatedEvent):
-    print(event.content)
     if event.quote and (authors := select(event.quote, Author)):
         author = authors[0]
         reply_self = author.id == event.account.self_id
         print(reply_self)
+        print(event.content)
 
 
 on_alc = command.mount(Alconna("echo", Args["content?", AllParam]))

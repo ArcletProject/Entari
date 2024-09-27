@@ -18,7 +18,11 @@ from .service import service
 if TYPE_CHECKING:
     from ..event import Event
 
-_current_plugin: ContextVar[Plugin | None] = ContextVar("_current_plugin", default=None)
+_current_plugin: ContextVar[Plugin] = ContextVar("_current_plugin")
+
+
+class RegisterNotInPluginError(Exception):
+    pass
 
 
 class PluginDispatcher(Publisher):
@@ -59,8 +63,20 @@ class PluginDispatcher(Publisher):
             self._run_by_system = False
         self.subscribers.clear()
 
-    on = Publisher.register
-    handle = Publisher.register
+    if TYPE_CHECKING:
+        register = Publisher.register
+    else:
+        def register(self, *args, **kwargs):
+            wrapper = super().register(*args, **kwargs)
+
+            def decorator(func):
+                self.plugin.validate(func)
+                return wrapper(func)
+
+            return decorator
+
+    on = register
+    handle = register
 
     def __call__(self, func):
         return self.register()(func)
@@ -93,7 +109,8 @@ class Plugin:
     id: str
     module: ModuleType
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
-    metadata: PluginMetadata | None = None
+    submodules: dict[str, ModuleType] = field(default_factory=dict)
+    _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
     _preparing: list[_Lifespan] = field(init=False, default_factory=list)
@@ -121,19 +138,19 @@ class Plugin:
     def current() -> Plugin:
         return _current_plugin.get()  # type: ignore
 
+    @property
+    def metadata(self) -> PluginMetadata | None:
+        return self._metadata
+
     def __post_init__(self):
         service.plugins[self.id] = self
         finalize(self, self.dispose)
-
-    @init_spec(PluginMetadata, True)
-    def meta(self, metadata: PluginMetadata):
-        self.metadata = metadata
-        return self
 
     def dispose(self):
         if self._is_disposed:
             return
         self._is_disposed = True
+        self.submodules.clear()
         for disp in self.dispatchers.values():
             disp.dispose()
         self.dispatchers.clear()
@@ -146,3 +163,12 @@ class Plugin:
             return self.dispatchers[disp.id]
         self.dispatchers[disp.id] = disp
         return disp
+
+    def validate(self, func):
+        if func.__module__ != self.module.__name__:
+            if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
+                return
+            raise RegisterNotInPluginError(
+                f"Handler {func.__qualname__} should define in the same module as the plugin: {self.module.__name__}. "
+                f"Please use the `load_plugin({func.__module__!r})` or `package({func.__module__!r})` before import it."
+            )
