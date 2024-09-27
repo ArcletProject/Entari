@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Callable
 from loguru import logger
 from tarina import init_spec
 
-from .model import Plugin, RegisterNotInPluginError
+from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
-from .model import _current_plugin
+from .model import RegisterNotInPluginError, _current_plugin
+from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
 from .service import service
@@ -40,6 +41,7 @@ def load_plugin(path: str) -> Plugin | None:
             logger.error(f"cannot found plugin {path!r}")
             return
         logger.success(f"loaded plugin {path!r}")
+
         return mod.__plugin__
     except RegisterNotInPluginError as e:
         logger.exception(f"{e.args[0]}", exc_info=e)

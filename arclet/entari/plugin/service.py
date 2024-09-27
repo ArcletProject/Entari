@@ -6,17 +6,19 @@ from launart.status import Phase
 from loguru import logger
 
 if TYPE_CHECKING:
-    from .model import Plugin
+    from .model import KeepingVariable, Plugin
 
 
 class PluginService(Service):
     id = "arclet.entari.plugin_service"
 
     plugins: dict[str, "Plugin"]
+    _keep_values: dict[str, dict[str, "KeepingVariable"]]
 
     def __init__(self):
         super().__init__()
         self.plugins = {}
+        self._keep_values = {}
 
     @property
     def required(self) -> set[str]:
@@ -46,6 +48,11 @@ class PluginService(Service):
             except Exception as e:
                 logger.error(f"failed to dispose plugin {plug.id} caused by {e!r}")
                 self.plugins.pop(plug_id, None)
+        for values in self._keep_values.values():
+            for value in values.values():
+                value.dispose()
+            values.clear()
+        self._keep_values.clear()
 
 
 service = PluginService()

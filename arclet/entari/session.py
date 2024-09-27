@@ -120,7 +120,9 @@ class Session(Generic[TEvent]):
     ) -> list[MessageObject]:
         if not protocol_cls:
             return await self.account.protocol.send(self.context, message)
-        return await self.account.custom(self.account.config, protocol_cls).send(self.context._origin, message)
+        return await self.account.custom(self.account.config, protocol_cls).send(
+            self.context._origin, message
+        )
 
     async def send_message(
         self,
@@ -269,7 +271,9 @@ class Session(Generic[TEvent]):
         if not self.context.guild:
             raise RuntimeError("Event cannot use to guild member role unset!")
         if user_id:
-            return await self.account.protocol.guild_member_role_unset(self.context.guild.id, user_id, role_id)
+            return await self.account.protocol.guild_member_role_unset(
+                self.context.guild.id, user_id, role_id
+            )
         if not self.context.user:
             raise RuntimeError("Event cannot use to guild member role unset!")
         return await self.account.protocol.guild_member_role_unset(

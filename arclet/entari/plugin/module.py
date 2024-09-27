@@ -9,7 +9,6 @@ from typing import Optional
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import service
 
-
 _SUBMODULE_WAITLIST = set()
 
 

@@ -4,14 +4,13 @@ from collections.abc import Awaitable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from weakref import finalize
 
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
 from satori.client import Account
-from tarina import init_spec
 
 from .service import service
 
@@ -66,6 +65,7 @@ class PluginDispatcher(Publisher):
     if TYPE_CHECKING:
         register = Publisher.register
     else:
+
         def register(self, *args, **kwargs):
             wrapper = super().register(*args, **kwargs)
 
@@ -144,6 +144,8 @@ class Plugin:
 
     def __post_init__(self):
         service.plugins[self.id] = self
+        if self.id not in service._keep_values:
+            service._keep_values[self.id] = {}
         finalize(self, self.dispose)
 
     def dispose(self):
@@ -169,6 +171,34 @@ class Plugin:
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
             raise RegisterNotInPluginError(
-                f"Handler {func.__qualname__} should define in the same module as the plugin: {self.module.__name__}. "
-                f"Please use the `load_plugin({func.__module__!r})` or `package({func.__module__!r})` before import it."
+                f"Handler {func.__qualname__} should define "
+                f"in the same module as the plugin: {self.module.__name__}. "
+                f"Please use the `load_plugin({func.__module__!r})` or "
+                f"`package({func.__module__!r})` before import it."
             )
+
+
+class KeepingVariable:
+    def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
+        self.obj = obj
+        self._dispose = dispose
+
+    def dispose(self):
+        if hasattr(self.obj, "dispose"):
+            self.obj.dispose()  # type: ignore
+        elif self._dispose:
+            self._dispose(self.obj)
+        del self.obj
+
+
+T = TypeVar("T")
+
+
+def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
+    if not (plug := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    if id_ not in service._keep_values[plug.id]:
+        service._keep_values[plug.id][id_] = KeepingVariable(obj, dispose)
+    else:
+        obj = service._keep_values[plug.id][id_].obj  # type: ignore
+    return obj

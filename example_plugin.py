@@ -11,6 +11,7 @@ from arclet.entari import (
     is_public_message,
     bind,
     metadata,
+    keeping
 )
 from arclet.entari.command import Match
 
@@ -70,3 +71,17 @@ async def _(content: Match[MessageChain], session: Session):
 @command.on("add {a} {b}")
 async def add(a: int, b: int, session: Session):
     await session.send_message(f"{a + b =}")
+
+
+kept_data = keeping("foo", [], lambda x: x.clear())
+
+
+@command.on("append {data}")
+async def append(data: str, session: Session):
+    kept_data.append(data)
+    await session.send_message(f"Appended {data}")
+
+
+@command.on("show")
+async def show(session: Session):
+    await session.send_message(f"Data: {kept_data}")

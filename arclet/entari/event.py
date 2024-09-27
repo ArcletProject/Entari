@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Callable, ClassVar, TypeVar, Generic, Any
+from typing import Any, Callable, ClassVar, Generic, TypeVar
 
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
@@ -31,7 +31,7 @@ class Attr(Generic[T]):
 
     def __set__(self, instance: Event, value):
         raise AttributeError("can't set attribute")
-    
+
 
 def attr(key: str | None = None) -> Any:
     return Attr(key)
@@ -67,7 +67,18 @@ class Event:
         context["$account"] = self.account
         context["$origin_event"] = self._origin
 
-        for attrname in {"argv", "button", "channel", "guild", "login", "member", "message", "operator", "role", "user"}:
+        for attrname in {
+            "argv",
+            "button",
+            "channel",
+            "guild",
+            "login",
+            "member",
+            "message",
+            "operator",
+            "role",
+            "user",
+        }:
             value = getattr(self, attrname)
             if value is not None:
                 context["$message_origin" if attrname == "message" else attrname] = value

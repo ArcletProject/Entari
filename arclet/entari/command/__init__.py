@@ -12,8 +12,8 @@ from arclet.alconna import (
     config,
     output_manager,
 )
-from arclet.alconna.typing import TAValue
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
+from arclet.alconna.typing import TAValue
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
