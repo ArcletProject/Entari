@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
 from datetime import datetime
-from typing import Callable, ClassVar, TypeVar
+from typing import Callable, ClassVar, TypeVar, Generic, Any
 
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
@@ -16,37 +15,62 @@ from .message import MessageChain
 from .plugin import dispatch
 
 TE = TypeVar("TE", bound="Event")
+T = TypeVar("T")
+D = TypeVar("D")
 
 
-@dataclass
+class Attr(Generic[T]):
+    def __init__(self, key: str | None = None):
+        self.key = key
+
+    def __set_name__(self, owner: type[Event], name: str):
+        self.key = self.key or name
+
+    def __get__(self, instance: Event, owner: type[Event]) -> T:
+        return getattr(instance._origin, self.key, None)  # type: ignore
+
+    def __set__(self, instance: Event, value):
+        raise AttributeError("can't set attribute")
+    
+
+def attr(key: str | None = None) -> Any:
+    return Attr(key)
+
+
 class Event:
     type: ClassVar[EventType]
-    _origin: SatoriEvent = field(init=False)
-
-    id: int
-    timestamp: datetime
+    _origin: SatoriEvent
     account: Account
+
+    id: int = attr()
+    timestamp: datetime = attr()
+    argv: ArgvInteraction | None = attr()
+    button: ButtonInteraction | None = attr()
+    channel: Channel | None = attr()
+    guild: Guild | None = attr()
+    login: Login | None = attr()
+    member: Member | None = attr()
+    message: MessageObject | None = attr()
+    operator: User | None = attr()
+    role: Role | None = attr()
+    user: User | None = attr()
+
+    def __init__(self, account: Account, origin: SatoriEvent):
+        self.account = account
+        self._origin = origin
 
     @classmethod
     def dispatch(cls: type[TE], predicate: Callable[[TE], bool] | None = None):
-        return dispatch(cls, predicate=predicate)
-
-    @classmethod
-    def parse(cls, account: Account, origin: SatoriEvent):
-        fs = fields(cls)
-        attrs = {"account": account}
-        for fd in fs:
-            if not fd.init:
-                continue
-            if attr := getattr(origin, fd.name, None):
-                attrs[fd.name] = attr
-        res = cls(**attrs)  # type: ignore
-        res._origin = origin
-        return res
+        return dispatch(cls, predicate=predicate)  # type: ignore
 
     async def gather(self, context: Contexts):
         context["$account"] = self.account
         context["$origin_event"] = self._origin
+
+        for attrname in {"argv", "button", "channel", "guild", "login", "member", "message", "operator", "role", "user"}:
+            value = getattr(self, attrname)
+            if value is not None:
+                context["$message_origin" if attrname == "message" else attrname] = value
 
     class AccountProvider(Provider[Account]):
         async def __call__(self, context: Contexts):
@@ -91,33 +115,44 @@ class Event:
                 return context["guild"]
             return context["$origin_event"].guild
 
+    class MemberProvider(Provider[Member]):
+        async def __call__(self, context: Contexts):
+            if "member" in context:
+                return context["member"]
+            return context["$origin_event"].member
+
+    class RoleProvider(Provider[Role]):
+        async def __call__(self, context: Contexts):
+            if "role" in context:
+                return context["role"]
+            return context["$origin_event"].role
+
+    class LoginProvider(Provider[Login]):
+        async def __call__(self, context: Contexts):
+            if "login" in context:
+                return context["login"]
+            return context["$origin_event"].login
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__[:-5]}{self._origin!r}>"
+
 
 class NoticeEvent(Event):
     pass
 
 
-@dataclass
 class FriendEvent(NoticeEvent):
-    user: User
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["user"] = self.user
+    user: User = attr()
 
 
 class FriendRequestEvent(FriendEvent):
     type = EventType.FRIEND_REQUEST
 
-    message: MessageObject
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["$message_origin"] = self.message
+    message: MessageObject = attr()
 
 
-@dataclass
 class GuildEvent(NoticeEvent):
-    guild: Guild
+    guild: Guild = attr()
 
     async def gather(self, context: Contexts):
         await super().gather(context)
@@ -135,27 +170,15 @@ class GuildRemovedEvent(GuildEvent):
 class GuildRequestEvent(GuildEvent):
     type = EventType.GUILD_REQUEST
 
-    message: MessageObject
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["$message_origin"] = self.message
+    message: MessageObject = attr()
 
 
 class GuildUpdatedEvent(GuildEvent):
     type = EventType.GUILD_UPDATED
 
 
-@dataclass
 class GuildMemberEvent(GuildEvent):
-    user: User
-    member: Member | None = None
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["user"] = self.user
-        if self.member:
-            context["member"] = self.member
+    user: User = attr()
 
 
 class GuildMemberAddedEvent(GuildMemberEvent):
@@ -169,28 +192,15 @@ class GuildMemberRemovedEvent(GuildMemberEvent):
 class GuildMemberRequestEvent(GuildMemberEvent):
     type = EventType.GUILD_MEMBER_REQUEST
 
-    message: MessageObject
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["$message_origin"] = self.message
+    message: MessageObject = attr()
 
 
 class GuildMemberUpdatedEvent(GuildMemberEvent):
     type = EventType.GUILD_MEMBER_UPDATED
 
 
-@dataclass
 class GuildRoleEvent(GuildEvent):
-    role: Role
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["role"] = self.role
-
-    class RoleProvider(Provider[Role]):
-        async def __call__(self, context: Contexts):
-            return context.get("role")
+    role: Role = attr()
 
 
 class GuildRoleCreatedEvent(GuildRoleEvent):
@@ -205,17 +215,8 @@ class GuildRoleUpdatedEvent(GuildRoleEvent):
     type = EventType.GUILD_ROLE_UPDATED
 
 
-@dataclass
 class LoginEvent(NoticeEvent):
-    login: Login
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["login"] = self.login
-
-    class LoginProvider(Provider[Login]):
-        async def __call__(self, context: Contexts):
-            return context.get("login")
+    login: Login = attr()
 
 
 class LoginAddedEvent(LoginEvent):
@@ -240,19 +241,18 @@ class QuoteProvider(Provider[Quote]):
         return context["$event"].quote
 
 
-@dataclass
 class MessageEvent(Event):
-    channel: Channel
-    user: User
-    message: MessageObject
-    content: MessageChain = field(init=False)
-    guild: Guild | None = None
-    member: Member | None = None
+    channel: Channel = attr()
+    user: User = attr()
+    message: MessageObject = attr()
+
+    content: MessageChain
     quote: Quote | None = None
 
     providers = [MessageContentProvider, QuoteProvider]
 
-    def __post_init__(self):
+    def __init__(self, account: Account, origin: SatoriEvent):
+        super().__init__(account, origin)
         self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
@@ -260,14 +260,7 @@ class MessageEvent(Event):
 
     async def gather(self, context: Contexts):
         await super().gather(context)
-        context["user"] = self.user
-        context["channel"] = self.channel
-        context["$message_origin"] = self.message
         context["$message_content"] = self.content
-        if self.member:
-            context["member"] = self.member
-        if self.guild:
-            context["guild"] = self.guild
 
 
 class MessageCreatedEvent(MessageEvent):
@@ -282,19 +275,18 @@ class MessageUpdatedEvent(MessageEvent):
     type = EventType.MESSAGE_UPDATED
 
 
-@dataclass
 class ReactionEvent(NoticeEvent):
-    channel: Channel
-    user: User
-    message: MessageObject
-    content: MessageChain = field(init=False)
+    channel: Channel = attr()
+    user: User = attr()
+    message: MessageObject = attr()
+
+    content: MessageChain
     quote: Quote | None = None
-    guild: Guild | None = None
-    member: Member | None = None
 
     providers = [MessageContentProvider, QuoteProvider]
 
-    def __post_init__(self):
+    def __init__(self, account: Account, origin: SatoriEvent):
+        super().__init__(account, origin)
         self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
@@ -302,14 +294,7 @@ class ReactionEvent(NoticeEvent):
 
     async def gather(self, context: Contexts):
         await super().gather(context)
-        context["user"] = self.user
-        context["channel"] = self.channel
-        context["$message_origin"] = self.message
         context["$message_content"] = self.content
-        if self.member:
-            context["member"] = self.member
-        if self.guild:
-            context["guild"] = self.guild
 
 
 class ReactionAddedEvent(ReactionEvent):
@@ -328,15 +313,10 @@ class InteractionEvent(NoticeEvent):
     pass
 
 
-@dataclass
 class InteractionButtonEvent(InteractionEvent):
     type = EventType.INTERACTION_BUTTON
 
-    button: ButtonInteraction
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["button"] = self.button
+    button: ButtonInteraction = attr()
 
     class ButtonProvider(Provider[ButtonInteraction]):
         async def __call__(self, context: Contexts):
@@ -347,32 +327,26 @@ class InteractionCommandEvent(InteractionEvent):
     type = EventType.INTERACTION_COMMAND
 
 
-@dataclass
 class InteractionCommandArgvEvent(InteractionCommandEvent):
-    argv: ArgvInteraction
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context["argv"] = self.argv
+    argv: ArgvInteraction = attr()
 
     class ArgvProvider(Provider[ArgvInteraction]):
         async def __call__(self, context: Contexts):
             return context.get("argv")
 
 
-@dataclass
 class InteractionCommandMessageEvent(InteractionCommandEvent):
-    channel: Channel
-    user: User
-    message: MessageObject
-    content: MessageChain = field(init=False)
+    channel: Channel = attr()
+    user: User = attr()
+    message: MessageObject = attr()
+
+    content: MessageChain
     quote: Quote | None = None
-    guild: Guild | None = None
-    member: Member | None = None
 
     providers = [MessageContentProvider, QuoteProvider]
 
-    def __post_init__(self):
+    def __init__(self, account: Account, origin: SatoriEvent):
+        super().__init__(account, origin)
         self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
             self.quote = self.content.get(Quote, 1)[0]
@@ -380,14 +354,7 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
 
     async def gather(self, context: Contexts):
         await super().gather(context)
-        context["user"] = self.user
-        context["channel"] = self.channel
-        context["$message_origin"] = self.message
         context["$message_content"] = self.content
-        if self.member:
-            context["member"] = self.member
-        if self.guild:
-            context["guild"] = self.guild
 
 
 MAPPING = {}
@@ -399,6 +366,6 @@ for cls in gen_subclass(Event):
 
 def event_parse(account: Account, event: SatoriEvent):
     try:
-        return MAPPING[event.type].parse(account, event)
+        return MAPPING[event.type](account, event)
     except KeyError:
         raise NotImplementedError from None

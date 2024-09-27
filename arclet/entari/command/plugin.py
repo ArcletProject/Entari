@@ -5,7 +5,7 @@ from typing import Any
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
 
-from ..event import MessageEvent
+from ..event import MessageCreatedEvent
 from ..plugin.model import Plugin, PluginDispatcher
 from .model import Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudger, _seminal
@@ -21,7 +21,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         remove_tome: bool = False,
     ):
         self.supplier = AlconnaSuppiler(command, need_tome, remove_tome)
-        super().__init__(plugin, MessageEvent)
+        super().__init__(plugin, MessageCreatedEvent)
 
         self.bind(MessageJudger(), self.supplier)
         self.bind(AlconnaProviderFactory())
@@ -53,4 +53,7 @@ def mount(cmd: Alconna, need_tome: bool = False, remove_tome: bool = False):
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
     disp = AlconnaPluginDispatcher(plugin, cmd, need_tome, remove_tome)
+    if disp.id in plugin.dispatchers:
+        return plugin.dispatchers[disp.id]
+    plugin.dispatchers[disp.id] = disp
     return disp

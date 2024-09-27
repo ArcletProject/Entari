@@ -78,7 +78,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
             try:
                 _res = self.cmd.parse(message)
             except Exception as e:
-                _res = Arparma(self.cmd.path, message, False, error_info=e)
+                _res = Arparma(self.cmd._hash, message, False, error_info=e)
             may_help_text: Optional[str] = cap.get("output", None)
         if _res.matched:
             return interface.update(alc_result=CommandResult(self.cmd, _res, may_help_text))

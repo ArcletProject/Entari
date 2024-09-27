@@ -12,7 +12,7 @@ from arclet.alconna import (
     config,
     output_manager,
 )
-from arclet.alconna.args import TAValue
+from arclet.alconna.typing import TAValue
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber
 from arclet.letoderea.handler import depend_handler
@@ -22,7 +22,7 @@ from pygtrie import CharTrie
 from satori.element import At, Text
 from tarina.string import split
 
-from ..event import MessageEvent
+from ..event import MessageCreatedEvent
 from ..message import MessageChain
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -38,7 +38,7 @@ class EntariCommands:
 
     def __init__(self, need_tome: bool = False, remove_tome: bool = False):
         self.trie: CharTrie = CharTrie()
-        self.publisher = Publisher("EntariCommands", MessageEvent)
+        self.publisher = Publisher("EntariCommands", MessageCreatedEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
         self.need_tome = need_tome
         self.remove_tome = remove_tome
@@ -49,7 +49,7 @@ class EntariCommands:
         )
 
         @self.publisher.register(auxiliaries=[MessageJudger()])
-        async def listener(event: MessageEvent):
+        async def listener(event: MessageCreatedEvent):
             msg = str(event.content.exclude(At)).lstrip()
             if not msg:
                 return

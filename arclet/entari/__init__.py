@@ -50,6 +50,8 @@ from .plugin import PluginMetadata as PluginMetadata
 from .plugin import dispose as dispose_plugin  # noqa: F401
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
+from .plugin import metadata as metadata
+from .plugin import package as package
 from .session import Session as Session
 
 WS = WebsocketsInfo
