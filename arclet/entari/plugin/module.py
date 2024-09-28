@@ -18,8 +18,9 @@ def package(*names: str):
 
 
 class PluginLoader(SourceFileLoader):
-    def __init__(self, fullname: str, path: str) -> None:
+    def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
         self.loaded = False
+        self.parent_plugin_id = parent_plugin_id
         super().__init__(fullname, path)
 
     def create_module(self, spec) -> Optional[ModuleType]:
@@ -29,7 +30,9 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType) -> None:
-        if plugin := _current_plugin.get(None):
+        if plugin := _current_plugin.get(
+            service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None
+        ):
             if module.__name__ == plugin.module.__name__:  # from . import xxxx
                 return
             setattr(module, "__plugin__", plugin)
@@ -129,6 +132,10 @@ class _PluginFinder(MetaPathFinder):
         if module_spec.name in service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec
+        for plug in service.plugins.values():
+            if module_spec.name in plug.submodules:
+                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                return module_spec
         return
 
 

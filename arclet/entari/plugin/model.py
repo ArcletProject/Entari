@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from pathlib import Path
+import sys
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from weakref import finalize
@@ -152,6 +154,13 @@ class Plugin:
         if self._is_disposed:
             return
         self._is_disposed = True
+        if self.module.__spec__ and self.module.__spec__.cached:
+            Path(self.module.__spec__.cached).unlink(missing_ok=True)
+        sys.modules.pop(self.module.__name__, None)
+        for submod in self.submodules.values():
+            sys.modules.pop(submod.__name__, None)
+            if submod.__spec__ and submod.__spec__.cached:
+                Path(submod.__spec__.cached).unlink(missing_ok=True)
         self.submodules.clear()
         for disp in self.dispatchers.values():
             disp.dispose()
