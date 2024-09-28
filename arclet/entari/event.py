@@ -6,9 +6,9 @@ from typing import Any, Callable, ClassVar, Generic, TypeVar
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as SatoriEvent
-from satori import EventType, Guild, Login, Member, Quote, Role, User
+from satori import EventType, Guild, Member, Quote, Role, User
 from satori.client import Account
-from satori.model import MessageObject
+from satori.model import LoginType, MessageObject
 from tarina import gen_subclass
 
 from .message import MessageChain
@@ -48,7 +48,7 @@ class Event:
     button: ButtonInteraction | None = attr()
     channel: Channel | None = attr()
     guild: Guild | None = attr()
-    login: Login | None = attr()
+    login: LoginType | None = attr()
     member: Member | None = attr()
     message: MessageObject | None = attr()
     operator: User | None = attr()
@@ -138,7 +138,7 @@ class Event:
                 return context["role"]
             return context["$origin_event"].role
 
-    class LoginProvider(Provider[Login]):
+    class LoginProvider(Provider[LoginType]):
         async def __call__(self, context: Contexts):
             if "login" in context:
                 return context["login"]
@@ -227,7 +227,7 @@ class GuildRoleUpdatedEvent(GuildRoleEvent):
 
 
 class LoginEvent(NoticeEvent):
-    login: Login = attr()
+    login: LoginType = attr()
 
 
 class LoginAddedEvent(LoginEvent):
@@ -243,6 +243,8 @@ class LoginUpdatedEvent(LoginEvent):
 
 
 class MessageContentProvider(Provider[MessageChain]):
+    priority = 30
+
     async def __call__(self, context: Contexts):
         return context["$message_content"]
 
