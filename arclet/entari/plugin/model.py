@@ -168,6 +168,7 @@ class Plugin:
         for submod in self.submodules.values():
             delattr(submod, "__plugin__")
             sys.modules.pop(submod.__name__, None)
+            service._submoded.pop(submod.__name__, None)
             if submod.__spec__ and submod.__spec__.cached:
                 Path(submod.__spec__.cached).unlink(missing_ok=True)
         self.submodules.clear()
