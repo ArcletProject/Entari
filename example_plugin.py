@@ -87,7 +87,7 @@ async def append(data: str, session: Session):
 async def show(session: Session):
     await session.send_message(f"Data: {kept_data}")
 
-TEST = 5
+TEST = 6
 
 print([*Plugin.current().dispatchers.keys()])
 print(Plugin.current().submodules)

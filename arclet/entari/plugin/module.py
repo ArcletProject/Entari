@@ -138,6 +138,7 @@ class PluginLoader(SourceFileLoader):
                 raise
             else:
                 plugin.submodules[module.__name__] = module
+                service._submoded[module.__name__] = plugin.id
             return
 
         if self.loaded:
@@ -196,10 +197,9 @@ class _PluginFinder(MetaPathFinder):
         if module_spec.name in service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec
-        for plug in service.plugins.values():
-            if module_spec.name in plug.submodules:
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                return module_spec
+        if module_spec.name in service._submoded:
+            module_spec.loader = PluginLoader(fullname, module_origin, service._submoded[module_spec.name])
+            return module_spec
         return
 
 

@@ -16,6 +16,7 @@ class PluginService(Service):
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     _referents: dict[str, set[str]]
     _unloaded: set[str]
+    _submoded: dict[str, str]
 
     def __init__(self):
         super().__init__()
@@ -23,6 +24,7 @@ class PluginService(Service):
         self._keep_values = {}
         self._referents = {}
         self._unloaded = set()
+        self._submoded = {}
 
     @property
     def required(self) -> set[str]:

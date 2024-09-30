@@ -279,6 +279,9 @@ class _ProxyModule(ModuleType):
         if plug := inspect.currentframe().f_back.f_globals.get("__plugin__"):  # type: ignore
             if plug.id != self.__plugin_id:
                 service._referents[self.__plugin_id].add(plug.id)
+        elif plug := inspect.currentframe().f_back.f_back.f_globals.get("__plugin__"):  # type: ignore
+            if plug.id != self.__plugin_id:
+                service._referents[self.__plugin_id].add(plug.id)
         return getattr(self.__get_module(), name)
 
     def __setattr__(self, name: str, value):
