@@ -26,7 +26,11 @@ def _check_mod(name, package=None):
     if not module:
         raise ModuleNotFoundError(f"module {name!r} not found")
     if hasattr(module, "__plugin__"):
-        return module.__plugin__.subproxy(f"{package}{name}") if package else module.__plugin__.proxy()
+        if not package:
+            if name != module.__plugin__.id:
+                service._referents[name].add(module.__plugin__.id)
+            return module.__plugin__.proxy()
+        return module.__plugin__.subproxy(f"{package}{name}")
     return module
 
 
@@ -43,10 +47,15 @@ def _unpack_import_from(__fullname: str, mod: str, aliases: list[str]):
 
 def _check_import(name: str, plugin_name: str):
     if name in service.plugins:
-        return service.plugins[name].proxy()
+        plug = service.plugins[name]
+        if plugin_name != plug.id:
+            service._referents[plug.id].add(plugin_name)
+        return plug.proxy()
     if name in _SUBMODULE_WAITLIST.get(plugin_name, ()):
         mod = import_plugin(name)
         if mod:
+            if plugin_name != mod.__plugin__.id:
+                service._referents[mod.__plugin__.id].add(plugin_name)
             return mod.__plugin__.subproxy(name)
     return __import__(name)
 

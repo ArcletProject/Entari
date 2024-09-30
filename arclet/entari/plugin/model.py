@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
-from weakref import finalize
+from weakref import finalize, ref
 
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
@@ -230,17 +230,21 @@ def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
 
 class _ProxyModule(ModuleType):
 
-    def __get_module(self):
-        if self.__plugin_id not in service.plugins:
+    def __get_module(self) -> ModuleType:
+        mod = self.__origin()
+        if not mod:
             raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        if self.__sub_id:
-            return service.plugins[self.__plugin_id].submodules[self.__sub_id]
-        return service.plugins[self.__plugin_id].module
+        return mod
 
     def __init__(self, plugin_id: str, sub_id: str | None = None) -> None:
         self.__plugin_id = plugin_id
         self.__sub_id = sub_id
-
+        if self.__plugin_id not in service.plugins:
+            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
+        if self.__sub_id:
+            self.__origin = ref(service.plugins[self.__plugin_id].submodules[self.__sub_id])
+        else:
+            self.__origin = ref(service.plugins[self.__plugin_id].module)
         super().__init__(self.__get_module().__name__)
         self.__doc__ = self.__get_module().__doc__
         self.__file__ = self.__get_module().__file__
@@ -257,14 +261,13 @@ class _ProxyModule(ModuleType):
 
     @property
     def __dict__(self) -> dict[str, Any]:
-        if self.__plugin_id not in service.plugins:
-            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
         return self.__get_module().__dict__
 
     def __getattr__(self, name: str):
         if name in (
             "_ProxyModule__plugin_id",
             "_ProxyModule__sub_id",
+            "_ProxyModule__origin",
             "__name__",
             "__doc__",
             "__file__",
@@ -288,6 +291,7 @@ class _ProxyModule(ModuleType):
         if name in (
             "_ProxyModule__plugin_id",
             "_ProxyModule__sub_id",
+            "_ProxyModule__origin",
             "__name__",
             "__doc__",
             "__file__",
