@@ -36,7 +36,7 @@ TCallable = TypeVar("TCallable", bound=Callable[..., Any])
 class EntariCommands:
     __namespace__ = "Entari"
 
-    def __init__(self, need_tome: bool = False, remove_tome: bool = False):
+    def __init__(self, need_tome: bool = False, remove_tome: bool = True):
         self.trie: CharTrie = CharTrie()
         self.publisher = Publisher("EntariCommands", MessageCreatedEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
@@ -114,7 +114,7 @@ class EntariCommands:
         command: str,
         help_text: Optional[str] = None,
         need_tome: bool = False,
-        remove_tome: bool = False,
+        remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[
             list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
@@ -131,7 +131,7 @@ class EntariCommands:
         self,
         command: Alconna,
         need_tome: bool = False,
-        remove_tome: bool = False,
+        remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[
             list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
@@ -143,7 +143,7 @@ class EntariCommands:
         self,
         command: str,
         need_tome: bool = False,
-        remove_tome: bool = False,
+        remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[
             list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
@@ -157,7 +157,7 @@ class EntariCommands:
         self,
         command: Union[Alconna, str],
         need_tome: bool = False,
-        remove_tome: bool = False,
+        remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[
             list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
@@ -209,7 +209,7 @@ class EntariCommands:
 _commands = EntariCommands()
 
 
-def config_commands(need_tome: bool = False, remove_tome: bool = False):
+def config_commands(need_tome: bool = False, remove_tome: bool = True):
     _commands.need_tome = need_tome
     _commands.remove_tome = remove_tome
 

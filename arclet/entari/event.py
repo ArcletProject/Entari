@@ -55,6 +55,19 @@ class Event:
     role: Role | None = attr()
     user: User | None = attr()
 
+    _attrs: ClassVar[set[str]] = {
+        "argv",
+        "button",
+        "channel",
+        "guild",
+        "login",
+        "member",
+        "message",
+        "operator",
+        "role",
+        "user",
+    }
+
     def __init__(self, account: Account, origin: SatoriEvent):
         self.account = account
         self._origin = origin
@@ -67,21 +80,10 @@ class Event:
         context["$account"] = self.account
         context["$origin_event"] = self._origin
 
-        for attrname in {
-            "argv",
-            "button",
-            "channel",
-            "guild",
-            "login",
-            "member",
-            "message",
-            "operator",
-            "role",
-            "user",
-        }:
-            value = getattr(self, attrname)
+        for name in self.__class__._attrs:
+            value = getattr(self, name)
             if value is not None:
-                context["$message_origin" if attrname == "message" else attrname] = value
+                context["$message_origin" if name == "message" else name] = value
 
     class AccountProvider(Provider[Account]):
         async def __call__(self, context: Contexts):

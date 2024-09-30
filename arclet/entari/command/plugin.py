@@ -18,7 +18,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         plugin: Plugin,
         command: Alconna,
         need_tome: bool = False,
-        remove_tome: bool = False,
+        remove_tome: bool = True,
     ):
         self.supplier = AlconnaSuppiler(command, need_tome, remove_tome)
         super().__init__(plugin, MessageCreatedEvent)
@@ -49,7 +49,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
     Query = Query
 
 
-def mount(cmd: Alconna, need_tome: bool = False, remove_tome: bool = False):
+def mount(cmd: Alconna, need_tome: bool = False, remove_tome: bool = True):
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
     disp = AlconnaPluginDispatcher(plugin, cmd, need_tome, remove_tome)
