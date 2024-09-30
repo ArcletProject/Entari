@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+import inspect
 from pathlib import Path
 import sys
 from types import ModuleType
@@ -138,7 +139,10 @@ class Plugin:
 
     @staticmethod
     def current() -> Plugin:
-        return _current_plugin.get()  # type: ignore
+        try:
+            return _current_plugin.get()  # type: ignore
+        except LookupError:
+            raise LookupError("no plugin context found") from None
 
     @property
     def metadata(self) -> PluginMetadata | None:
@@ -148,9 +152,12 @@ class Plugin:
         service.plugins[self.id] = self
         if self.id not in service._keep_values:
             service._keep_values[self.id] = {}
+        if self.id not in service._referents:
+            service._referents[self.id] = set()
         finalize(self, self.dispose)
 
     def dispose(self):
+        service._unloaded.add(self.id)
         if self._is_disposed:
             return
         self._is_disposed = True
@@ -188,9 +195,11 @@ class Plugin:
                 f"`package({func.__module__!r})` before import it."
             )
 
-    @property
     def proxy(self):
         return _ProxyModule(self.id)
+
+    def subproxy(self, sub_id: str):
+        return _ProxyModule(self.id, sub_id)
 
 
 class KeepingVariable:
@@ -219,18 +228,70 @@ def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
     return obj
 
 
-class _ProxyModule:
-    def __init__(self, plugin_id: str) -> None:
+class _ProxyModule(ModuleType):
+
+    def __get_module(self):
+        if self.__plugin_id not in service.plugins:
+            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
+        if self.__sub_id:
+            return service.plugins[self.__plugin_id].submodules[self.__sub_id]
+        return service.plugins[self.__plugin_id].module
+
+    def __init__(self, plugin_id: str, sub_id: str | None = None) -> None:
         self.__plugin_id = plugin_id
+        self.__sub_id = sub_id
+
+        super().__init__(self.__get_module().__name__)
+        self.__doc__ = self.__get_module().__doc__
+        self.__file__ = self.__get_module().__file__
+        self.__loader__ = self.__get_module().__loader__
+        self.__package__ = self.__get_module().__package__
+        if path := getattr(self.__get_module(), "__path__", None):
+            self.__path__ = path
+        self.__spec__ = self.__get_module().__spec__
+
+    def __repr__(self):
+        if self.__sub_id:
+            return f"<ProxyModule {self.__sub_id!r}>"
+        return f"<ProxyModule {self.__plugin_id!r}>"
+
+    @property
+    def __dict__(self) -> dict[str, Any]:
+        if self.__plugin_id not in service.plugins:
+            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
+        return self.__get_module().__dict__
 
     def __getattr__(self, name: str):
+        if name in (
+            "_ProxyModule__plugin_id",
+            "_ProxyModule__sub_id",
+            "__name__",
+            "__doc__",
+            "__file__",
+            "__loader__",
+            "__package__",
+            "__path__",
+            "__spec__",
+        ):
+            return super().__getattribute__(name)
         if self.__plugin_id not in service.plugins:
             raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        return getattr(service.plugins[self.__plugin_id].module, name)
+        if plug := inspect.currentframe().f_back.f_globals.get("__plugin__"):  # type: ignore
+            if plug.id != self.__plugin_id:
+                service._referents[self.__plugin_id].add(plug.id)
+        return getattr(self.__get_module(), name)
 
     def __setattr__(self, name: str, value):
-        if name == "_ProxyModule__plugin_id":
+        if name in (
+            "_ProxyModule__plugin_id",
+            "_ProxyModule__sub_id",
+            "__name__",
+            "__doc__",
+            "__file__",
+            "__loader__",
+            "__package__",
+            "__path__",
+            "__spec__",
+        ):
             return super().__setattr__(name, value)
-        if self.__plugin_id not in service.plugins:
-            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        setattr(service.plugins[self.__plugin_id].module, name, value)
+        setattr(self.__get_module(), name, value)

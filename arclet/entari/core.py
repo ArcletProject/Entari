@@ -15,7 +15,7 @@ from satori.model import Event
 from tarina.generic import get_origin
 
 from .command import _commands
-from .event import MessageEvent, event_parse
+from .event import MessageCreatedEvent, event_parse
 from .plugin.service import service
 from .session import Session
 
@@ -50,7 +50,7 @@ class Entari(App):
         self._ref_tasks = set()
 
         @self.on_message(priority=0)
-        def log(event: MessageEvent):
+        def log(event: MessageCreatedEvent):
             logger.info(
                 f"[{event.channel.name or event.channel.id}] "
                 f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
@@ -72,7 +72,9 @@ class Entari(App):
         auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        return self.event_system.on(MessageEvent, priority=priority, auxiliaries=auxiliaries, providers=providers)
+        return self.event_system.on(
+            MessageCreatedEvent, priority=priority, auxiliaries=auxiliaries, providers=providers
+        )
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager

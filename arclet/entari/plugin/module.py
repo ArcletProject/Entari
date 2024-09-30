@@ -21,18 +21,33 @@ def package(*names: str):
     _SUBMODULE_WAITLIST.setdefault(plugin.module.__name__, set()).update(names)
 
 
+def _check_mod(name, package=None):
+    module = import_plugin(name, package)
+    if not module:
+        raise ModuleNotFoundError(f"module {name!r} not found")
+    if hasattr(module, "__plugin__"):
+        return module.__plugin__.subproxy(f"{package}{name}") if package else module.__plugin__.proxy()
+    return module
+
+
 def _unpack_import_from(__fullname: str, mod: str, aliases: list[str]):
     if mod == ".":
-        return tuple(import_plugin(f".{alias}", __fullname) for alias in aliases)
-    _mod = import_plugin(f".{mod}", __fullname) if mod else import_plugin(__fullname)
+        if len(aliases) == 1:
+            return _check_mod(f".{aliases[0]}", __fullname)
+        return tuple(_check_mod(f".{alias}", __fullname) for alias in aliases)
+    _mod = _check_mod(f".{mod}", __fullname) if mod else _check_mod(__fullname)
+    if len(aliases) == 1:
+        return getattr(_mod, aliases[0])
     return tuple(getattr(_mod, alias) for alias in aliases)
 
 
 def _check_import(name: str, plugin_name: str):
     if name in service.plugins:
-        return service.plugins[name].proxy
+        return service.plugins[name].proxy()
     if name in _SUBMODULE_WAITLIST.get(plugin_name, ()):
-        return import_plugin(name)
+        mod = import_plugin(name)
+        if mod:
+            return mod.__plugin__.subproxy(name)
     return __import__(name)
 
 
@@ -56,7 +71,7 @@ class PluginLoader(SourceFileLoader):
                     aliases = [alias.asname or alias.name for alias in body.names]
                     nodes.body[i] = ast.parse(
                         ",".join(aliases)
-                        + f"=__unpack_import_from('{self.name}', '', {[alias.name for alias in body.names]!r})"
+                        + f"=__unpack_import_from('{body.module}', '', {[alias.name for alias in body.names]!r})"
                     ).body[0]
                     for node in ast.walk(nodes.body[i]):
                         node.lineno = body.lineno  # type: ignore
@@ -106,7 +121,7 @@ class PluginLoader(SourceFileLoader):
     def create_module(self, spec) -> Optional[ModuleType]:
         if self.name in service.plugins:
             self.loaded = True
-            return service.plugins[self.name].module
+            return service.plugins[self.name].proxy()
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType) -> None:

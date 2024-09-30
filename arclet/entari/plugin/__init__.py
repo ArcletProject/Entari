@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -26,6 +25,9 @@ def dispatch(*events: type[Event], predicate: Callable[[Event], bool] | None = N
     return plugin.dispatch(*events, predicate=predicate)
 
 
+_recrusive_guard = set()
+
+
 def load_plugin(path: str) -> Plugin | None:
     """
     以导入路径方式加载模块
@@ -41,7 +43,18 @@ def load_plugin(path: str) -> Plugin | None:
             logger.error(f"cannot found plugin {path!r}")
             return
         logger.success(f"loaded plugin {path!r}")
-
+        if mod.__name__ in service._unloaded:
+            if mod.__name__ in service._referents and service._referents[mod.__name__]:
+                for referent in service._referents[mod.__name__]:
+                    if referent in _recrusive_guard:
+                        continue
+                    _recrusive_guard.add(referent)
+                    if referent in service.plugins:
+                        logger.debug(f"reloading {mod.__name__}'s referent {referent!r}")
+                        dispose(referent)
+                        load_plugin(referent)
+                _recrusive_guard.clear()
+            service._unloaded.discard(mod.__name__)
         return mod.__plugin__
     except RegisterNotInPluginError as e:
         logger.exception(f"{e.args[0]}", exc_info=e)
@@ -69,4 +82,6 @@ def dispose(plugin: str):
 
 @init_spec(PluginMetadata)
 def metadata(data: PluginMetadata):
-    inspect.currentframe().f_back.f_globals["__plugin_metadata__"] = data  # type: ignore
+    if not (plugin := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    plugin._metadata = data  # type: ignore

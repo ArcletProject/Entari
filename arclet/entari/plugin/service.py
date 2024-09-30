@@ -14,11 +14,15 @@ class PluginService(Service):
 
     plugins: dict[str, "Plugin"]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
+    _referents: dict[str, set[str]]
+    _unloaded: set[str]
 
     def __init__(self):
         super().__init__()
         self.plugins = {}
         self._keep_values = {}
+        self._referents = {}
+        self._unloaded = set()
 
     @property
     def required(self) -> set[str]:
