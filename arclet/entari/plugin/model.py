@@ -188,6 +188,10 @@ class Plugin:
                 f"`package({func.__module__!r})` before import it."
             )
 
+    @property
+    def proxy(self):
+        return _ProxyModule(self.id)
+
 
 class KeepingVariable:
     def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
@@ -213,3 +217,20 @@ def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
     else:
         obj = service._keep_values[plug.id][id_].obj  # type: ignore
     return obj
+
+
+class _ProxyModule:
+    def __init__(self, plugin_id: str) -> None:
+        self.__plugin_id = plugin_id
+
+    def __getattr__(self, name: str):
+        if self.__plugin_id not in service.plugins:
+            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
+        return getattr(service.plugins[self.__plugin_id].module, name)
+
+    def __setattr__(self, name: str, value):
+        if name == "_ProxyModule__plugin_id":
+            return super().__setattr__(name, value)
+        if self.__plugin_id not in service.plugins:
+            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
+        setattr(service.plugins[self.__plugin_id].module, name, value)

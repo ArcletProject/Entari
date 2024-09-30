@@ -61,9 +61,10 @@ def load_plugins(dir_: str | PathLike | Path):
 
 def dispose(plugin: str):
     if plugin not in service.plugins:
-        return
+        return False
     _plugin = service.plugins[plugin]
     _plugin.dispose()
+    return True
 
 
 @init_spec(PluginMetadata)

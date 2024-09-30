@@ -28,6 +28,14 @@ def _unpack_import_from(__fullname: str, mod: str, aliases: list[str]):
     return tuple(getattr(_mod, alias) for alias in aliases)
 
 
+def _check_import(name: str, plugin_name: str):
+    if name in service.plugins:
+        return service.plugins[name].proxy
+    if name in _SUBMODULE_WAITLIST.get(plugin_name, ()):
+        return import_plugin(name)
+    return __import__(name)
+
+
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
         self.loaded = False
@@ -50,8 +58,9 @@ class PluginLoader(SourceFileLoader):
                         ",".join(aliases)
                         + f"=__unpack_import_from('{self.name}', '', {[alias.name for alias in body.names]!r})"
                     ).body[0]
-                    nodes.body[i].lineno = body.lineno
-                    nodes.body[i].end_lineno = body.end_lineno
+                    for node in ast.walk(nodes.body[i]):
+                        node.lineno = body.lineno  # type: ignore
+                        node.end_lineno = body.end_lineno  # type: ignore
                 if body.level == 1:
                     if body.module is None:
                         aliases = [alias.asname or alias.name for alias in body.names]
@@ -59,8 +68,9 @@ class PluginLoader(SourceFileLoader):
                             ",".join(aliases)
                             + f"=__unpack_import_from('{self.name}', '.', {[alias.name for alias in body.names]!r})"
                         ).body[0]
-                        nodes.body[i].lineno = body.lineno
-                        nodes.body[i].end_lineno = body.end_lineno
+                        for node in ast.walk(nodes.body[i]):
+                            node.lineno = body.lineno  # type: ignore
+                            node.end_lineno = body.end_lineno  # type: ignore
                     else:
                         aliases = [alias.asname or alias.name for alias in body.names]
                         nodes.body[i] = ast.parse(
@@ -70,8 +80,9 @@ class PluginLoader(SourceFileLoader):
                                 f"{[alias.name for alias in body.names]!r})"
                             )
                         ).body[0]
-                        nodes.body[i].lineno = body.lineno
-                        nodes.body[i].end_lineno = body.end_lineno
+                        for node in ast.walk(nodes.body[i]):
+                            node.lineno = body.lineno  # type: ignore
+                            node.end_lineno = body.end_lineno  # type: ignore
             elif (
                 isinstance(body, ast.Expr)
                 and isinstance(body.value, ast.Call)
@@ -85,17 +96,11 @@ class PluginLoader(SourceFileLoader):
                 nodes.body[i] = ast.parse(
                     ",".join(aliases)
                     + "="
-                    + ",".join(
-                        (
-                            f"__import_plugin({alias.name!r})"
-                            if (alias.name in _SUBMODULE_WAITLIST.get(self.name, ()) or alias.name in service.plugins)
-                            else f"__import__({alias.name!r})"
-                        )
-                        for alias in body.names
-                    )
+                    + ",".join((f"__check_import({alias.name!r}, {self.name!r})") for alias in body.names)
                 ).body[0]
-                nodes.body[i].lineno = body.lineno
-                nodes.body[i].end_lineno = body.end_lineno
+                for node in ast.walk(nodes.body[i]):
+                    node.lineno = body.lineno  # type: ignore
+                    node.end_lineno = body.end_lineno  # type: ignore
         return _bootstrap._call_with_frames_removed(compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize)
 
     def create_module(self, spec) -> Optional[ModuleType]:
@@ -105,12 +110,12 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType) -> None:
-        if plugin := _current_plugin.get(service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None):
+        if plugin := service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             if module.__name__ == plugin.module.__name__:  # from . import xxxx
                 return
             setattr(module, "__plugin__", plugin)
             setattr(module, "__unpack_import_from", _unpack_import_from)
-            setattr(module, "__import_plugin", import_plugin)
+            setattr(module, "__check_import", _check_import)
             try:
                 super().exec_module(module)
             except Exception:
@@ -127,7 +132,7 @@ class PluginLoader(SourceFileLoader):
         plugin = Plugin(module.__name__, module)
         setattr(module, "__plugin__", plugin)
         setattr(module, "__unpack_import_from", _unpack_import_from)
-        setattr(module, "__import_plugin", import_plugin)
+        setattr(module, "__check_import", _check_import)
 
         # enter plugin context
         _plugin_token = _current_plugin.set(plugin)
@@ -148,6 +153,41 @@ class PluginLoader(SourceFileLoader):
         return
 
 
+class _PluginFinder(MetaPathFinder):
+    @classmethod
+    def find_spec(
+        cls,
+        fullname: str,
+        path: Optional[Sequence[str]],
+        target: Optional[ModuleType] = None,
+    ):
+        module_spec = PathFinder.find_spec(fullname, path, target)
+        if not module_spec:
+            return
+        module_origin = module_spec.origin
+        if not module_origin:
+            return
+        if plug := _current_plugin.get(None):
+            if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
+                return plug.module.__spec__
+            if module_spec.parent and module_spec.parent == plug.module.__name__:
+                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                return module_spec
+            elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
+                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
+                return module_spec
+
+        if module_spec.name in service.plugins:
+            module_spec.loader = PluginLoader(fullname, module_origin)
+            return module_spec
+        for plug in service.plugins.values():
+            if module_spec.name in plug.submodules:
+                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                return module_spec
+        return
+
+
 def find_spec(name, package=None):
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
@@ -165,6 +205,8 @@ def find_spec(name, package=None):
             ) from e
     else:
         parent_path = None
+    if spec := _PluginFinder.find_spec(fullname, parent_path):
+        return spec
     module_spec = PathFinder.find_spec(fullname, parent_path, None)
     if not module_spec:
         return
@@ -183,40 +225,6 @@ def import_plugin(name, package=None):
             spec.loader.exec_module(mod)
         return mod
     return
-
-
-class _PluginFinder(MetaPathFinder):
-    def find_spec(
-        self,
-        fullname: str,
-        path: Optional[Sequence[str]],
-        target: Optional[ModuleType] = None,
-    ):
-        module_spec = PathFinder.find_spec(fullname, path, target)
-        if not module_spec:
-            return
-        module_origin = module_spec.origin
-        if not module_origin:
-            return
-        if plug := _current_plugin.get(None):
-            if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
-                return plug.module.__spec__
-            if module_spec.parent and module_spec.parent == plug.module.__name__:
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                return module_spec
-            elif module_spec.name in _SUBMODULE_WAITLIST[plug.module.__name__]:
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
-                return module_spec
-
-        if module_spec.name in service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin)
-            return module_spec
-        for plug in service.plugins.values():
-            if module_spec.name in plug.submodules:
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                return module_spec
-        return
 
 
 sys.meta_path.insert(0, _PluginFinder())

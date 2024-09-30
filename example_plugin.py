@@ -1,4 +1,5 @@
 import re
+import sys
 
 from arclet.alconna import Alconna, AllParam, Args
 
@@ -85,3 +86,9 @@ async def append(data: str, session: Session):
 @command.on("show")
 async def show(session: Session):
     await session.send_message(f"Data: {kept_data}")
+
+TEST = 2
+
+print([*Plugin.current().dispatchers.keys()])
+print(Plugin.current().submodules)
+print("example_plugin not in sys.modules (expect True):", "example_plugin" not in sys.modules)

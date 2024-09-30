@@ -15,13 +15,17 @@ app = Entari(WebsocketsInfo(host="127.0.0.1", port=5140, path="satori"))
 
 @command.on("load {plugin}")
 async def load(plugin: str, session: Session):
-    load_plugin(plugin)
-    await session.send_message(f"Loaded {plugin}")
+    if load_plugin(plugin):
+        await session.send_message(f"Loaded {plugin}")
+    else:
+        await session.send_message(f"Failed to load {plugin}")
 
 
 @command.on("unload {plugin}")
 async def unload(plugin: str, session: Session):
-    dispose_plugin(plugin)
-    await session.send_message(f"Unloaded {plugin}")
+    if dispose_plugin(plugin):
+        await session.send_message(f"Unloaded {plugin}")
+    else:
+        await session.send_message(f"Failed to unload {plugin}")
 
 app.run()
