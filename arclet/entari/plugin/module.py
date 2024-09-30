@@ -133,7 +133,6 @@ class PluginLoader(SourceFileLoader):
             else:
                 bodys.append(body)
         nodes.body = bodys
-        print(ast.unparse(nodes))
         return _bootstrap._call_with_frames_removed(compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize)
 
     def create_module(self, spec) -> Optional[ModuleType]:
