@@ -4,16 +4,7 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
-from arclet.letoderea import (
-    Contexts,
-    Interface,
-    JudgeAuxiliary,
-    Param,
-    Provider,
-    Scope,
-    Subscriber,
-    SupplyAuxiliary,
-)
+from arclet.letoderea import Contexts, Interface, JudgeAuxiliary, Param, Provider, Scope, Subscriber, SupplyAuxiliary
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
 from satori.client import Account

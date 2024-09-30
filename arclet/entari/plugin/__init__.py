@@ -46,7 +46,7 @@ def load_plugin(path: str) -> Plugin | None:
     except RegisterNotInPluginError as e:
         logger.exception(f"{e.args[0]}", exc_info=e)
     except Exception as e:
-        logger.error(f"failed to load plugin {path!r} caused by {e!r}")
+        logger.exception(f"failed to load plugin {path!r} caused by {e!r}", exc_info=e)
 
 
 def load_plugins(dir_: str | PathLike | Path):

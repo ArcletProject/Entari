@@ -157,7 +157,9 @@ class Plugin:
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
+        delattr(self.module, "__plugin__")
         for submod in self.submodules.values():
+            delattr(submod, "__plugin__")
             sys.modules.pop(submod.__name__, None)
             if submod.__spec__ and submod.__spec__.cached:
                 Path(submod.__spec__.cached).unlink(missing_ok=True)

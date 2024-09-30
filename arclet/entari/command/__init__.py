@@ -1,17 +1,7 @@
 import asyncio
 from typing import Any, Callable, Optional, TypeVar, Union, cast, overload
 
-from arclet.alconna import (
-    Alconna,
-    Arg,
-    Args,
-    Arparma,
-    CommandMeta,
-    Namespace,
-    command_manager,
-    config,
-    output_manager,
-)
+from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, Namespace, command_manager, config, output_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber
@@ -54,9 +44,7 @@ class EntariCommands:
             if not msg:
                 return
             if matches := list(self.trie.prefixes(msg)):
-                await asyncio.gather(
-                    *(depend_handler(res.value, event, inner=True) for res in matches if res.value)
-                )
+                await asyncio.gather(*(depend_handler(res.value, event, inner=True) for res in matches if res.value))
                 return
             # shortcut
             data = split(msg, (" ",))
@@ -116,9 +104,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
-        ] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TCallable) -> TCallable:
@@ -133,9 +119,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
-        ] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ) -> Callable[[TCallable], TCallable]: ...
 
     @overload
@@ -145,9 +129,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
-        ] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
@@ -159,9 +141,7 @@ class EntariCommands:
         need_tome: bool = False,
         remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
-        providers: Optional[
-            list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]
-        ] = None,
+        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,

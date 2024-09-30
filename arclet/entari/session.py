@@ -46,11 +46,7 @@ class Session(Generic[TEvent]):
             if self.context.channel:
                 if self.context.channel.id == session.context.channel.id and (
                     not keep_sender
-                    or (
-                        self.context.user
-                        and session.context.user
-                        and self.context.user.id == session.context.user.id
-                    )
+                    or (self.context.user and session.context.user and self.context.user.id == session.context.user.id)
                 ):
                     return content
             elif self.context.user:
@@ -120,9 +116,7 @@ class Session(Generic[TEvent]):
     ) -> list[MessageObject]:
         if not protocol_cls:
             return await self.account.protocol.send(self.context, message)
-        return await self.account.custom(self.account.config, protocol_cls).send(
-            self.context._origin, message
-        )
+        return await self.account.custom(self.account.config, protocol_cls).send(self.context._origin, message)
 
     async def send_message(
         self,
@@ -163,9 +157,7 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot update message")
-        return await self.account.protocol.update_message(
-            self.context.channel, self.context.message.id, message
-        )
+        return await self.account.protocol.update_message(self.context.channel, self.context.message.id, message)
 
     async def message_create(
         self,
@@ -252,9 +244,7 @@ class Session(Generic[TEvent]):
             return await self.account.protocol.guild_member_kick(self.context.guild.id, user_id, permanent)
         if not self.context.user:
             raise RuntimeError("Event cannot use to kick member!")
-        return await self.account.protocol.guild_member_kick(
-            self.context.guild.id, self.context.user.id, permanent
-        )
+        return await self.account.protocol.guild_member_kick(self.context.guild.id, self.context.user.id, permanent)
 
     async def guild_member_role_set(self, role_id: str, user_id: str | None = None) -> None:
         if not self.context.guild:
@@ -263,22 +253,16 @@ class Session(Generic[TEvent]):
             return await self.account.protocol.guild_member_role_set(self.context.guild.id, user_id, role_id)
         if not self.context.user:
             raise RuntimeError("Event cannot use to guild member role set!")
-        return await self.account.protocol.guild_member_role_set(
-            self.context.guild.id, self.context.user.id, role_id
-        )
+        return await self.account.protocol.guild_member_role_set(self.context.guild.id, self.context.user.id, role_id)
 
     async def guild_member_role_unset(self, role_id: str, user_id: str | None = None) -> None:
         if not self.context.guild:
             raise RuntimeError("Event cannot use to guild member role unset!")
         if user_id:
-            return await self.account.protocol.guild_member_role_unset(
-                self.context.guild.id, user_id, role_id
-            )
+            return await self.account.protocol.guild_member_role_unset(self.context.guild.id, user_id, role_id)
         if not self.context.user:
             raise RuntimeError("Event cannot use to guild member role unset!")
-        return await self.account.protocol.guild_member_role_unset(
-            self.context.guild.id, self.context.user.id, role_id
-        )
+        return await self.account.protocol.guild_member_role_unset(self.context.guild.id, self.context.user.id, role_id)
 
     async def guild_role_list(self, next_token: str | None = None) -> PageResult[Role]:
         if not self.context.guild:
@@ -318,9 +302,7 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot be replied to!")
         if not self.context.message:
             raise RuntimeError("Event cannot create reaction")
-        return await self.account.protocol.reaction_create(
-            self.context.channel.id, self.context.message.id, emoji
-        )
+        return await self.account.protocol.reaction_create(self.context.channel.id, self.context.message.id, emoji)
 
     async def reaction_delete(
         self,
