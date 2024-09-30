@@ -34,20 +34,6 @@ def _check_mod(name, package=None):
     return module
 
 
-def _unpack_import_from_level_x(__fullname: str, mod: str, level: int, aliases: list[str]):
-    if not mod:
-        if len(aliases) == 1:
-            return _check_mod(f"{'.' * level}{aliases[0]}", __fullname)
-        return tuple(_check_mod(f"{'.' * level}{alias}", __fullname) for alias in aliases)
-    _mod = _check_mod(f"{'.' * level}{mod}", __fullname)  # if mod else _check_mod(__fullname)
-    if len(aliases) == 1:
-        return getattr(_mod, aliases[0])
-    args = []
-    for alias in aliases:
-        args.append(getattr(_mod, alias))
-    return tuple(args)
-
-
 def _check_import(name: str, plugin_name: str):
     if name in service.plugins:
         plug = service.plugins[name]
@@ -63,16 +49,6 @@ def _check_import(name: str, plugin_name: str):
     return __import__(name, fromlist=["__path__"])
 
 
-def _unpack_import_from_level_0(name, plugin_name, aliases):
-    mod = _check_import(name, plugin_name)
-    if len(aliases) == 1:
-        return getattr(mod, aliases[0])
-    args = []
-    for alias in aliases:
-        args.append(getattr(mod, alias))
-    return tuple(args)
-
-
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
         self.loaded = False
@@ -85,54 +61,79 @@ class PluginLoader(SourceFileLoader):
         The 'data' argument can be any object type that compile() supports.
         """
         nodes = ast.parse(data, type_comments=True)
-        for i, body in enumerate(nodes.body):
+        bodys = []
+        for body in nodes.body:
             if isinstance(body, ast.ImportFrom):
                 if body.level == 0:
-                    aliases = [alias.asname or alias.name for alias in body.names]
-                    nodes.body[i] = ast.parse(
-                        ",".join(aliases)
-                        + (
-                            f"=__unpack_import_from_level_0({body.module!r}, {self.name!r}, "
-                            f"{[alias.name for alias in body.names]!r})"
+                    if len(body.names) == 1 and body.names[0].name == "*":
+                        new = ast.parse(
+                            f"__mod = __check_import({body.module!r}, {self.name!r});"
+                            f"__mod_all = getattr(__mod, '__all__', dir(__mod));"
+                            "globals().update("
+                            "{name: getattr(__mod, name) for name in __mod_all if not name.startswith('__')}"
+                            ");"
+                            "del __mod, __mod_all"
                         )
-                    ).body[0]
-                    for node in ast.walk(nodes.body[i]):
+                    else:
+                        new = ast.parse(
+                            f"__mod = __check_import({body.module!r}, {self.name!r});"
+                            f"{';'.join(f'{alias.asname or alias.name} = __mod.{alias.name}' for alias in body.names)};"
+                            f"del __mod"
+                        )
+                    for node in ast.walk(new):
                         node.lineno = body.lineno  # type: ignore
                         node.end_lineno = body.end_lineno  # type: ignore
+                    bodys.extend(new.body)
                 elif body.module is None:
-                    aliases = [alias.asname or alias.name for alias in body.names]
-                    nodes.body[i] = ast.parse(
-                        ",".join(aliases)
-                        + (
-                            f"=__unpack_import_from_level_x('{self.name}', '', {body.level}, "
-                            f"{[alias.name for alias in body.names]!r})"
+                    relative = "." * body.level
+                    if len(body.names) == 1 and body.names[0].name == "*":
+                        bodys.append(body)
+                    else:
+                        new = ast.parse(
+                            ";".join(
+                                f"{alias.asname or alias.name}=__check_mod('{relative}{alias.name}', {self.name!r})"
+                                for alias in body.names
+                            )
                         )
-                    ).body[0]
-                    for node in ast.walk(nodes.body[i]):
-                        node.lineno = body.lineno  # type: ignore
-                        node.end_lineno = body.end_lineno  # type: ignore
+                        for node in ast.walk(new):
+                            node.lineno = body.lineno  # type: ignore
+                            node.end_lineno = body.end_lineno  # type: ignore
+                        bodys.extend(new.body)
                 else:
-                    aliases = [alias.asname or alias.name for alias in body.names]
-                    nodes.body[i] = ast.parse(
-                        ",".join(aliases)
-                        + (
-                            f"=__unpack_import_from_level_x('{self.name}', {body.module!r}, {body.level}, "
-                            f"{[alias.name for alias in body.names]!r})"
+                    relative = "." * body.level
+                    if len(body.names) == 1 and body.names[0].name == "*":
+                        new = ast.parse(
+                            f"__mod = __check_mod('{relative}{body.module}', {self.name!r});"
+                            f"__mod_all = getattr(__mod, '__all__', dir(__mod));"
+                            "globals().update("
+                            "{name: getattr(__mod, name) for name in __mod_all if not name.startswith('__')}"
+                            ");"
+                            "del __mod, __mod_all"
                         )
-                    ).body[0]
-                    for node in ast.walk(nodes.body[i]):
+                    else:
+                        new = ast.parse(
+                            f"__mod = __check_mod('{relative}{body.module}', {self.name!r});"
+                            f"{';'.join(f'{alias.asname or alias.name} = __mod.{alias.name}' for alias in body.names)};"
+                            f"del __mod"
+                        )
+                    for node in ast.walk(new):
                         node.lineno = body.lineno  # type: ignore
                         node.end_lineno = body.end_lineno  # type: ignore
+                    bodys.extend(new.body)
             elif isinstance(body, ast.Import):
                 aliases = [alias.asname or alias.name for alias in body.names]
-                nodes.body[i] = ast.parse(
+                new = ast.parse(
                     ",".join(aliases)
                     + "="
                     + ",".join(f"__check_import({alias.name!r}, {self.name!r})" for alias in body.names)
-                ).body[0]
-                for node in ast.walk(nodes.body[i]):
+                )
+                for node in ast.walk(new):
                     node.lineno = body.lineno  # type: ignore
                     node.end_lineno = body.end_lineno  # type: ignore
+                bodys.append(new.body[0])
+            else:
+                bodys.append(body)
+        nodes.body = bodys
         return _bootstrap._call_with_frames_removed(compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize)
 
     def create_module(self, spec) -> Optional[ModuleType]:
@@ -146,8 +147,7 @@ class PluginLoader(SourceFileLoader):
             if module.__name__ == plugin.module.__name__:  # from . import xxxx
                 return
             setattr(module, "__plugin__", plugin)
-            setattr(module, "__unpack_import_from_level_x", _unpack_import_from_level_x)
-            setattr(module, "__unpack_import_from_level_0", _unpack_import_from_level_0)
+            setattr(module, "__check_mod", _check_mod)
             setattr(module, "__check_import", _check_import)
             try:
                 super().exec_module(module)
@@ -165,8 +165,7 @@ class PluginLoader(SourceFileLoader):
         # create plugin before executing
         plugin = Plugin(module.__name__, module)
         setattr(module, "__plugin__", plugin)
-        setattr(module, "__unpack_import_from_level_x", _unpack_import_from_level_x)
-        setattr(module, "__unpack_import_from_level_0", _unpack_import_from_level_0)
+        setattr(module, "__check_mod", _check_mod)
         setattr(module, "__check_import", _check_import)
 
         # enter plugin context
