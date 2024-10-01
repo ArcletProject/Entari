@@ -32,15 +32,22 @@ class PluginService(Service):
 
     @property
     def stages(self) -> set[Phase]:
-        return {"preparing", "cleanup"}
+        return {"preparing", "cleanup", "blocking"}
 
     async def launch(self, manager: Launart):
         _preparing = []
         _cleanup = []
+
+        for plug in self.plugins.values():
+            for serv in plug._services.values():
+                manager.add_component(serv)
+
         async with self.stage("preparing"):
             for plug in self.plugins.values():
                 _preparing.extend([func() for func in plug._preparing])
             await asyncio.gather(*_preparing, return_exceptions=True)
+        async with self.stage("blocking"):
+            await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):
             for plug in self.plugins.values():
                 _cleanup.extend([func() for func in plug._cleanup])
@@ -61,4 +68,4 @@ class PluginService(Service):
         self._keep_values.clear()
 
 
-service = PluginService()
+plugin_service = PluginService()

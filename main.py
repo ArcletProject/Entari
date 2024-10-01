@@ -8,6 +8,7 @@ async def echoimg(img: Image, session: Session):
     await session.send_message([img])
 
 
+load_plugin("::auto_reload")
 load_plugin("example_plugin")
 
 app = Entari(WebsocketsInfo(host="127.0.0.1", port=5140, path="satori"))

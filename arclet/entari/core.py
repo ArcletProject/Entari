@@ -16,7 +16,7 @@ from tarina.generic import get_origin
 
 from .command import _commands
 from .event import MessageCreatedEvent, event_parse
-from .plugin.service import service
+from .plugin.service import plugin_service
 from .session import Session
 
 
@@ -78,7 +78,7 @@ class Entari(App):
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager
-        manager.add_component(service)
+        manager.add_component(plugin_service)
 
     async def handle_event(self, account: Account, event: Event):
         async def event_parse_task(connection: Account, raw: Event):
@@ -86,7 +86,7 @@ class Entari(App):
             with suppress(NotImplementedError):
                 ev = event_parse(connection, raw)
                 self.event_system.publish(ev)
-                for plugin in service.plugins.values():
+                for plugin in plugin_service.plugins.values():
                     for disp in plugin.dispatchers.values():
                         if not disp.validate(ev):
                             continue
@@ -104,7 +104,7 @@ class Entari(App):
     async def account_hook(self, account: Account, state: LoginStatus):
         _connected = []
         _disconnected = []
-        for plug in service.plugins.values():
+        for plug in plugin_service.plugins.values():
             _connected.extend([func(account) for func in plug._connected])
             _disconnected.extend([func(account) for func in plug._disconnected])
         if state == LoginStatus.CONNECT:

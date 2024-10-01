@@ -9,7 +9,7 @@ from types import ModuleType
 from typing import Optional
 
 from .model import Plugin, PluginMetadata, _current_plugin
-from .service import service
+from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 
@@ -22,16 +22,16 @@ def package(*names: str):
 
 
 def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
-    if name in service.plugins:
-        plug = service.plugins[name]
+    if name in plugin_service.plugins:
+        plug = plugin_service.plugins[name]
         if plugin_name != plug.id:
-            service._referents[plug.id].add(plugin_name)
+            plugin_service._referents[plug.id].add(plugin_name)
         return plug.proxy()
     if name in _SUBMODULE_WAITLIST.get(plugin_name, ()):
         mod = import_plugin(name)
         if mod:
             if plugin_name != mod.__plugin__.id:
-                service._referents[mod.__plugin__.id].add(plugin_name)
+                plugin_service._referents[mod.__plugin__.id].add(plugin_name)
             return mod.__plugin__.subproxy(name)
     if ensure_plugin:
         module = import_plugin(name, plugin_name)
@@ -40,7 +40,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
         if hasattr(module, "__plugin__"):
             if not plugin_name:
                 if name != module.__plugin__.id:
-                    service._referents[name].add(module.__plugin__.id)
+                    plugin_service._referents[name].add(module.__plugin__.id)
                 return module.__plugin__.proxy()
             return module.__plugin__.subproxy(f"{plugin_name}{name}")
         return module
@@ -136,13 +136,13 @@ class PluginLoader(SourceFileLoader):
         return _bootstrap._call_with_frames_removed(compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize)
 
     def create_module(self, spec) -> Optional[ModuleType]:
-        if self.name in service.plugins:
+        if self.name in plugin_service.plugins:
             self.loaded = True
-            return service.plugins[self.name].proxy()
+            return plugin_service.plugins[self.name].proxy()
         return super().create_module(spec)
 
-    def exec_module(self, module: ModuleType) -> None:
-        if plugin := service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
+    def exec_module(self, module: ModuleType, config: Optional[dict[str, str]] = None) -> None:
+        if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             if module.__name__ == plugin.module.__name__:  # from . import xxxx
                 return
             setattr(module, "__plugin__", plugin)
@@ -154,14 +154,14 @@ class PluginLoader(SourceFileLoader):
                 raise
             else:
                 plugin.submodules[module.__name__] = module
-                service._submoded[module.__name__] = plugin.id
+                plugin_service._submoded[module.__name__] = plugin.id
             return
 
         if self.loaded:
             return
 
         # create plugin before executing
-        plugin = Plugin(module.__name__, module)
+        plugin = Plugin(module.__name__, module, config=config or {})
         setattr(module, "__plugin__", plugin)
         setattr(module, "__entari_import__", __entari_import__)
 
@@ -209,11 +209,11 @@ class _PluginFinder(MetaPathFinder):
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec
 
-        if module_spec.name in service.plugins:
+        if module_spec.name in plugin_service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec
-        if module_spec.name in service._submoded:
-            module_spec.loader = PluginLoader(fullname, module_origin, service._submoded[module_spec.name])
+        if module_spec.name in plugin_service._submoded:
+            module_spec.loader = PluginLoader(fullname, module_origin, plugin_service._submoded[module_spec.name])
             return module_spec
         return
 
@@ -222,8 +222,8 @@ def find_spec(name, package=None):
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
     if parent_name:
-        if parent_name in service.plugins:
-            parent = service.plugins[parent_name].module
+        if parent_name in plugin_service.plugins:
+            parent = plugin_service.plugins[parent_name].module
         else:
             parent = __import__(parent_name, fromlist=["__path__"])
         try:
@@ -247,12 +247,15 @@ def find_spec(name, package=None):
     return module_spec
 
 
-def import_plugin(name, package=None):
+def import_plugin(name, package=None, config: Optional[dict[str, str]] = None):
     spec = find_spec(name, package)
     if spec:
         mod = module_from_spec(spec)
         if spec.loader:
-            spec.loader.exec_module(mod)
+            if isinstance(spec.loader, PluginLoader):
+                spec.loader.exec_module(mod, config=config)
+            else:
+                spec.loader.exec_module(mod)
         return mod
     return
 

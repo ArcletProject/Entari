@@ -13,9 +13,11 @@ from weakref import finalize, ref
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
+from creart import it
+from launart import Launart, Service
 from satori.client import Account
 
-from .service import service
+from .service import plugin_service
 
 if TYPE_CHECKING:
     from ..event import Event
@@ -113,6 +115,7 @@ class Plugin:
     module: ModuleType
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     submodules: dict[str, ModuleType] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
@@ -120,6 +123,8 @@ class Plugin:
     _cleanup: list[_Lifespan] = field(init=False, default_factory=list)
     _connected: list[_AccountUpdate] = field(init=False, default_factory=list)
     _disconnected: list[_AccountUpdate] = field(init=False, default_factory=list)
+
+    _services: dict[str, Service] = field(init=False, default_factory=dict)
 
     def on_prepare(self, func: _Lifespan):
         self._preparing.append(func)
@@ -149,15 +154,15 @@ class Plugin:
         return self._metadata
 
     def __post_init__(self):
-        service.plugins[self.id] = self
-        if self.id not in service._keep_values:
-            service._keep_values[self.id] = {}
-        if self.id not in service._referents:
-            service._referents[self.id] = set()
+        plugin_service.plugins[self.id] = self
+        if self.id not in plugin_service._keep_values:
+            plugin_service._keep_values[self.id] = {}
+        if self.id not in plugin_service._referents:
+            plugin_service._referents[self.id] = set()
         finalize(self, self.dispose)
 
     def dispose(self):
-        service._unloaded.add(self.id)
+        plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return
         self._is_disposed = True
@@ -168,15 +173,21 @@ class Plugin:
         for submod in self.submodules.values():
             delattr(submod, "__plugin__")
             sys.modules.pop(submod.__name__, None)
-            service._submoded.pop(submod.__name__, None)
+            plugin_service._submoded.pop(submod.__name__, None)
             if submod.__spec__ and submod.__spec__.cached:
                 Path(submod.__spec__.cached).unlink(missing_ok=True)
         self.submodules.clear()
         for disp in self.dispatchers.values():
             disp.dispose()
         self.dispatchers.clear()
-        del service.plugins[self.id]
+        del plugin_service.plugins[self.id]
         del self.module
+        for serv in self._services.values():
+            try:
+                it(Launart).remove_component(serv)
+            except ValueError:
+                pass
+        self._services.clear()
 
     def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
         disp = PluginDispatcher(self, *events, predicate=predicate)
@@ -202,6 +213,14 @@ class Plugin:
     def subproxy(self, sub_id: str):
         return _ProxyModule(self.id, sub_id)
 
+    def service(self, serv: Service | type[Service]):
+        if isinstance(serv, type):
+            serv = serv()
+        self._services[serv.id] = serv
+        if plugin_service.status.blocking:
+            it(Launart).add_component(serv)
+        return serv
+
 
 class KeepingVariable:
     def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
@@ -222,10 +241,10 @@ T = TypeVar("T")
 def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
     if not (plug := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
-    if id_ not in service._keep_values[plug.id]:
-        service._keep_values[plug.id][id_] = KeepingVariable(obj, dispose)
+    if id_ not in plugin_service._keep_values[plug.id]:
+        plugin_service._keep_values[plug.id][id_] = KeepingVariable(obj, dispose)
     else:
-        obj = service._keep_values[plug.id][id_].obj  # type: ignore
+        obj = plugin_service._keep_values[plug.id][id_].obj  # type: ignore
     return obj
 
 
@@ -240,12 +259,12 @@ class _ProxyModule(ModuleType):
     def __init__(self, plugin_id: str, sub_id: str | None = None) -> None:
         self.__plugin_id = plugin_id
         self.__sub_id = sub_id
-        if self.__plugin_id not in service.plugins:
+        if self.__plugin_id not in plugin_service.plugins:
             raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
         if self.__sub_id:
-            self.__origin = ref(service.plugins[self.__plugin_id].submodules[self.__sub_id])
+            self.__origin = ref(plugin_service.plugins[self.__plugin_id].submodules[self.__sub_id])
         else:
-            self.__origin = ref(service.plugins[self.__plugin_id].module)
+            self.__origin = ref(plugin_service.plugins[self.__plugin_id].module)
         super().__init__(self.__get_module().__name__)
         self.__doc__ = self.__get_module().__doc__
         self.__file__ = self.__get_module().__file__
@@ -278,14 +297,14 @@ class _ProxyModule(ModuleType):
             "__spec__",
         ):
             return super().__getattribute__(name)
-        if self.__plugin_id not in service.plugins:
+        if self.__plugin_id not in plugin_service.plugins:
             raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
         if plug := inspect.currentframe().f_back.f_globals.get("__plugin__"):  # type: ignore
             if plug.id != self.__plugin_id:
-                service._referents[self.__plugin_id].add(plug.id)
+                plugin_service._referents[self.__plugin_id].add(plug.id)
         elif plug := inspect.currentframe().f_back.f_back.f_globals.get("__plugin__"):  # type: ignore
             if plug.id != self.__plugin_id:
-                service._referents[self.__plugin_id].add(plug.id)
+                plugin_service._referents[self.__plugin_id].add(plug.id)
         return getattr(self.__get_module(), name)
 
     def __setattr__(self, name: str, value):
