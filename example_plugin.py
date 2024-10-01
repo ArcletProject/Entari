@@ -1,6 +1,6 @@
 import re
 import sys
-
+from dataclasses import dataclass
 from arclet.alconna import Alconna, AllParam, Args
 
 from arclet.entari import (
@@ -19,6 +19,16 @@ from arclet.entari.command import Match
 metadata(__file__)
 
 plug = Plugin.current()
+
+
+@dataclass
+class A:
+    a: "B"
+
+
+@dataclass
+class B:
+    b: "A"
 
 
 @plug.on_prepare

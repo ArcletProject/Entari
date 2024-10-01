@@ -17,6 +17,15 @@ _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
 
 
+class _ModuleDictProxy:
+    def __init__(self, module):
+        self._module = module
+
+    @property
+    def __dict__(self):
+        return self._module.__dict__
+
+
 def package(*names: str):
     """手动指定特定模块作为插件的子模块"""
     if not (plugin := _current_plugin.get(None)):
@@ -56,7 +65,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
             return module.__plugin__.subproxy(f"{plugin_name}{name}")
         return module
     if not name.startswith("."):
-        return import_module(name)
+        return __import__(name, fromlist=["__path__"])
     return import_module(name, plugin_name)
 
 
@@ -79,9 +88,8 @@ class PluginLoader(SourceFileLoader):
         The 'data' argument can be any object type that compile() supports.
         """
         is_init = Path(path).name == "__init__.py"
-        if is_init:
-            name = self.name
-        else:
+        name = self.name
+        if not is_init and self.name.count("."):
             name = self.name.rpartition(".")[0]
         try:
             nodes = ast.parse(data, type_comments=True)
@@ -191,7 +199,8 @@ class PluginLoader(SourceFileLoader):
 
         # create plugin before executing
         plugin = Plugin(module.__name__, module, config=config or {})
-        sys.modules[module.__name__] = plugin.proxy()
+        # for `dataclasses` module
+        sys.modules[module.__name__] = _ModuleDictProxy(plugin.proxy())  # type: ignore
         setattr(module, "__plugin__", plugin)
         setattr(module, "__entari_import__", __entari_import__)
         setattr(module, "__getattr_or_import__", getattr_or_import)
@@ -206,6 +215,7 @@ class PluginLoader(SourceFileLoader):
             raise
         finally:
             # leave plugin context
+            sys.modules.pop(module.__name__, None)
             _current_plugin.reset(_plugin_token)
 
         # get plugin metadata
