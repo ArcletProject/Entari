@@ -166,6 +166,12 @@ class Plugin:
         if self._is_disposed:
             return
         self._is_disposed = True
+        for serv in self._services.values():
+            try:
+                it(Launart).remove_component(serv)
+            except ValueError:
+                pass
+        self._services.clear()
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
@@ -185,12 +191,6 @@ class Plugin:
         self.dispatchers.clear()
         del plugin_service.plugins[self.id]
         del self.module
-        for serv in self._services.values():
-            try:
-                it(Launart).remove_component(serv)
-            except ValueError:
-                pass
-        self._services.clear()
 
     def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
         disp = PluginDispatcher(self, *events, predicate=predicate)
