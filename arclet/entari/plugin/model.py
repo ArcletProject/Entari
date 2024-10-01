@@ -3,18 +3,18 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-import inspect
 from pathlib import Path
 import sys
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
-from weakref import finalize, ref
+from weakref import finalize, proxy
 
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
 from arclet.letoderea.builtin.breakpoint import R
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
+from loguru import logger
 from satori.client import Account
 
 from .service import plugin_service
@@ -114,7 +114,7 @@ class Plugin:
     id: str
     module: ModuleType
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
-    submodules: dict[str, ModuleType] = field(default_factory=dict)
+    subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
@@ -170,13 +170,16 @@ class Plugin:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
-        for submod in self.submodules.values():
-            delattr(submod, "__plugin__")
-            sys.modules.pop(submod.__name__, None)
-            plugin_service._submoded.pop(submod.__name__, None)
-            if submod.__spec__ and submod.__spec__.cached:
-                Path(submod.__spec__.cached).unlink(missing_ok=True)
-        self.submodules.clear()
+        for subplug in self.subplugins:
+            if subplug not in plugin_service.plugins:
+                continue
+            logger.debug(f"disposing sub-plugin {subplug} of {self.id}")
+            try:
+                plugin_service.plugins[subplug].dispose()
+            except Exception as e:
+                logger.error(f"failed to dispose sub-plugin {subplug} caused by {e!r}")
+                plugin_service.plugins.pop(subplug, None)
+        self.subplugins.clear()
         for disp in self.dispatchers.values():
             disp.dispose()
         self.dispatchers.clear()
@@ -208,10 +211,10 @@ class Plugin:
             )
 
     def proxy(self):
-        return _ProxyModule(self.id)
+        return proxy(self.module)
 
     def subproxy(self, sub_id: str):
-        return _ProxyModule(self.id, sub_id)
+        return proxy(plugin_service.plugins[sub_id].module)
 
     def service(self, serv: Service | type[Service]):
         if isinstance(serv, type):
@@ -246,79 +249,3 @@ def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
     else:
         obj = plugin_service._keep_values[plug.id][id_].obj  # type: ignore
     return obj
-
-
-class _ProxyModule(ModuleType):
-
-    def __get_module(self) -> ModuleType:
-        mod = self.__origin()
-        if not mod:
-            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        return mod
-
-    def __init__(self, plugin_id: str, sub_id: str | None = None) -> None:
-        self.__plugin_id = plugin_id
-        self.__sub_id = sub_id
-        if self.__plugin_id not in plugin_service.plugins:
-            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        if self.__sub_id:
-            self.__origin = ref(plugin_service.plugins[self.__plugin_id].submodules[self.__sub_id])
-        else:
-            self.__origin = ref(plugin_service.plugins[self.__plugin_id].module)
-        super().__init__(self.__get_module().__name__)
-        self.__doc__ = self.__get_module().__doc__
-        self.__file__ = self.__get_module().__file__
-        self.__loader__ = self.__get_module().__loader__
-        self.__package__ = self.__get_module().__package__
-        if path := getattr(self.__get_module(), "__path__", None):
-            self.__path__ = path
-        self.__spec__ = self.__get_module().__spec__
-
-    def __repr__(self):
-        if self.__sub_id:
-            return f"<ProxyModule {self.__sub_id!r}>"
-        return f"<ProxyModule {self.__plugin_id!r}>"
-
-    @property
-    def __dict__(self) -> dict[str, Any]:
-        return self.__get_module().__dict__
-
-    def __getattr__(self, name: str):
-        if name in (
-            "_ProxyModule__plugin_id",
-            "_ProxyModule__sub_id",
-            "_ProxyModule__origin",
-            "__name__",
-            "__doc__",
-            "__file__",
-            "__loader__",
-            "__package__",
-            "__path__",
-            "__spec__",
-        ):
-            return super().__getattribute__(name)
-        if self.__plugin_id not in plugin_service.plugins:
-            raise NameError(f"Plugin {self.__plugin_id!r} is not loaded")
-        if plug := inspect.currentframe().f_back.f_globals.get("__plugin__"):  # type: ignore
-            if plug.id != self.__plugin_id:
-                plugin_service._referents[self.__plugin_id].add(plug.id)
-        elif plug := inspect.currentframe().f_back.f_back.f_globals.get("__plugin__"):  # type: ignore
-            if plug.id != self.__plugin_id:
-                plugin_service._referents[self.__plugin_id].add(plug.id)
-        return getattr(self.__get_module(), name)
-
-    def __setattr__(self, name: str, value):
-        if name in (
-            "_ProxyModule__plugin_id",
-            "_ProxyModule__sub_id",
-            "_ProxyModule__origin",
-            "__name__",
-            "__doc__",
-            "__file__",
-            "__loader__",
-            "__package__",
-            "__path__",
-            "__spec__",
-        ):
-            return super().__setattr__(name, value)
-        setattr(self.__get_module(), name, value)

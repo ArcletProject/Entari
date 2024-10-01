@@ -13,6 +13,7 @@ from .model import RegisterNotInPluginError, _current_plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
+from .module import requires as requires
 from .service import plugin_service
 
 if TYPE_CHECKING:
@@ -37,8 +38,8 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.plugins.")
-    if path in plugin_service._submoded:
-        logger.error(f"plugin {path!r} is already defined as submodule of {plugin_service._submoded[path]!r}")
+    if path in plugin_service._subplugined:
+        logger.error(f"plugin {path!r} is already defined as submodule of {plugin_service._subplugined[path]!r}")
         return
     if path in plugin_service.plugins:
         return plugin_service.plugins[path]
@@ -98,8 +99,8 @@ def metadata(data: PluginMetadata):
 def find_plugin(name: str) -> Plugin | None:
     if name in plugin_service.plugins:
         return plugin_service.plugins[name]
-    if name in plugin_service._submoded:
-        return plugin_service.plugins[plugin_service._submoded[name]]
+    if name in plugin_service._subplugined:
+        return plugin_service.plugins[plugin_service._subplugined[name]]
     return None
 
 
@@ -110,11 +111,12 @@ def find_plugin_by_file(file: str) -> Plugin | None:
             return plugin
         if plugin.module.__file__ and Path(plugin.module.__file__).parent == path:
             return plugin
-        for submod in plugin.submodules.values():
-            if submod.__file__ == str(path):
-                return plugin
-            if submod.__file__ and Path(submod.__file__).parent == path:
-                return plugin
+        for subplug in plugin.subplugins:
+            if plug := plugin_service.plugins.get(subplug):
+                if plug.module.__file__ == str(path):
+                    return plugin
+                if plug.module.__file__ and Path(plug.module.__file__).parent == path:
+                    return plugin
         path1 = Path(path)
         while path1.parent != path1:
             if str(path1) == plugin.module.__file__:

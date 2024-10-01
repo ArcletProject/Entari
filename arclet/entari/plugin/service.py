@@ -16,7 +16,7 @@ class PluginService(Service):
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     _referents: dict[str, set[str]]
     _unloaded: set[str]
-    _submoded: dict[str, str]
+    _subplugined: dict[str, str]
 
     def __init__(self):
         super().__init__()
@@ -24,7 +24,7 @@ class PluginService(Service):
         self._keep_values = {}
         self._referents = {}
         self._unloaded = set()
-        self._submoded = {}
+        self._subplugined = {}
 
     @property
     def required(self) -> set[str]:
@@ -52,7 +52,7 @@ class PluginService(Service):
             for plug in self.plugins.values():
                 _cleanup.extend([func() for func in plug._cleanup])
             await asyncio.gather(*_cleanup, return_exceptions=True)
-        ids = [*self.plugins.keys()]
+        ids = [k for k in self.plugins.keys() if k not in self._subplugined]
         for plug_id in ids:
             plug = self.plugins[plug_id]
             logger.debug(f"disposing plugin {plug.id}")
