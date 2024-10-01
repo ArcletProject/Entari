@@ -17,15 +17,6 @@ _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
 
 
-class _ModuleDictProxy:
-    def __init__(self, module):
-        self._module = module
-
-    @property
-    def __dict__(self):
-        return self._module.__dict__
-
-
 def package(*names: str):
     """手动指定特定模块作为插件的子模块"""
     if not (plugin := _current_plugin.get(None)):
@@ -64,6 +55,12 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
                 plugin_service._referents[module.__plugin__.id].add(plugin_name)
             return module.__plugin__.subproxy(f"{plugin_name}{name}")
         return module
+    # if name not in sys.modules and name not in sys.builtin_module_names:
+    #     mod = import_plugin(name, plugin_name)
+    #     if mod:
+    #         if plugin_name != mod.__plugin__.id:
+    #             plugin_service._referents[mod.__plugin__.id].add(plugin_name)
+    #         return mod.__plugin__.proxy()
     if not name.startswith("."):
         return __import__(name, fromlist=["__path__"])
     return import_module(name, plugin_name)
@@ -81,6 +78,20 @@ class PluginLoader(SourceFileLoader):
         self.loaded = False
         self.parent_plugin_id = parent_plugin_id
         super().__init__(fullname, path)
+
+    def get_code(self, fullname):
+        """Concrete implementation of InspectLoader.get_code.
+
+        Reading of bytecode requires path_stats to be implemented. To write
+        bytecode, set_data must also be implemented.
+
+        """
+        source_path = self.get_filename(fullname)
+        source_bytes = None
+        if source_bytes is None:
+            source_bytes = self.get_data(source_path)
+        code_object = self.source_to_code(source_bytes, source_path)
+        return code_object
 
     def source_to_code(self, data, path, *, _optimize=-1):  # type: ignore
         """Return the code object compiled from source.
@@ -200,7 +211,7 @@ class PluginLoader(SourceFileLoader):
         # create plugin before executing
         plugin = Plugin(module.__name__, module, config=config or {})
         # for `dataclasses` module
-        sys.modules[module.__name__] = _ModuleDictProxy(plugin.proxy())  # type: ignore
+        sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)
         setattr(module, "__entari_import__", __entari_import__)
         setattr(module, "__getattr_or_import__", getattr_or_import)
@@ -215,6 +226,7 @@ class PluginLoader(SourceFileLoader):
             raise
         finally:
             # leave plugin context
+            delattr(module, "__cached__")
             sys.modules.pop(module.__name__, None)
             _current_plugin.reset(_plugin_token)
 
@@ -261,6 +273,9 @@ class _PluginFinder(MetaPathFinder):
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin, module_spec.parent)
             return module_spec
+        if module_spec.name.rpartition(".")[0] in plugin_service.plugins:
+            module_spec.loader = PluginLoader(fullname, module_origin, module_spec.name.rpartition(".")[0])
+            return module_spec
         return
 
 
@@ -270,9 +285,28 @@ def find_spec(name, package=None):
     if parent_name:
         if parent_name in plugin_service.plugins:
             parent = plugin_service.plugins[parent_name].module
-
         else:
-            parent = __import__(parent_name, fromlist=["__path__"])
+            enter_plugin = False
+            index = 0
+            while (index := parent_name.find(".", index + 1)) != -1:
+                if parent_name[:index] in plugin_service.plugins:
+                    enter_plugin = True
+                    continue
+                if enter_plugin:
+                    if import_plugin(parent_name[:index]):
+                        continue
+                    else:
+                        enter_plugin = False
+                        __import__(parent_name[:index], fromlist=["__path__"])
+                else:
+                    __import__(parent_name[:index], fromlist=["__path__"])
+            if parent_name in plugin_service.plugins:
+                parent = plugin_service.plugins[parent_name].module
+            elif enter_plugin:
+                if not (parent := import_plugin(parent_name)):
+                    parent = __import__(parent_name, fromlist=["__path__"])
+            else:
+                parent = __import__(parent_name, fromlist=["__path__"])
         try:
             parent_path = parent.__path__
         except AttributeError as e:

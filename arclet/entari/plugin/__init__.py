@@ -38,9 +38,8 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.plugins.")
-    if path in plugin_service._subplugined:
-        logger.error(f"plugin {path!r} is already defined as submodule of {plugin_service._subplugined[path]!r}")
-        return
+    while path in plugin_service._subplugined:
+        path = plugin_service._subplugined[path]
     if path in plugin_service.plugins:
         return plugin_service.plugins[path]
     try:
@@ -82,6 +81,8 @@ def load_plugins(dir_: str | PathLike | Path):
 
 
 def dispose(plugin: str):
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
     if plugin not in plugin_service.plugins:
         return False
     _plugin = plugin_service.plugins[plugin]
@@ -97,11 +98,7 @@ def metadata(data: PluginMetadata):
 
 
 def find_plugin(name: str) -> Plugin | None:
-    if name in plugin_service.plugins:
-        return plugin_service.plugins[name]
-    if name in plugin_service._subplugined:
-        return plugin_service.plugins[plugin_service._subplugined[name]]
-    return None
+    return plugin_service.plugins.get(name)
 
 
 def find_plugin_by_file(file: str) -> Plugin | None:
@@ -111,12 +108,6 @@ def find_plugin_by_file(file: str) -> Plugin | None:
             return plugin
         if plugin.module.__file__ and Path(plugin.module.__file__).parent == path:
             return plugin
-        for subplug in plugin.subplugins:
-            if plug := plugin_service.plugins.get(subplug):
-                if plug.module.__file__ == str(path):
-                    return plugin
-                if plug.module.__file__ and Path(plug.module.__file__).parent == path:
-                    return plugin
         path1 = Path(path)
         while path1.parent != path1:
             if str(path1) == plugin.module.__file__:
