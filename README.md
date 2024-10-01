@@ -47,9 +47,9 @@ app.run()
 编写插件:
 
 ```python
-from arclet.entari import Session, MessageCreatedEvent, Plugin
+from arclet.entari import Session, MessageCreatedEvent, metadata
 
-Plugin.current().meta(
+metadata(
     name="Hello, World!",
     author=["Arclet"],
     version="0.1.0",
@@ -60,4 +60,17 @@ Plugin.current().meta(
 @MessageCreatedEvent.dispatch()
 async def _(session: Session):
     await session.send("Hello, World!")
+```
+
+加载插件:
+
+```python
+from arclet.entari import Entari, WS, load_plugin
+
+load_plugin("example_plugin")
+load_plugin("::echo")
+load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
+
+app = Entari(WS(port=5140, path="satori"))
+app.run()
 ```
