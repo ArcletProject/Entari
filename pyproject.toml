@@ -1,6 +1,6 @@
 [project]
 name = "arclet-entari"
-version = "0.6.4"
+version = "0.7.0"
 description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
@@ -8,8 +8,8 @@ authors = [
 dependencies = [
     "arclet-letoderea>=0.11.0",
     "arclet-alconna>=1.8.30",
-    "satori-python-core>=0.14.5",
-    "satori-python-client>=0.14.5",
+    "satori-python-core>=0.15.0rc2",
+    "satori-python-client>=0.15.0rc2",
     "arclet-alconna-tools>=0.7.3",
     "pygtrie>=2.5.0",
 ]
