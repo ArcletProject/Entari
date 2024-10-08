@@ -372,7 +372,7 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
         context["$message_content"] = self.content
 
 
-MAPPING = {}
+MAPPING: dict[str, type[Event]] = {}
 
 for cls in gen_subclass(Event):
     if hasattr(cls, "type"):

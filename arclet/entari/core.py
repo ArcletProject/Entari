@@ -41,8 +41,9 @@ global_providers.extend([ApiProtocolProvider(), SessionProvider()])
 class Entari(App):
     id = "entari.service"
 
-    def __init__(self, *configs: Config):
+    def __init__(self, *configs: Config, ignore_self_message: bool = True):
         super().__init__(*configs)
+        self.ignore_self_message = ignore_self_message
         self.event_system = EventSystem()
         self.event_system.register(_commands.publisher)
         self.register(self.handle_event)
@@ -85,6 +86,8 @@ class Entari(App):
             loop = asyncio.get_running_loop()
             with suppress(NotImplementedError):
                 ev = event_parse(connection, raw)
+                if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
+                    return
                 self.event_system.publish(ev)
                 for plugin in plugin_service.plugins.values():
                     for disp in plugin.dispatchers.values():
