@@ -7,7 +7,7 @@ from arclet.letoderea import ParsingStop, StepOut
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.element import Element
-from satori.model import Channel, Guild, Member, MessageObject, MessageReceipt, PageResult, Role, User
+from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
 from .event import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
 from .message import MessageChain

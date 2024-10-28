@@ -17,7 +17,7 @@ from launart import Launart, Service
 from loguru import logger
 from satori.client import Account
 
-from .service import plugin_service, PluginLifecycleService
+from .service import PluginLifecycleService, plugin_service
 
 if TYPE_CHECKING:
     from ..event import Event
@@ -189,7 +189,7 @@ class Plugin:
         sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
         if self.subplugins:
-            subplugs = list(i.removeprefix(self.id)[1:] for i in self.subplugins)
+            subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
             logger.debug(f"disposing sub-plugin {', '.join(subplugs)} of {self.id}")
             for subplug in self.subplugins:

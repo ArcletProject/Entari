@@ -28,26 +28,25 @@ class PluginLifecycleService(Service):
 
     @property
     def available(self) -> bool:
-        return bool(plug := plugin_service.plugins.get(self.plugin_id)) and bool(plug._preparing or plug._running or plug._cleanup)
+        return bool(plug := plugin_service.plugins.get(self.plugin_id)) and bool(
+            plug._preparing or plug._running or plug._cleanup
+        )
 
     @staticmethod
     def iter_preparing(plug: "Plugin"):
-        for func in plug._preparing:
-            yield func
+        yield from plug._preparing
         for subplug in plug.subplugins:
             yield from PluginLifecycleService.iter_preparing(plugin_service.plugins[subplug])
 
     @staticmethod
     def iter_cleanup(plug: "Plugin"):
-        for func in plug._cleanup:
-            yield func
+        yield from plug._cleanup
         for subplug in plug.subplugins:
             yield from PluginLifecycleService.iter_cleanup(plugin_service.plugins[subplug])
 
     @staticmethod
     def iter_running(plug: "Plugin"):
-        for func in plug._running:
-            yield func
+        yield from plug._running
         for subplug in plug.subplugins:
             yield from PluginLifecycleService.iter_running(plugin_service.plugins[subplug])
 
@@ -55,7 +54,9 @@ class PluginLifecycleService(Service):
         plug = plugin_service.plugins[self.plugin_id]
 
         async with self.stage("preparing"):
-            await asyncio.gather(*[func() for func in PluginLifecycleService.iter_preparing(plug)], return_exceptions=True)
+            await asyncio.gather(
+                *[func() for func in PluginLifecycleService.iter_preparing(plug)], return_exceptions=True
+            )
         async with self.stage("blocking"):
             sigexit_task = asyncio.create_task(manager.status.wait_for_sigexit())
             running_tasks = [asyncio.create_task(func()) for func in PluginLifecycleService.iter_running(plug)]  # type: ignore
@@ -68,7 +69,9 @@ class PluginLifecycleService(Service):
                     task.cancel()
                     await task
         async with self.stage("cleanup"):
-            await asyncio.gather(*[func() for func in PluginLifecycleService.iter_cleanup(plug)], return_exceptions=True)
+            await asyncio.gather(
+                *[func() for func in PluginLifecycleService.iter_cleanup(plug)], return_exceptions=True
+            )
 
         del plug
 
