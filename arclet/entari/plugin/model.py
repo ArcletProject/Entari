@@ -17,7 +17,7 @@ from launart import Launart, Service
 from loguru import logger
 from satori.client import Account
 
-from .service import plugin_service
+from .service import plugin_service, PluginLifecycleService
 
 if TYPE_CHECKING:
     from ..event import Event
@@ -121,13 +121,19 @@ class Plugin:
 
     _preparing: list[_Lifespan] = field(init=False, default_factory=list)
     _cleanup: list[_Lifespan] = field(init=False, default_factory=list)
+    _running: list[_Lifespan] = field(init=False, default_factory=list)
     _connected: list[_AccountUpdate] = field(init=False, default_factory=list)
     _disconnected: list[_AccountUpdate] = field(init=False, default_factory=list)
 
+    _lifecycle: PluginLifecycleService | None = field(init=False, default=None)
     _services: dict[str, Service] = field(init=False, default_factory=dict)
 
     def on_prepare(self, func: _Lifespan):
         self._preparing.append(func)
+        return func
+
+    def on_running(self, func: _Lifespan):
+        self._running.append(func)
         return func
 
     def on_cleanup(self, func: _Lifespan):
@@ -159,6 +165,10 @@ class Plugin:
             plugin_service._keep_values[self.id] = {}
         if self.id not in plugin_service._referents:
             plugin_service._referents[self.id] = set()
+        if self.id not in plugin_service._subplugined:
+            self._lifecycle = PluginLifecycleService(self.id)
+            if plugin_service.status.blocking and (self._preparing or self._running or self._cleanup):
+                it(Launart).add_component(self._lifecycle)
         finalize(self, self.dispose)
 
     def dispose(self):
@@ -166,6 +176,8 @@ class Plugin:
         if self._is_disposed:
             return
         self._is_disposed = True
+        if self._lifecycle and self._lifecycle.status.prepared:
+            it(Launart).remove_component(self._lifecycle)
         for serv in self._services.values():
             try:
                 it(Launart).remove_component(serv)
@@ -176,16 +188,19 @@ class Plugin:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
-        for subplug in self.subplugins:
-            if subplug not in plugin_service.plugins:
-                continue
-            logger.debug(f"disposing sub-plugin {subplug} of {self.id}")
-            try:
-                plugin_service.plugins[subplug].dispose()
-            except Exception as e:
-                logger.error(f"failed to dispose sub-plugin {subplug} caused by {e!r}")
-                plugin_service.plugins.pop(subplug, None)
-        self.subplugins.clear()
+        if self.subplugins:
+            subplugs = list(i.removeprefix(self.id)[1:] for i in self.subplugins)
+            subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
+            logger.debug(f"disposing sub-plugin {', '.join(subplugs)} of {self.id}")
+            for subplug in self.subplugins:
+                if subplug not in plugin_service.plugins:
+                    continue
+                try:
+                    plugin_service.plugins[subplug].dispose()
+                except Exception as e:
+                    logger.error(f"failed to dispose sub-plugin {subplug} caused by {e!r}")
+                    plugin_service.plugins.pop(subplug, None)
+            self.subplugins.clear()
         for disp in self.dispatchers.values():
             disp.dispose()
         self.dispatchers.clear()
