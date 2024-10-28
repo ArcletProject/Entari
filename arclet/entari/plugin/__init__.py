@@ -37,7 +37,7 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     """
     if recursive_guard is None:
         recursive_guard = set()
-    path = path.replace("::", "arclet.entari.plugins.")
+    path = path.replace("::", "arclet.entari.builtins.")
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
     if path in plugin_service.plugins:

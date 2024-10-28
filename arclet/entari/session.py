@@ -7,7 +7,7 @@ from arclet.letoderea import ParsingStop, StepOut
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.element import Element
-from satori.model import Channel, Guild, Member, MessageObject, PageResult, Role, User
+from satori.model import Channel, Guild, Member, MessageObject, MessageReceipt, PageResult, Role, User
 
 from .event import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
 from .message import MessageChain
@@ -113,7 +113,7 @@ class Session(Generic[TEvent]):
         self,
         message: str | Iterable[str | Element],
         protocol_cls: type[ApiProtocol] | None = None,
-    ) -> list[MessageObject]:
+    ) -> list[MessageReceipt]:
         if not protocol_cls:
             return await self.account.protocol.send(self.context, message)
         return await self.account.custom(self.account.config, protocol_cls).send(self.context._origin, message)
@@ -121,7 +121,7 @@ class Session(Generic[TEvent]):
     async def send_message(
         self,
         message: str | Iterable[str | Element],
-    ) -> list[MessageObject]:
+    ) -> list[MessageReceipt]:
         """发送消息
 
         Args:
@@ -134,7 +134,7 @@ class Session(Generic[TEvent]):
     async def send_private_message(
         self,
         message: str | Iterable[str | Element],
-    ) -> list[MessageObject]:
+    ) -> list[MessageReceipt]:
         """发送私聊消息
 
         Args:
@@ -162,7 +162,7 @@ class Session(Generic[TEvent]):
     async def message_create(
         self,
         content: str,
-    ) -> list[MessageObject]:
+    ) -> list[MessageReceipt]:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
         return await self.account.protocol.message_create(self.context.channel.id, content)

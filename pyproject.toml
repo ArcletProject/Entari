@@ -7,9 +7,9 @@ authors = [
 ]
 dependencies = [
     "arclet-letoderea>=0.11.0",
-    "arclet-alconna>=1.8.30",
-    "satori-python-core>=0.15.0rc2",
-    "satori-python-client>=0.15.0rc2",
+    "arclet-alconna<2.0,>=1.8.31",
+    "satori-python-core>=0.15.0",
+    "satori-python-client>=0.15.0",
     "arclet-alconna-tools>=0.7.3",
     "pygtrie>=2.5.0",
 ]

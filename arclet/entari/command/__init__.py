@@ -47,7 +47,7 @@ class EntariCommands:
                 await asyncio.gather(*(depend_handler(res.value, event, inner=True) for res in matches if res.value))
                 return
             # shortcut
-            data = split(msg, (" ",))
+            data = split(msg, " ")
             for value in self.trie.values():
                 try:
                     command_manager.find_shortcut(get_cmd(value), data)
@@ -72,7 +72,7 @@ class EntariCommands:
                 try:
                     _res = aux.cmd.parse(content)
                 except Exception as e:
-                    _res = Arparma(aux.cmd.path, message, False, error_info=e)
+                    _res = Arparma(aux.cmd._hash, message, False, error_info=e)
                 may_help_text: Optional[str] = cap.get("output", None)
             if _res.matched:
                 args = {}
@@ -87,7 +87,7 @@ class EntariCommands:
         if matches := list(self.trie.prefixes(msg)):
             return await asyncio.gather(*(_run(res.value, message) for res in matches if res.value))
         # shortcut
-        data = split(msg, (" ",))
+        data = split(msg, " ")
         res = []
         for value in self.trie.values():
             try:
