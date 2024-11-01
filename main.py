@@ -1,6 +1,6 @@
 from satori import Image
 
-from arclet.entari import Session, Entari, command, WebsocketsInfo, load_plugin, dispose_plugin
+from arclet.entari import Session, Entari, command, WebsocketsInfo, load_plugin, dispose_plugin, load_config
 
 
 @command.on("echoimg {img}")
@@ -8,6 +8,7 @@ async def echoimg(img: Image, session: Session):
     await session.send_message([img])
 
 
+load_config("example.yml")
 load_plugin("::auto_reload")
 load_plugin("example_plugin")
 

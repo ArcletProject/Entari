@@ -12,6 +12,7 @@ from typing import Optional
 
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
+from ..config import Config
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
@@ -209,7 +210,7 @@ class PluginLoader(SourceFileLoader):
             return
 
         # create plugin before executing
-        plugin = Plugin(module.__name__, module, config=config or {})
+        plugin = Plugin(module.__name__, module, config=config or Config.instance.plugin.get(module.__name__, {}))
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)

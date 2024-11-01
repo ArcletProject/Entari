@@ -14,6 +14,7 @@ from satori.config import Config
 from satori.model import Event
 from tarina.generic import get_origin
 
+from .config import Config as EntariConfig
 from .command import _commands
 from .event import MessageCreatedEvent, event_parse
 from .plugin.service import plugin_service
@@ -43,6 +44,8 @@ class Entari(App):
 
     def __init__(self, *configs: Config, ignore_self_message: bool = True):
         super().__init__(*configs)
+        if "ignore_self_message" in EntariConfig.instance.basic:
+            ignore_self_message = EntariConfig.instance.basic["ignore_self_message"]
         self.ignore_self_message = ignore_self_message
         self.event_system = EventSystem()
         self.event_system.register(_commands.publisher)

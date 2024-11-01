@@ -1,0 +1,5 @@
+basic:
+  ignore_self_message: true
+plugins:
+  ::auto_reload:
+    watch_dirs: ["."]
