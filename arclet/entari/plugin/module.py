@@ -10,9 +10,9 @@ import sys
 from types import ModuleType
 from typing import Optional
 
+from ..config import Config
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
-from ..config import Config
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()

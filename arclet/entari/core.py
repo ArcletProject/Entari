@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from contextlib import suppress
+import os
 
 from arclet.letoderea import BaseAuxiliary, Contexts, EventSystem, Param, Provider, ProviderFactory, global_providers
 from launart import Launart
@@ -15,11 +15,11 @@ from satori.config import Config, WebhookInfo, WebsocketsInfo
 from satori.model import Event
 from tarina.generic import get_origin
 
-from .config import Config as EntariConfig
 from .command import _commands
+from .config import Config as EntariConfig
 from .event import MessageCreatedEvent, event_parse
-from .plugin.service import plugin_service
 from .plugin import load_plugin
+from .plugin.service import plugin_service
 from .session import Session
 
 

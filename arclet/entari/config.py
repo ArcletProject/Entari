@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
-import json
-from pathlib import Path
 from dataclasses import dataclass, field
+import json
+import os
+from pathlib import Path
 from typing import Callable, ClassVar
 
 
@@ -12,7 +12,7 @@ class Config:
     path: Path
     basic: dict = field(default_factory=dict, init=False)
     plugin: dict[str, dict] = field(default_factory=dict, init=False)
-    updater: Callable[["Config"], None]
+    updater: Callable[[Config], None]
 
     instance: ClassVar[Config]
 
@@ -39,6 +39,7 @@ class Config:
                     data = json.load(f)
                     self.basic = data.get("basic", {})
                     self.plugin = data.get("plugin", {})
+
             obj = cls(_path, _updater)
             cls.instance = obj
             return obj
@@ -53,6 +54,7 @@ class Config:
                     data = yaml.safe_load(f)
                     self.basic = data.get("basic", {})
                     self.plugin = data.get("plugin", {})
+
             obj = cls(_path, _updater)
             cls.instance = obj
             return obj
