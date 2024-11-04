@@ -55,9 +55,9 @@ class Entari(App):
         ignore_self_message = config.basic.get("ignore_self_message", True)
         configs = []
         for conf in config.basic.get("network", []):
-            if conf["type"] == "websocket":
+            if conf["type"] in ("websocket", "websockets", "ws"):
                 configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
-            elif conf["type"] == "webhook":
+            elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
         for plug, enable in config.basic.get("plugins", {}).items():
             if enable:
