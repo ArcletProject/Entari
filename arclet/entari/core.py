@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import suppress
 
 from arclet.letoderea import BaseAuxiliary, Contexts, EventSystem, Param, Provider, ProviderFactory, global_providers
@@ -10,7 +11,7 @@ from satori import LoginStatus
 from satori.client import App
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
-from satori.config import Config
+from satori.config import Config, WebhookInfo, WebsocketsInfo
 from satori.model import Event
 from tarina.generic import get_origin
 
@@ -18,6 +19,7 @@ from .config import Config as EntariConfig
 from .command import _commands
 from .event import MessageCreatedEvent, event_parse
 from .plugin.service import plugin_service
+from .plugin import load_plugin
 from .session import Session
 
 
@@ -42,10 +44,28 @@ global_providers.extend([ApiProtocolProvider(), SessionProvider()])
 class Entari(App):
     id = "entari.service"
 
+    @classmethod
+    def load(cls, path: str | os.PathLike[str] | None = None):
+        return cls.from_config(EntariConfig.load(path))
+
+    @classmethod
+    def from_config(cls, config: EntariConfig | None = None):
+        if not config:
+            config = EntariConfig.instance
+        ignore_self_message = config.basic.get("ignore_self_message", True)
+        configs = []
+        for conf in config.basic.get("network", []):
+            if conf["type"] == "websocket":
+                configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
+            elif conf["type"] == "webhook":
+                configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
+        for plug, enable in config.basic.get("plugins", {}).items():
+            if enable:
+                load_plugin(plug)
+        return cls(*configs, ignore_self_message=ignore_self_message)
+
     def __init__(self, *configs: Config, ignore_self_message: bool = True):
         super().__init__(*configs)
-        if "ignore_self_message" in EntariConfig.instance.basic:
-            ignore_self_message = EntariConfig.instance.basic["ignore_self_message"]
         self.ignore_self_message = ignore_self_message
         self.event_system = EventSystem()
         self.event_system.register(_commands.publisher)
