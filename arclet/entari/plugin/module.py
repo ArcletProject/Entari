@@ -10,7 +10,6 @@ import sys
 from types import ModuleType
 from typing import Optional
 
-from ..config import Config
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
 
@@ -210,7 +209,7 @@ class PluginLoader(SourceFileLoader):
             return
 
         # create plugin before executing
-        plugin = Plugin(module.__name__, module, config=config or Config.instance.plugin.get(module.__name__, {}))
+        plugin = Plugin(module.__name__, module, config=config or {})
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)

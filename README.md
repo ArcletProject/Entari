@@ -88,7 +88,7 @@ basic:
     ::echo: true
     ::auto_reload: true
 plugin:
-  auto_reload:
+  ::auto_reload:
     watch_dirs: ["plugins"]
 ```
 

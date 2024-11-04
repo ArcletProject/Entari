@@ -38,7 +38,7 @@ class Config:
                 with self.path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.basic = data.get("basic", {})
-                    self.plugin = data.get("plugin", {})
+                    self.plugin = data.get("plugins", {})
 
             obj = cls(_path, _updater)
             cls.instance = obj
@@ -53,7 +53,7 @@ class Config:
                 with self.path.open("r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     self.basic = data.get("basic", {})
-                    self.plugin = data.get("plugin", {})
+                    self.plugin = data.get("plugins", {})
 
             obj = cls(_path, _updater)
             cls.instance = obj

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Callable
 from loguru import logger
 from tarina import init_spec
 
+from ..config import Config
 from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError, _current_plugin
@@ -35,6 +36,7 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
         config (dict): 模块配置
         recursive_guard (set[str]): 递归保护
     """
+    config = config or Config.instance.plugin.get(path)
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.builtins.")
