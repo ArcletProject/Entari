@@ -1,8 +1,5 @@
 import re
 import sys
-from dataclasses import dataclass
-from arclet.alconna import Alconna, AllParam, Args
-
 from arclet.entari import (
     Session,
     MessageChain,
@@ -14,21 +11,10 @@ from arclet.entari import (
     metadata,
     keeping
 )
-from arclet.entari.command import Match
 
 metadata(__file__)
 
 plug = Plugin.current()
-
-
-@dataclass
-class A:
-    a: "B"
-
-
-@dataclass
-class B:
-    b: "A"
 
 
 @plug.on_prepare
@@ -67,18 +53,6 @@ async def _(event: MessageCreatedEvent):
         print(event.content)
 
 
-on_alc = command.mount(Alconna("echo", Args["content?", AllParam]))
-
-
-@on_alc
-async def _(content: Match[MessageChain], session: Session):
-    if content.available:
-        await session.send(content.result)
-        return
-
-    await session.send(await session.prompt("请输入内容"))
-
-
 @command.on("add {a} {b}")
 async def add(a: int, b: int, session: Session):
     await session.send_message(f"{a + b =}")
@@ -95,6 +69,8 @@ async def append(data: str, session: Session):
 
 @command.on("show")
 async def show(session: Session):
+    res = await command.execute("echo 123")
+    await session.send_message(f"Echo Result: {res}")
     await session.send_message(f"Data: {kept_data}")
 
 TEST = 5

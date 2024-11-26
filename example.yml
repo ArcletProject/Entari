@@ -7,6 +7,7 @@ basic:
   ignore_self_message: true
   plugins:
     ::auto_reload: true
+    ::echo: true
     example_plugin: true
 plugins:
   ::auto_reload:

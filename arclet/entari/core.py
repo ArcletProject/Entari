@@ -4,7 +4,7 @@ import asyncio
 from contextlib import suppress
 import os
 
-from arclet.letoderea import BaseAuxiliary, Contexts, EventSystem, Param, Provider, ProviderFactory, global_providers
+from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, es, ProviderFactory, global_providers
 from launart import Launart
 from loguru import logger
 from satori import LoginStatus
@@ -66,9 +66,10 @@ class Entari(App):
 
     def __init__(self, *configs: Config, ignore_self_message: bool = True):
         super().__init__(*configs)
+        if not hasattr(EntariConfig, "instance"):
+            EntariConfig.load()
         self.ignore_self_message = ignore_self_message
-        self.event_system = EventSystem()
-        self.event_system.register(_commands.publisher)
+        es.register(_commands.publisher)
         self.register(self.handle_event)
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
@@ -88,7 +89,7 @@ class Entari(App):
         auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        return self.event_system.on(*events, priority=priority, auxiliaries=auxiliaries, providers=providers)
+        return es.on(events, priority=priority, auxiliaries=auxiliaries, providers=providers)
 
     def on_message(
         self,
@@ -96,7 +97,7 @@ class Entari(App):
         auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        return self.event_system.on(
+        return es.on(
             MessageCreatedEvent, priority=priority, auxiliaries=auxiliaries, providers=providers
         )
 
@@ -105,27 +106,14 @@ class Entari(App):
         manager.add_component(plugin_service)
 
     async def handle_event(self, account: Account, event: Event):
-        async def event_parse_task(connection: Account, raw: Event):
-            loop = asyncio.get_running_loop()
-            with suppress(NotImplementedError):
-                ev = event_parse(connection, raw)
-                if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
-                    return
-                self.event_system.publish(ev)
-                for plugin in plugin_service.plugins.values():
-                    for disp in plugin.dispatchers.values():
-                        if not disp.validate(ev):
-                            continue
-                        if disp._run_by_system:
-                            continue
-                        task = loop.create_task(disp.publish(ev))
-                        self._ref_tasks.add(task)
-                        task.add_done_callback(self._ref_tasks.discard)
+        with suppress(NotImplementedError):
+            ev = event_parse(account, event)
+            if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
                 return
+            es.publish(ev)
+            return
 
-            logger.warning(f"received unsupported event {raw.type}: {raw}")
-
-        await event_parse_task(account, event)
+        logger.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
         _connected = []

@@ -9,8 +9,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from weakref import finalize, proxy
 
-from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, system_ctx
-from arclet.letoderea.builtin.breakpoint import R
+from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, es
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
@@ -23,6 +22,8 @@ if TYPE_CHECKING:
     from ..event import Event
 
 _current_plugin: ContextVar[Plugin] = ContextVar("_current_plugin")
+
+R = TypeVar("R")
 
 
 class RegisterNotInPluginError(Exception):
@@ -38,10 +39,7 @@ class PluginDispatcher(Publisher):
     ):
         super().__init__(f"{plugin.id}@{id(self)}", *events, predicate=predicate)  # type: ignore
         self.plugin = plugin
-        self._run_by_system = False
-        if es := system_ctx.get():
-            es.register(self)
-            self._run_by_system = True
+        es.register(self)
         self._events = events
 
     def waiter(
@@ -61,22 +59,22 @@ class PluginDispatcher(Publisher):
         return wrapper
 
     def dispose(self):
-        if self._run_by_system:
-            if es := system_ctx.get():
-                es.publishers.pop(self.id, None)
-            self._run_by_system = False
+        es.publishers.pop(self.id, None)
         self.subscribers.clear()
 
     if TYPE_CHECKING:
         register = Publisher.register
     else:
 
-        def register(self, *args, **kwargs):
-            wrapper = super().register(*args, **kwargs)
-
-            def decorator(func):
-                self.plugin.validate(func)
+        def register(self, func: Callable | None = None, **kwargs):
+            wrapper = super().register(**kwargs)
+            if func:
+                self.plugin.validate(func)  # type: ignore
                 return wrapper(func)
+
+            def decorator(func1):
+                self.plugin.validate(func1)
+                return wrapper(func1)
 
             return decorator
 

@@ -67,11 +67,11 @@ async def _(session: Session):
 ```python
 from arclet.entari import Entari, WS, load_plugin
 
+app = Entari(WS(port=5140, path="satori"))
 load_plugin("example_plugin")
 load_plugin("::echo")
 load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
 
-app = Entari(WS(port=5140, path="satori"))
 app.run()
 ```
 

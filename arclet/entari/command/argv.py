@@ -1,4 +1,4 @@
-from arclet.alconna import Argv, argv_config, set_default_argv_type
+from arclet.alconna import Argv, argv_config, set_default_argv_type, set_namespace_argv_type
 from satori import Text
 
 from ..message import MessageChain
@@ -11,6 +11,8 @@ class MessageArgv(Argv[MessageChain]):
 
 
 set_default_argv_type(MessageArgv)
+set_namespace_argv_type("Entari", MessageArgv)
+
 
 argv_config(
     MessageArgv,

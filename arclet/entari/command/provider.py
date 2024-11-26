@@ -45,6 +45,10 @@ class MessageJudger(JudgeAuxiliary):
     def scopes(self) -> set[Scope]:
         return {Scope.prepare}
 
+    @property
+    def id(self) -> str:
+        return "entari.command/message_judger"
+
 
 class AlconnaSuppiler(SupplyAuxiliary):
     cmd: Alconna
@@ -52,7 +56,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
     remove_tome: bool
 
     def __init__(self, cmd: Alconna, need_tome: bool, remove_tome: bool):
-        super().__init__()
+        super().__init__(priority=2)
         self.cmd = cmd
         self.need_tome = need_tome
         self.remove_tome = remove_tome
@@ -81,6 +85,10 @@ class AlconnaSuppiler(SupplyAuxiliary):
     @property
     def scopes(self) -> set[Scope]:
         return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.command/alconna_supplier"
 
 
 class AlconnaProvider(Provider[Any]):
@@ -149,6 +157,10 @@ class Assign(JudgeAuxiliary):
     @property
     def scopes(self) -> set[Scope]:
         return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return f"entari.command/assign:{self.path}"
 
 
 class AlconnaProviderFactory(ProviderFactory):

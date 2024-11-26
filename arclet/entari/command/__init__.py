@@ -4,11 +4,11 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, Namespace, command_manager, config, output_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber
+from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber, es
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
 from nepattern import DirectPattern
-from pygtrie import CharTrie
+from tarina.trie import CharTrie
 from satori.element import At, Text
 from tarina.string import split
 
@@ -16,7 +16,7 @@ from ..event import MessageCreatedEvent
 from ..message import MessageChain
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
-from .plugin import mount
+from .plugin import mount, CommandExecute
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger, get_cmd
 
 T = TypeVar("T")
@@ -27,7 +27,7 @@ class EntariCommands:
     __namespace__ = "Entari"
 
     def __init__(self, need_tome: bool = False, remove_tome: bool = True):
-        self.trie: CharTrie = CharTrie()
+        self.trie: CharTrie[Subscriber] = CharTrie()
         self.publisher = Publisher("EntariCommands", MessageCreatedEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
         self.need_tome = need_tome
@@ -198,4 +198,8 @@ command = _commands.command
 on = _commands.on
 
 
-__all__ = ["_commands", "config_commands", "Match", "Query", "CommandResult", "mount", "command", "on"]
+async def execute(message: Union[str, MessageChain]):
+    return await es.post(CommandExecute(message), "entari.command/command_execute")
+
+
+__all__ = ["_commands", "config_commands", "Match", "Query", "execute", "CommandResult", "mount", "command", "on"]

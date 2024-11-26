@@ -17,6 +17,7 @@ class Config:
     instance: ClassVar[Config]
 
     def __post_init__(self):
+        self.__class__.instance = self
         self.updater(self)
 
     def reload(self):
@@ -55,9 +56,7 @@ class Config:
                     self.basic = data.get("basic", {})
                     self.plugin = data.get("plugins", {})
 
-            obj = cls(_path, _updater)
-            cls.instance = obj
-            return obj
+            return cls(_path, _updater)
         raise NotImplementedError(f"unsupported config file format: {_path.suffix}")
 
 

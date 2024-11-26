@@ -14,6 +14,10 @@ class DirectMessageJudger(JudgeAuxiliary):
     def scopes(self) -> set[Scope]:
         return {Scope.prepare}
 
+    @property
+    def id(self) -> str:
+        return "entari.filter/direct_message"
+
 
 is_direct_message = DirectMessageJudger()
 
@@ -27,6 +31,10 @@ class PublicMessageJudger(JudgeAuxiliary):
     @property
     def scopes(self) -> set[Scope]:
         return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/public_message"
 
 
 is_public_message = PublicMessageJudger()

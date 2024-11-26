@@ -1,4 +1,5 @@
 from arclet.letoderea import bind as bind
+from arclet.letoderea import es as es
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
