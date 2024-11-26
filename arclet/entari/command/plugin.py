@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
-from arclet.alconna import Alconna, command_manager, output_manager, Arparma
-from arclet.letoderea import AuxType, BaseAuxiliary, Provider, ProviderFactory, Contexts, es, Scope, Interface
+from arclet.alconna import Alconna, Arparma, command_manager, output_manager
+from arclet.letoderea import AuxType, BaseAuxiliary, Contexts, Interface, Provider, ProviderFactory, Scope, es
 
 from ..event import MessageCreatedEvent
 from ..message import MessageChain
 from ..plugin.model import Plugin, PluginDispatcher
-from .model import Match, Query, CommandResult
+from .model import CommandResult, Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudger, _seminal
 
 

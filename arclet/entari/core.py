@@ -4,7 +4,7 @@ import asyncio
 from contextlib import suppress
 import os
 
-from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, es, ProviderFactory, global_providers
+from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, es, global_providers
 from launart import Launart
 from loguru import logger
 from satori import LoginStatus
@@ -97,9 +97,7 @@ class Entari(App):
         auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        return es.on(
-            MessageCreatedEvent, priority=priority, auxiliaries=auxiliaries, providers=providers
-        )
+        return es.on(MessageCreatedEvent, priority=priority, auxiliaries=auxiliaries, providers=providers)
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager

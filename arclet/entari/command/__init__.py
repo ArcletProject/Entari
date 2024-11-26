@@ -8,15 +8,15 @@ from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscrib
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
 from nepattern import DirectPattern
-from tarina.trie import CharTrie
 from satori.element import At, Text
 from tarina.string import split
+from tarina.trie import CharTrie
 
 from ..event import MessageCreatedEvent
 from ..message import MessageChain
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
-from .plugin import mount, CommandExecute
+from .plugin import CommandExecute, mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger, get_cmd
 
 T = TypeVar("T")
