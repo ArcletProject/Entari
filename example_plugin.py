@@ -9,7 +9,7 @@ from arclet.entari import (
     is_public_message,
     bind,
     metadata,
-    keeping
+    keeping,
 )
 
 metadata(__file__)
@@ -78,3 +78,8 @@ TEST = 5
 print([*Plugin.current().dispatchers.keys()])
 print(Plugin.current().subplugins)
 print("example_plugin not in sys.modules (expect True):", "example_plugin" not in sys.modules)
+
+
+@plug.use("entari.event/before_send")
+async def send_hook(session: Session, message: MessageChain):
+    session.elements = message + "喵"

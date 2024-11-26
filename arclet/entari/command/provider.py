@@ -88,7 +88,33 @@ class AlconnaSuppiler(SupplyAuxiliary):
 
     @property
     def id(self) -> str:
-        return "entari.command/alconna_supplier"
+        return "entari.command/common_supplier"
+
+
+class ExecuteSuppiler(SupplyAuxiliary):
+    def __init__(self, cmd: Alconna):
+        self.cmd = cmd
+        super().__init__(priority=1)
+
+    async def __call__(self, scope: Scope, interface: Interface):
+        message = interface.query(MessageChain, "command")
+        with output_manager.capture(self.cmd.name) as cap:
+            output_manager.set_action(lambda x: x, self.cmd.name)
+            try:
+                _res = self.cmd.parse(message)
+            except Exception as e:
+                _res = Arparma(self.cmd._hash, message, False, error_info=e)
+            may_help_text: Optional[str] = cap.get("output", None)
+        result = CommandResult(self.cmd, _res, may_help_text)
+        return interface.update(alc_result=result)
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.command/execute_supplier"
 
 
 class AlconnaProvider(Provider[Any]):

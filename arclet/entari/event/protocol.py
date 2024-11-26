@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Callable, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from arclet.letoderea import Contexts, Param, Provider
 from satori import ArgvInteraction, ButtonInteraction, Channel
@@ -11,10 +11,9 @@ from satori.client import Account
 from satori.model import LoginType, MessageObject
 from tarina import gen_subclass
 
-from .message import MessageChain
-from .plugin import dispatch
+from ..message import MessageChain
+from .base import BasedEvent
 
-TE = TypeVar("TE", bound="Event")
 T = TypeVar("T")
 D = TypeVar("D")
 
@@ -25,6 +24,8 @@ class Attr(Generic[T]):
 
     def __set_name__(self, owner: type[Event], name: str):
         self.key = self.key or name
+        if name not in ("id", "timestamp"):
+            owner._attrs.add(name)
 
     def __get__(self, instance: Event, owner: type[Event]) -> T:
         return getattr(instance._origin, self.key, None)  # type: ignore
@@ -37,8 +38,9 @@ def attr(key: str | None = None) -> Any:
     return Attr(key)
 
 
-class Event:
+class Event(BasedEvent):
     type: ClassVar[EventType]
+    _attrs: ClassVar[set[str]] = set()
     _origin: SatoriEvent
     account: Account
 
@@ -55,26 +57,9 @@ class Event:
     role: Role | None = attr()
     user: User | None = attr()
 
-    _attrs: ClassVar[set[str]] = {
-        "argv",
-        "button",
-        "channel",
-        "guild",
-        "login",
-        "member",
-        "message",
-        "operator",
-        "role",
-        "user",
-    }
-
     def __init__(self, account: Account, origin: SatoriEvent):
         self.account = account
         self._origin = origin
-
-    @classmethod
-    def dispatch(cls: type[TE], predicate: Callable[[TE], bool] | None = None):
-        return dispatch(cls, predicate=predicate)  # type: ignore
 
     async def gather(self, context: Contexts):
         context["$account"] = self.account

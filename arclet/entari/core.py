@@ -17,7 +17,7 @@ from tarina.generic import get_origin
 
 from .command import _commands
 from .config import Config as EntariConfig
-from .event import MessageCreatedEvent, event_parse
+from .event.protocol import MessageCreatedEvent, event_parse
 from .plugin import load_plugin
 from .plugin.service import plugin_service
 from .session import Session
@@ -34,6 +34,8 @@ class SessionProvider(Provider[Session]):
         return get_origin(param.annotation) == Session
 
     async def __call__(self, context: Contexts):
+        if "session" in context and isinstance(context["session"], Session):
+            return context["session"]
         if "$origin_event" in context and "$account" in context:
             return Session(context["$account"], context["$event"])
 

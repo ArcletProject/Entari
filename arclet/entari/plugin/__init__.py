@@ -18,13 +18,13 @@ from .module import requires as requires
 from .service import plugin_service
 
 if TYPE_CHECKING:
-    from ..event import Event
+    from ..event.base import BasedEvent
 
 
-def dispatch(*events: type[Event], predicate: Callable[[Event], bool] | None = None):
+def dispatch(*events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] | None = None, name: str | None = None):
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
-    return plugin.dispatch(*events, predicate=predicate)
+    return plugin.dispatch(*events, predicate=predicate, name=name)
 
 
 def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str] | None = None) -> Plugin | None:

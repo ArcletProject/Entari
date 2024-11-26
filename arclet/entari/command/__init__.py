@@ -12,11 +12,12 @@ from satori.element import At, Text
 from tarina.string import split
 from tarina.trie import CharTrie
 
-from ..event import MessageCreatedEvent
+from ..event.command import CommandExecute
+from ..event.protocol import MessageCreatedEvent
 from ..message import MessageChain
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
-from .plugin import CommandExecute, mount
+from .plugin import mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger, get_cmd
 
 T = TypeVar("T")
@@ -28,7 +29,7 @@ class EntariCommands:
 
     def __init__(self, need_tome: bool = False, remove_tome: bool = True):
         self.trie: CharTrie[Subscriber] = CharTrie()
-        self.publisher = Publisher("EntariCommands", MessageCreatedEvent)
+        self.publisher = Publisher("entari.command", MessageCreatedEvent)
         self.publisher.providers.append(AlconnaProviderFactory())
         self.need_tome = need_tome
         self.remove_tome = remove_tome
@@ -199,7 +200,7 @@ on = _commands.on
 
 
 async def execute(message: Union[str, MessageChain]):
-    return await es.post(CommandExecute(message), "entari.command/command_execute")
+    return await es.post(CommandExecute(message), "entari.event/command_execute")
 
 
 __all__ = ["_commands", "config_commands", "Match", "Query", "execute", "CommandResult", "mount", "command", "on"]

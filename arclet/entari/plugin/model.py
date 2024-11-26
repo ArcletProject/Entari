@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,7 +9,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from weakref import finalize, proxy
 
-from arclet.letoderea import BaseAuxiliary, Provider, Publisher, StepOut, es
+from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher, StepOut, Subscriber, es
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
@@ -19,10 +19,11 @@ from satori.client import Account
 from .service import PluginLifecycleService, plugin_service
 
 if TYPE_CHECKING:
-    from ..event import Event
+    from ..event.base import BasedEvent
 
 _current_plugin: ContextVar[Plugin] = ContextVar("_current_plugin")
 
+T = TypeVar("T")
 R = TypeVar("R")
 
 
@@ -30,22 +31,30 @@ class RegisterNotInPluginError(Exception):
     pass
 
 
-class PluginDispatcher(Publisher):
+class PluginDispatcher:
     def __init__(
         self,
         plugin: Plugin,
-        *events: type[Event],
-        predicate: Callable[[Event], bool] | None = None,
+        *events: type[BasedEvent],
+        predicate: Callable[[BasedEvent], bool] | None = None,
+        name: str | None = None,
     ):
-        super().__init__(f"{plugin.id}@{id(self)}", *events, predicate=predicate)  # type: ignore
+        id_ = f"#{plugin.id}@{name or id(self)}"
+        if name and name in es.publishers:
+            self.publisher = es.publishers[name]
+        elif id_ in es.publishers:
+            self.publisher = es.publishers[id_]
+        else:
+            self.publisher = Publisher(id_, *events, predicate=predicate)
+            es.register(self.publisher)
         self.plugin = plugin
-        es.register(self)
         self._events = events
+        self._subscribers = []
 
     def waiter(
         self,
-        *events: type[Event],
-        providers: list[Provider | type[Provider]] | None = None,
+        *events: type[BasedEvent],
+        providers: Sequence[Provider | type[Provider]] | None = None,
         auxiliaries: list[BaseAuxiliary] | None = None,
         priority: int = 15,
         block: bool = False,
@@ -59,22 +68,27 @@ class PluginDispatcher(Publisher):
         return wrapper
 
     def dispose(self):
-        es.publishers.pop(self.id, None)
-        self.subscribers.clear()
+        for sub in self._subscribers:
+            sub.dispose()
+        self._subscribers.clear()
 
     if TYPE_CHECKING:
         register = Publisher.register
     else:
 
-        def register(self, func: Callable | None = None, **kwargs):
-            wrapper = super().register(**kwargs)
+        def register(self, func: Callable | None = None, **kwargs) -> Any:
+            wrapper = self.publisher.register(**kwargs)
             if func:
                 self.plugin.validate(func)  # type: ignore
-                return wrapper(func)
+                sub = wrapper(func)
+                self._subscribers.append(sub)
+                return sub
 
             def decorator(func1):
                 self.plugin.validate(func1)
-                return wrapper(func1)
+                sub1 = wrapper(func1)
+                self._subscribers.append(sub1)
+                return sub1
 
             return decorator
 
@@ -205,12 +219,31 @@ class Plugin:
         del plugin_service.plugins[self.id]
         del self.module
 
-    def dispatch(self, *events: type[Event], predicate: Callable[[Event], bool] | None = None):
-        disp = PluginDispatcher(self, *events, predicate=predicate)
-        if disp.id in self.dispatchers:
-            return self.dispatchers[disp.id]
-        self.dispatchers[disp.id] = disp
+    def dispatch(
+        self, *events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] | None = None, name: str | None = None
+    ):
+        disp = PluginDispatcher(self, *events, predicate=predicate, name=name)
+        if disp.publisher.id in self.dispatchers:
+            return self.dispatchers[disp.publisher.id]
+        self.dispatchers[disp.publisher.id] = disp
         return disp
+
+    def use(
+        self,
+        pub_id: str,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ) -> Callable[[Callable[..., Any]], Subscriber]:
+        if pub_id not in es.publishers:
+            raise LookupError(f"no publisher found: {pub_id}")
+        if not (disp := self.dispatchers.get(pub_id)):
+            disp = PluginDispatcher(self, name=pub_id)
+            self.dispatchers[disp.publisher.id] = disp
+        return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)
 
     def validate(self, func):
         if func.__module__ != self.module.__name__:
@@ -249,9 +282,6 @@ class KeepingVariable:
         elif self._dispose:
             self._dispose(self.obj)
         del self.obj
-
-
-T = TypeVar("T")
 
 
 def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:

@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Generic, NoReturn, TypeVar
 
-from arclet.letoderea import ParsingStop, StepOut
+from arclet.letoderea import ParsingStop, StepOut, es
 from satori.client.account import Account
-from satori.client.protocol import ApiProtocol
 from satori.element import Element
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
-from .event import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
+from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
+from .event.session import SendRequest
 from .message import MessageChain
 
 TEvent = TypeVar("TEvent", bound=Event)
@@ -106,17 +106,29 @@ class Session(Generic[TEvent]):
             return self._content
         raise RuntimeError(f"Event {self.context.type!r} has no Content")
 
+    @elements.setter
+    def elements(self, value: MessageChain):
+        self._content = value
+
     def __getattr__(self, item):
         return getattr(self.account.protocol, item)
+
+    async def _send(self, channel_id: str, message: str | Iterable[str | Element]):
+        msg = MessageChain(message)
+        sess = self.__class__(self.account, self.context)
+        sess.elements = msg
+        res = await es.post(SendRequest(sess, msg), "entari.event/before_send")
+        if res and res.value is True:
+            return []
+        return await self.account.send_message(channel_id, sess.elements)
 
     async def send(
         self,
         message: str | Iterable[str | Element],
-        protocol_cls: type[ApiProtocol] | None = None,
     ) -> list[MessageReceipt]:
-        if not protocol_cls:
-            return await self.account.protocol.send(self.context, message)
-        return await self.account.custom(self.account.config, protocol_cls).send(self.context._origin, message)
+        if not self.context._origin.channel:
+            raise RuntimeError("Event cannot be replied to!")
+        return await self._send(self.context._origin.channel.id, message)
 
     async def send_message(
         self,
@@ -129,7 +141,7 @@ class Session(Generic[TEvent]):
         """
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.protocol.send_message(self.context.channel, message)
+        return await self._send(self.context.channel.id, message)
 
     async def send_private_message(
         self,
@@ -140,9 +152,8 @@ class Session(Generic[TEvent]):
         Args:
             message: 要发送的消息
         """
-        if not self.context.user:
-            raise RuntimeError("Event cannot be replied to!")
-        return await self.account.protocol.send_private_message(self.context.user, message)
+        channel = await self.user_channel_create()
+        return await self._send(channel.id, message)
 
     async def update_message(
         self,
@@ -165,7 +176,7 @@ class Session(Generic[TEvent]):
     ) -> list[MessageReceipt]:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.protocol.message_create(self.context.channel.id, content)
+        return await self._send(self.context.channel.id, content)
 
     async def message_delete(self) -> None:
         if not self.context.channel:
