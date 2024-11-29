@@ -22,6 +22,7 @@ class CommandExecute(BasedEvent):
             return context.get("command")
 
     __disp_name__ = "entari.event/command_execute"
+    __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
 
 
-pub = es.define("entari.event/command_execute", CommandExecute, lambda x: {"command": x.command, "message": x.command})
+pub = es.define(CommandExecute.__disp_name__, CommandExecute)

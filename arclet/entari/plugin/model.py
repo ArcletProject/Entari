@@ -200,6 +200,9 @@ class Plugin:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
+        for member in self.module.__dict__.values():
+            if isinstance(member, Subscriber) and not hasattr(member, "__keeping__"):
+                member.dispose()
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
@@ -275,6 +278,7 @@ class KeepingVariable:
     def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
         self.obj = obj
         self._dispose = dispose
+        setattr(self.obj, "__keeping__", True)
 
     def dispose(self):
         if hasattr(self.obj, "dispose"):

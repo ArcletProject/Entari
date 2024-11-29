@@ -117,7 +117,7 @@ class Session(Generic[TEvent]):
         msg = MessageChain(message)
         sess = self.__class__(self.account, self.context)
         sess.elements = msg
-        res = await es.post(SendRequest(sess, msg), "entari.event/before_send")
+        res = await es.post(SendRequest(sess, msg), SendRequest.__disp_name__)
         if res and res.value is True:
             return []
         return await self.account.send_message(channel_id, sess.elements)

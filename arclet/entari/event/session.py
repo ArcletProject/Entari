@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from arclet.letoderea import deref, es, provide
 from arclet.letoderea.ref import generate
@@ -17,7 +17,8 @@ class SendRequest(BasedEvent):
     message: "MessageChain"
 
     __disp_name__ = "entari.event/before_send"
+    __result_type__: "type[bool | None]" = Union[bool, None]
 
 
-pub = es.define("entari.event/before_send", SendRequest, lambda x: {"session": x.session, "message": x.message})
+pub = es.define(SendRequest.__disp_name__, SendRequest)
 pub.bind(provide(MessageChain, call=generate(deref(SendRequest).message)))

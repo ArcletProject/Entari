@@ -200,7 +200,9 @@ on = _commands.on
 
 
 async def execute(message: Union[str, MessageChain]):
-    return await es.post(CommandExecute(message), "entari.event/command_execute")
+    res = await es.post(CommandExecute(message), CommandExecute.__disp_name__)
+    if res:
+        return res.value
 
 
 __all__ = ["_commands", "config_commands", "Match", "Query", "execute", "CommandResult", "mount", "command", "on"]
