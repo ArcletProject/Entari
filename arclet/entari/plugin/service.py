@@ -16,15 +16,16 @@ class PluginLifecycleService(Service):
 
     @property
     def required(self) -> set[str]:
-        return {"arclet.entari.plugin.manager"}
+        return {"entari.plugin.manager", *self.requires}
 
     @property
     def stages(self) -> set[Phase]:
         return {"preparing", "cleanup", "blocking"}
 
-    def __init__(self, plugin_id: str):
+    def __init__(self, plugin_id: str, requires: set[str]):
         super().__init__()
         self.plugin_id = plugin_id
+        self.requires = requires
 
     @property
     def available(self) -> bool:
@@ -77,7 +78,7 @@ class PluginLifecycleService(Service):
 
 
 class PluginManagerService(Service):
-    id = "arclet.entari.plugin.manager"
+    id = "entari.plugin.manager"
 
     plugins: dict[str, "Plugin"]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
@@ -95,7 +96,7 @@ class PluginManagerService(Service):
 
     @property
     def required(self) -> set[str]:
-        return set()
+        return {"entari.service"}
 
     @property
     def stages(self) -> set[Phase]:

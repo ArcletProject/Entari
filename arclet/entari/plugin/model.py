@@ -128,6 +128,7 @@ class Plugin:
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
+    _requires: list[str] = field(default_factory=list)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
@@ -171,6 +172,15 @@ class Plugin:
     def metadata(self) -> PluginMetadata | None:
         return self._metadata
 
+    def inject(self, *requires: str):
+        plugin = self
+        while plugin.id in plugin_service._subplugined:
+            plugin = plugin_service.plugins[plugin_service._subplugined[plugin.id]]
+        plugin._requires.extend(requires)
+        if plugin._lifecycle:
+            plugin._lifecycle.requires.update(requires)
+        return self
+
     def __post_init__(self):
         plugin_service.plugins[self.id] = self
         if self.id not in plugin_service._keep_values:
@@ -178,7 +188,7 @@ class Plugin:
         if self.id not in plugin_service._referents:
             plugin_service._referents[self.id] = set()
         if self.id not in plugin_service._subplugined:
-            self._lifecycle = PluginLifecycleService(self.id)
+            self._lifecycle = PluginLifecycleService(self.id, set(self._requires))
             if plugin_service.status.blocking and (self._preparing or self._running or self._cleanup):
                 it(Launart).add_component(self._lifecycle)
         finalize(self, self.dispose)
@@ -278,7 +288,10 @@ class KeepingVariable:
     def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
         self.obj = obj
         self._dispose = dispose
-        setattr(self.obj, "__keeping__", True)
+        try:
+            setattr(self.obj, "__keeping__", True)
+        except AttributeError:
+            pass
 
     def dispose(self):
         if hasattr(self.obj, "dispose"):

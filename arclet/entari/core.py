@@ -5,6 +5,7 @@ from contextlib import suppress
 import os
 
 from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, es, global_providers
+from creart import it
 from launart import Launart
 from loguru import logger
 from satori import LoginStatus
@@ -125,3 +126,7 @@ class Entari(App):
             await asyncio.gather(*_connected, return_exceptions=True)
         elif state == LoginStatus.DISCONNECT:
             await asyncio.gather(*_disconnected, return_exceptions=True)
+
+    @classmethod
+    def current(cls):
+        return it(Launart).get_component(cls)

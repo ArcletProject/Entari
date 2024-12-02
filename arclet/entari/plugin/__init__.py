@@ -99,6 +99,15 @@ def metadata(data: PluginMetadata):
     plugin._metadata = data  # type: ignore
 
 
+def requirements(*reqs: str):
+    if not (plugin := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    plugin.inject(*reqs)
+
+
+inject = requirements
+
+
 def find_plugin(name: str) -> Plugin | None:
     return plugin_service.plugins.get(name)
 
