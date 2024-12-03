@@ -1,24 +1,94 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Generic, NoReturn, TypeVar
+from typing import Generic, NoReturn, TypeVar, cast
 
 from arclet.letoderea import ParsingStop, StepOut, es
 from satori.client.account import Account
+from satori.client.protocol import ApiProtocol
 from satori.element import Element
+from satori.const import Api
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
 from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
-from .event.session import SendRequest
+from .event.send import SendRequest, SendResponse
 from .message import MessageChain
 
 TEvent = TypeVar("TEvent", bound=Event)
 
 
+class EntariProtocol(ApiProtocol):
+
+    async def send_message(
+        self, channel: str | Channel, message: str | Iterable[str | Element], source: Event | None = None
+    ) -> list[MessageReceipt]:
+        """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
+
+        Args:
+            channel (str | Channel): 要发送的频道 ID
+            message (str | Iterable[str | Element]): 要发送的消息
+            source (Event | None): 源事件
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
+        channel_id = channel.id if isinstance(channel, Channel) else channel
+        return await self.message_create(channel_id=channel_id, content=message, source=source)
+
+    async def send_private_message(
+        self, user: str | User, message: str | Iterable[str | Element], source: Event | None = None
+    ) -> list[MessageReceipt]:
+        """发送私聊消息。返回一个 `MessageReceipt` 对象构成的数组。
+
+        Args:
+            user (str | User): 要发送的用户 ID
+            message (str | Iterable[str | Element]): 要发送的消息
+            source (Event | None): 源事件
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
+        user_id = user.id if isinstance(user, User) else user
+        channel = await self.user_channel_create(user_id=user_id)
+        return await self.message_create(channel_id=channel.id, content=message, source=source)
+
+    async def message_create(self, channel_id: str, content: str | Iterable[str | Element], source: Event | None = None) -> list[MessageReceipt]:
+        """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
+
+        Args:
+            channel_id (str): 频道 ID
+            content (str | Iterable[str | Element]): 消息内容
+            source (Event | None): 源事件
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
+        msg = MessageChain(content)
+        sess = None
+        if source:
+            sess = Session(self.account, source)
+            sess.elements = msg
+        res = await es.post(SendRequest(self.account, channel_id, msg, sess), SendRequest.__disp_name__)
+        if res and res.value:
+            value = res.value
+            if value is True:
+                return []
+            msg = value
+        send = str(msg)
+        res = await self.call_api(
+            Api.MESSAGE_CREATE,
+            {"channel_id": channel_id, "content": send},
+        )
+        res = cast("list[dict]", res)
+        resp = [MessageReceipt.parse(i) for i in res]
+        await es.publish(SendResponse(self.account, channel_id, msg, resp, sess), SendResponse.__disp_name__)
+        return resp
+
+
 class Session(Generic[TEvent]):
     """在 Satori-Python 的 Session 的基础上存储了当次事件的信息"""
 
-    def __init__(self, account: Account, event: TEvent):
+    def __init__(self, account: Account[EntariProtocol], event: TEvent):
         self.account = account
         self.context = event
         self._content = None
@@ -110,17 +180,8 @@ class Session(Generic[TEvent]):
     def elements(self, value: MessageChain):
         self._content = value
 
-    def __getattr__(self, item):
-        return getattr(self.account.protocol, item)
-
     async def _send(self, channel_id: str, message: str | Iterable[str | Element]):
-        msg = MessageChain(message)
-        sess = self.__class__(self.account, self.context)
-        sess.elements = msg
-        res = await es.post(SendRequest(sess, msg), SendRequest.__disp_name__)
-        if res and res.value is True:
-            return []
-        return await self.account.send_message(channel_id, sess.elements)
+        return await self.account.protocol.send_message(channel_id, message, self.context)
 
     async def send(
         self,
@@ -128,7 +189,7 @@ class Session(Generic[TEvent]):
     ) -> list[MessageReceipt]:
         if not self.context._origin.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self._send(self.context._origin.channel.id, message)
+        return await self.account.protocol.send_message(self.context._origin.channel.id, message, self.context)
 
     async def send_message(
         self,
@@ -141,7 +202,7 @@ class Session(Generic[TEvent]):
         """
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self._send(self.context.channel.id, message)
+        return await self.account.protocol.send_message(self.context.channel.id, message, self.context)
 
     async def send_private_message(
         self,
@@ -153,7 +214,7 @@ class Session(Generic[TEvent]):
             message: 要发送的消息
         """
         channel = await self.user_channel_create()
-        return await self._send(channel.id, message)
+        return await self.account.protocol.send_message(channel.id, message, self.context)
 
     async def update_message(
         self,
@@ -176,7 +237,7 @@ class Session(Generic[TEvent]):
     ) -> list[MessageReceipt]:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self._send(self.context.channel.id, content)
+        return await self.account.protocol.send_message(self.context.channel.id, content, self.context)
 
     async def message_delete(self) -> None:
         if not self.context.channel:

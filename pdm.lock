@@ -615,7 +615,7 @@ files = [
 
 [[package]]
 name = "satori-python-client"
-version = "0.15.0"
+version = "0.15.2"
 requires_python = ">=3.8"
 summary = "Satori Protocol SDK for python, specify client part"
 dependencies = [
@@ -625,13 +625,13 @@ dependencies = [
     "satori-python-core>=0.15.0",
 ]
 files = [
-    {file = "satori_python_client-0.15.0-py3-none-any.whl", hash = "sha256:c336283f99b2508dcacfe24b822fb93eb58798d6b81bc4325180b37d538f4203"},
-    {file = "satori_python_client-0.15.0.tar.gz", hash = "sha256:94dc7a697d76507bc41605f38201ac0217eef9a3179642a568f547b8b5707be1"},
+    {file = "satori_python_client-0.15.2-py3-none-any.whl", hash = "sha256:4498904b9e3a41816e1f703570388a6dc0a4786284a7ec2a5cdcf4de7cbeccf4"},
+    {file = "satori_python_client-0.15.2.tar.gz", hash = "sha256:b808dca2387ea44762fd740ea21842eadaacf591f2c68b77fc274afa1a16b25a"},
 ]
 
 [[package]]
 name = "satori-python-core"
-version = "0.15.0"
+version = "0.15.2"
 requires_python = ">=3.8"
 summary = "Satori Protocol SDK for python, specify common part"
 dependencies = [
@@ -640,8 +640,8 @@ dependencies = [
     "yarl>=1.9.4",
 ]
 files = [
-    {file = "satori_python_core-0.15.0-py3-none-any.whl", hash = "sha256:92d390aac0b8ec7cd24c81d19a747596dc319fe8d1b5485bd43170ff387623d8"},
-    {file = "satori_python_core-0.15.0.tar.gz", hash = "sha256:205f5a91b4d0cdcb7904deb0c14c547d2b35bea95c56e7bccab40cc1cf6c037a"},
+    {file = "satori_python_core-0.15.2-py3-none-any.whl", hash = "sha256:bd6a666a45e3ac4fbc1722899188dfa6b93ec9f50ac23fcee8a8617548e26acd"},
+    {file = "satori_python_core-0.15.2.tar.gz", hash = "sha256:b4ee6aed4a967550b8d05d3faddad2c489cba3102e258c427e15fc906e3b2d63"},
 ]
 
 [[package]]

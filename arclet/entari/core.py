@@ -6,7 +6,7 @@ import os
 
 from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, es, global_providers
 from creart import it
-from launart import Launart
+from launart import Launart, Service
 from loguru import logger
 from satori import LoginStatus
 from satori.client import App
@@ -19,14 +19,15 @@ from tarina.generic import get_origin
 from .command import _commands
 from .config import Config as EntariConfig
 from .event.protocol import MessageCreatedEvent, event_parse
+from .event.send import SendResponse
 from .plugin import load_plugin
 from .plugin.service import plugin_service
-from .session import Session
+from .session import Session, EntariProtocol
 
 
 class ApiProtocolProvider(Provider[ApiProtocol]):
     async def __call__(self, context: Contexts):
-        if account := context.get("$account"):
+        if account := context.get("account"):
             return account.protocol
 
 
@@ -37,11 +38,16 @@ class SessionProvider(Provider[Session]):
     async def __call__(self, context: Contexts):
         if "session" in context and isinstance(context["session"], Session):
             return context["session"]
-        if "$origin_event" in context and "$account" in context:
-            return Session(context["$account"], context["$event"])
+        if "$origin_event" in context and "account" in context:
+            return Session(context["account"], context["$event"])
 
 
-global_providers.extend([ApiProtocolProvider(), SessionProvider()])
+class AccountProvider(Provider[Account]):
+    async def __call__(self, context: Contexts):
+        return context["account"]
+
+
+global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
 
 
 class Entari(App):
@@ -62,13 +68,12 @@ class Entari(App):
                 configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
             elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
-        for plug, enable in config.basic.get("plugins", {}).items():
-            if enable:
-                load_plugin(plug)
+        for plug in config.plugin:
+            load_plugin(plug)
         return cls(*configs, ignore_self_message=ignore_self_message)
 
     def __init__(self, *configs: Config, ignore_self_message: bool = True):
-        super().__init__(*configs)
+        super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
         self.ignore_self_message = ignore_self_message
@@ -84,6 +89,17 @@ class Entari(App):
                 f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
                 f"({event.user.id}) -> {event.message.content!r}"
             )
+
+        @es.use(SendResponse.__disp_name__)
+        async def log_send(event: SendResponse):
+            if event.session:
+                logger.info(
+                    f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}"
+                )
+            else:
+                logger.info(
+                    f"[{event.channel}] <- {event.message!r}"
+                )
 
     def on(
         self,
@@ -130,3 +146,41 @@ class Entari(App):
     @classmethod
     def current(cls):
         return it(Launart).get_component(cls)
+
+
+class EntariProvider(Provider[Entari]):
+    priority = 1
+
+    async def __call__(self, context: Contexts):
+        return Entari.current()
+
+
+class LaunartProvider(Provider[Launart]):
+    priority = 10
+
+    async def __call__(self, context: Contexts):
+        return it(Launart)
+
+
+class ServiceProviderFactory(ProviderFactory):
+    priority = 10
+
+    class _Provider(Provider[Service]):
+        def __init__(self, origin: type[Service]):
+            super().__init__()
+            self.origin = origin
+
+        def validate(self, param: Param):
+            anno = get_origin(param.annotation)
+            return isinstance(anno, type) and issubclass(anno, self.origin)
+        
+        async def __call__(self, context: Contexts):
+            return it(Launart).get_component(self.origin)
+
+    def validate(self, param: Param):
+        anno = get_origin(param.annotation)
+        if isinstance(anno, type) and issubclass(anno, Service):
+            return self._Provider(anno)
+
+
+global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore

@@ -62,7 +62,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
         self.remove_tome = remove_tome
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
-        account: Account = interface.ctx["$account"]
+        account: Account = interface.ctx["account"]
         message: MessageChain = interface.ctx["$message_content"]
         if self.need_tome and not _is_tome(message, account):
             return False

@@ -38,6 +38,8 @@ class Config:
             def _updater(self: Config):
                 with self.path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
+                    if "entari" in data:
+                        data = data["entari"]
                     self.basic = data.get("basic", {})
                     self.plugin = data.get("plugins", {})
 
@@ -53,6 +55,8 @@ class Config:
             def _updater(self: Config):
                 with self.path.open("r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
+                    if "entari" in data:
+                        data = data["entari"]
                     self.basic = data.get("basic", {})
                     self.plugin = data.get("plugins", {})
 

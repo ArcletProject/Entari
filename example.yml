@@ -5,10 +5,8 @@ basic:
       port: 5140
       path: "satori"
   ignore_self_message: true
-  plugins:
-    ::auto_reload: true
-    ::echo: true
-    example_plugin: true
 plugins:
   ::auto_reload:
     watch_dirs: ["."]
+  ::echo: {}
+  example_plugin: {}

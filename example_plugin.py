@@ -81,5 +81,5 @@ print("example_plugin not in sys.modules (expect True):", "example_plugin" not i
 
 
 @plug.use("entari.event/before_send")
-async def send_hook(session: Session, message: MessageChain):
-    session.elements = message + "喵"
+async def send_hook(message: MessageChain):
+    return message + "喵"

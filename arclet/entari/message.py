@@ -51,7 +51,7 @@ class MessageChain(list[TE]):
         result: MessageChain = self.copy()
         if isinstance(other, str):
             if result and isinstance(text := result[-1], Text):
-                text.text += other
+                result[-1] = Text(text.text + other)
             else:
                 result.append(Text(other))
         elif isinstance(other, Element):

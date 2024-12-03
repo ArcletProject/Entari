@@ -62,17 +62,13 @@ class Event(BasedEvent):
         self._origin = origin
 
     async def gather(self, context: Contexts):
-        context["$account"] = self.account
+        context["account"] = self.account
         context["$origin_event"] = self._origin
 
         for name in self.__class__._attrs:
             value = getattr(self, name)
             if value is not None:
                 context["$message_origin" if name == "message" else name] = value
-
-    class AccountProvider(Provider[Account]):
-        async def __call__(self, context: Contexts):
-            return context["$account"]
 
     class TimeProvider(Provider[datetime]):
         async def __call__(self, context: Contexts):
