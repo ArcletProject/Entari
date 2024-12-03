@@ -4,10 +4,10 @@ from typing import Union
 
 from launart import Launart, Service, any_completed
 from launart.status import Phase
-from loguru import logger
 from watchfiles import PythonFilter, awatch
 
 from arclet.entari import Plugin, metadata
+from arclet.entari.logger import log
 from arclet.entari.plugin import dispose, find_plugin_by_file, load_plugin
 
 metadata(
@@ -15,6 +15,9 @@ metadata(
     author=["RF-Tar-Railt <rf_tar_railt@qq.com>"],
     description="Auto reload plugins when files changed",
 )
+
+
+logger = log.wrapper("[AutoReload]")
 
 
 class Watcher(Service):
@@ -36,14 +39,14 @@ class Watcher(Service):
         async for event in awatch(*self.dirs, watch_filter=PythonFilter()):
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
-                    logger.info(f"[AutoReload] Detected change in {plugin.id}, reloading...")
+                    logger("INFO", f"Detected change in {plugin.id}, reloading...")
                     pid = plugin.id
                     del plugin
                     dispose(pid)
                     if plugin := load_plugin(pid):
-                        logger.info(f"[AutoReload] Reloaded {plugin.id}")
+                        logger("INFO", f"Reloaded {plugin.id}")
                     else:
-                        logger.error(f"[AutoReload] Failed to reload {pid}")
+                        logger("ERROR",f"Failed to reload {pid}")
 
     async def launch(self, manager: Launart):
         async with self.stage("blocking"):

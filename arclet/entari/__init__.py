@@ -58,3 +58,5 @@ from .session import Session as Session
 
 WS = WebsocketsInfo
 WH = WebhookInfo
+
+__version__ = "0.8.2"

@@ -7,7 +7,6 @@ import os
 from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, es, global_providers
 from creart import it
 from launart import Launart, Service
-from loguru import logger
 from satori import LoginStatus
 from satori.client import App
 from satori.client.account import Account
@@ -23,6 +22,7 @@ from .event.send import SendResponse
 from .plugin import load_plugin
 from .plugin.service import plugin_service
 from .session import Session, EntariProtocol
+from .logger import log
 
 
 class ApiProtocolProvider(Provider[ApiProtocol]):
@@ -62,20 +62,29 @@ class Entari(App):
         if not config:
             config = EntariConfig.instance
         ignore_self_message = config.basic.get("ignore_self_message", True)
+        log_level = config.basic.get("log_level", "INFO")
         configs = []
         for conf in config.basic.get("network", []):
             if conf["type"] in ("websocket", "websockets", "ws"):
                 configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
             elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
-        for plug in config.plugin:
-            load_plugin(plug)
-        return cls(*configs, ignore_self_message=ignore_self_message)
+        return cls(*configs, log_level=log_level, ignore_self_message=ignore_self_message)
 
-    def __init__(self, *configs: Config, ignore_self_message: bool = True):
+    def __init__(
+        self,
+        *configs: Config,
+        log_level: str | int = "INFO",
+        ignore_self_message: bool = True
+    ):
+        from . import __version__
+        log.core.opt(colors=True).info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
+        log.set_level(log_level)
+        for plug in EntariConfig.instance.plugin:
+            load_plugin(plug)
         self.ignore_self_message = ignore_self_message
         es.register(_commands.publisher)
         self.register(self.handle_event)
@@ -83,8 +92,8 @@ class Entari(App):
         self._ref_tasks = set()
 
         @self.on_message(priority=0)
-        def log(event: MessageCreatedEvent):
-            logger.info(
+        def log_msg(event: MessageCreatedEvent):
+            log.message.info(
                 f"[{event.channel.name or event.channel.id}] "
                 f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
                 f"({event.user.id}) -> {event.message.content!r}"
@@ -93,11 +102,11 @@ class Entari(App):
         @es.use(SendResponse.__disp_name__)
         async def log_send(event: SendResponse):
             if event.session:
-                logger.info(
+                log.message.info(
                     f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}"
                 )
             else:
-                logger.info(
+                log.message.info(
                     f"[{event.channel}] <- {event.message!r}"
                 )
 
@@ -130,7 +139,7 @@ class Entari(App):
             es.publish(ev)
             return
 
-        logger.warning(f"received unsupported event {event.type}: {event}")
+        log.core.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
         _connected = []

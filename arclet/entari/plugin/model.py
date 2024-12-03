@@ -13,9 +13,9 @@ from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
-from loguru import logger
 from satori.client import Account
 
+from ..logger import log
 from .service import PluginLifecycleService, plugin_service
 
 if TYPE_CHECKING:
@@ -216,14 +216,14 @@ class Plugin:
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
-            logger.debug(f"disposing sub-plugin {', '.join(subplugs)} of {self.id}")
+            log.plugin.opt(colors=True).debug(f"disposing sub-plugin {', '.join(subplugs)} of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
                     continue
                 try:
                     plugin_service.plugins[subplug].dispose()
                 except Exception as e:
-                    logger.error(f"failed to dispose sub-plugin {subplug} caused by {e!r}")
+                    log.plugin.opt(colors=True).error(f"failed to dispose sub-plugin <y>{subplug}</y> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
         for disp in self.dispatchers.values():

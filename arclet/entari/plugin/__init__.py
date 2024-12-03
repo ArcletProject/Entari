@@ -4,10 +4,10 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from loguru import logger
 from tarina import init_spec
 
 from ..config import Config
+from ..logger import log
 from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError, _current_plugin
@@ -47,9 +47,9 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     try:
         mod = import_plugin(path, config=config)
         if not mod:
-            logger.error(f"cannot found plugin {path!r}")
+            log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")
             return
-        logger.success(f"loaded plugin {path!r}")
+        log.plugin.opt(colors=True).success(f"loaded plugin <blue>{path!r}</blue>")
         if mod.__name__ in plugin_service._unloaded:
             if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
                 referents = plugin_service._referents[mod.__name__].copy()
@@ -58,7 +58,7 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
                     if referent in recursive_guard:
                         continue
                     if referent in plugin_service.plugins:
-                        logger.debug(f"reloading {mod.__name__}'s referent {referent!r}")
+                        log.plugin.opt(colors=True).debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
                         dispose(referent)
                         if not load_plugin(referent):
                             plugin_service._referents[mod.__name__].add(referent)
@@ -67,9 +67,9 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
             plugin_service._unloaded.discard(mod.__name__)
         return mod.__plugin__
     except RegisterNotInPluginError as e:
-        logger.exception(f"{e.args[0]}", exc_info=e)
+        log.plugin.opt(colors=True).error(f"{e.args[0]}")
     except Exception as e:
-        logger.exception(f"failed to load plugin {path!r} caused by {e!r}", exc_info=e)
+        log.plugin.opt(colors=True).exception(f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e)
 
 
 def load_plugins(dir_: str | PathLike | Path):

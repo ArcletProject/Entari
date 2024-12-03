@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING
 
 from launart import Launart, Service, any_completed
 from launart.status import Phase
-from loguru import logger
+
+from ..logger import log
 
 if TYPE_CHECKING:
     from .model import KeepingVariable, Plugin
@@ -118,11 +119,11 @@ class PluginManagerService(Service):
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
             for plug_id in ids:
                 plug = self.plugins[plug_id]
-                logger.debug(f"disposing plugin {plug.id}")
+                log.plugin.opt(colors=True).debug(f"disposing plugin <y>{plug.id}</y>")
                 try:
                     plug.dispose()
                 except Exception as e:
-                    logger.error(f"failed to dispose plugin {plug.id} caused by {e!r}")
+                    log.plugin.opt(colors=True).error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")
                     self.plugins.pop(plug_id, None)
             for values in self._keep_values.values():
                 for value in values.values():
