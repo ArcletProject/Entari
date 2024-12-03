@@ -6,8 +6,8 @@ from typing import Generic, NoReturn, TypeVar, cast
 from arclet.letoderea import ParsingStop, StepOut, es
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
-from satori.element import Element
 from satori.const import Api
+from satori.element import Element
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
 from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
@@ -52,7 +52,9 @@ class EntariProtocol(ApiProtocol):
         channel = await self.user_channel_create(user_id=user_id)
         return await self.message_create(channel_id=channel.id, content=message, source=source)
 
-    async def message_create(self, channel_id: str, content: str | Iterable[str | Element], source: Event | None = None) -> list[MessageReceipt]:
+    async def message_create(
+        self, channel_id: str, content: str | Iterable[str | Element], source: Event | None = None
+    ) -> list[MessageReceipt]:
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:

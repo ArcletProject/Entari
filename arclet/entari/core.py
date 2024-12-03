@@ -19,10 +19,10 @@ from .command import _commands
 from .config import Config as EntariConfig
 from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
+from .logger import log
 from .plugin import load_plugin
 from .plugin.service import plugin_service
-from .session import Session, EntariProtocol
-from .logger import log
+from .session import EntariProtocol, Session
 
 
 class ApiProtocolProvider(Provider[ApiProtocol]):
@@ -71,13 +71,9 @@ class Entari(App):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
         return cls(*configs, log_level=log_level, ignore_self_message=ignore_self_message)
 
-    def __init__(
-        self,
-        *configs: Config,
-        log_level: str | int = "INFO",
-        ignore_self_message: bool = True
-    ):
+    def __init__(self, *configs: Config, log_level: str | int = "INFO", ignore_self_message: bool = True):
         from . import __version__
+
         log.core.opt(colors=True).info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
@@ -102,13 +98,9 @@ class Entari(App):
         @es.use(SendResponse.__disp_name__)
         async def log_send(event: SendResponse):
             if event.session:
-                log.message.info(
-                    f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}"
-                )
+                log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
             else:
-                log.message.info(
-                    f"[{event.channel}] <- {event.message!r}"
-                )
+                log.message.info(f"[{event.channel}] <- {event.message!r}")
 
     def on(
         self,
@@ -182,7 +174,7 @@ class ServiceProviderFactory(ProviderFactory):
         def validate(self, param: Param):
             anno = get_origin(param.annotation)
             return isinstance(anno, type) and issubclass(anno, self.origin)
-        
+
         async def __call__(self, context: Contexts):
             return it(Launart).get_component(self.origin)
 

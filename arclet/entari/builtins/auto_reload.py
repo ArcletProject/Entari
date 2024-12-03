@@ -46,7 +46,7 @@ class Watcher(Service):
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded {plugin.id}")
                     else:
-                        logger("ERROR",f"Failed to reload {pid}")
+                        logger("ERROR", f"Failed to reload {pid}")
 
     async def launch(self, manager: Launart):
         async with self.stage("blocking"):

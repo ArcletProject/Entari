@@ -58,7 +58,9 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
                     if referent in recursive_guard:
                         continue
                     if referent in plugin_service.plugins:
-                        log.plugin.opt(colors=True).debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
+                        log.plugin.opt(colors=True).debug(
+                            f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>"
+                        )
                         dispose(referent)
                         if not load_plugin(referent):
                             plugin_service._referents[mod.__name__].add(referent)
@@ -69,7 +71,9 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     except RegisterNotInPluginError as e:
         log.plugin.opt(colors=True).error(f"{e.args[0]}")
     except Exception as e:
-        log.plugin.opt(colors=True).exception(f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e)
+        log.plugin.opt(colors=True).exception(
+            f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e
+        )
 
 
 def load_plugins(dir_: str | PathLike | Path):

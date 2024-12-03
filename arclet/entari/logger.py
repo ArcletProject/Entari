@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import inspect
 import logging
 import sys
-from typing import Union, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -11,7 +13,7 @@ if TYPE_CHECKING:
 
 class LoggerManager:
     def __init__(self):
-        self.loggers: dict[str, "Logger"] = {}
+        self.loggers: dict[str, Logger] = {}
         self.fork("[core]")
         self.fork("[plugin]")
         self.fork("[message]")
@@ -39,15 +41,13 @@ class LoggerManager:
         patched = patched.bind(name=f"plugins.{name}")
         self.loggers[f"plugin.{name}"] = patched
 
-        def _log(level: str, message: str, exception: Optional[Exception] = None):
-            patched.opt(colors=True, exception=exception).log(
-                level, f"| <{color}>{name}</{color}> {message}"
-            )
+        def _log(level: str, message: str, exception: Exception | None = None):
+            patched.opt(colors=True, exception=exception).log(level, f"| <{color}>{name}</{color}> {message}")
 
         return _log
 
     @staticmethod
-    def set_level(level: Union[str, int]):
+    def set_level(level: str | int):
         if isinstance(level, str):
             level = level.upper()
         logging.basicConfig(
@@ -68,15 +68,11 @@ class LoguruHandler(logging.Handler):  # pragma: no cover
             level = record.levelno
 
         frame, depth = inspect.currentframe(), 0
-        while frame and (
-            depth == 0 or frame.f_code.co_filename == logging.__file__
-        ):
+        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
             frame = frame.f_back
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(
-            level, record.getMessage()
-        )
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
 logging.basicConfig(
@@ -88,9 +84,7 @@ logging.basicConfig(
 
 def default_filter(record):
     log_level = record["extra"].get("entari_log_level", "INFO")
-    levelno = (
-        logger.level(log_level).no if isinstance(log_level, str) else log_level
-    )
+    levelno = logger.level(log_level).no if isinstance(log_level, str) else log_level
     return record["level"].no >= levelno
 
 
