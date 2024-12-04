@@ -33,6 +33,7 @@ class Watcher(Service):
 
     def __init__(self, dirs: list[Union[str, Path]]):
         self.dirs = dirs
+        self.fail = {}
         super().__init__()
 
     async def watch(self):
@@ -47,6 +48,14 @@ class Watcher(Service):
                         logger("INFO", f"Reloaded {plugin.id}")
                     else:
                         logger("ERROR", f"Failed to reload {pid}")
+                        self.fail[change[1]] = pid
+                elif change[1] in self.fail:
+                    logger("INFO", f"Detected change in {change[1]} which failed to reload, retrying...")
+                    if plugin := load_plugin(self.fail[change[1]]):
+                        logger("INFO", f"Reloaded {plugin.id}")
+                        del self.fail[change[1]]
+                    else:
+                        logger("ERROR", f"Failed to reload {self.fail[change[1]]}")
 
     async def launch(self, manager: Launart):
         async with self.stage("blocking"):
