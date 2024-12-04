@@ -1,0 +1,83 @@
+{
+  "title": "Lang Schema",
+  "description": "Schema for lang file",
+  "type": "object",
+  "properties": {
+    "entari::plugin_inspect": {
+      "title": "Entari::plugin_inspect",
+      "description": "Scope 'entari::plugin_inspect' of lang item",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "description",
+          "description": "value of lang item type 'description'",
+          "type": "string"
+        },
+        "platform": {
+          "title": "platform",
+          "description": "value of lang item type 'platform'",
+          "type": "string"
+        },
+        "self": {
+          "title": "self",
+          "description": "value of lang item type 'self'",
+          "type": "string"
+        },
+        "scene": {
+          "title": "Scene",
+          "description": "Scope 'scene' of lang item",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "title": "name",
+              "description": "value of lang item type 'name'",
+              "type": "string"
+            },
+            "direct": {
+              "title": "direct",
+              "description": "value of lang item type 'direct'",
+              "type": "string"
+            },
+            "text": {
+              "title": "text",
+              "description": "value of lang item type 'text'",
+              "type": "string"
+            },
+            "voice": {
+              "title": "voice",
+              "description": "value of lang item type 'voice'",
+              "type": "string"
+            },
+            "category": {
+              "title": "category",
+              "description": "value of lang item type 'category'",
+              "type": "string"
+            }
+          }
+        },
+        "user": {
+          "title": "user",
+          "description": "value of lang item type 'user'",
+          "type": "string"
+        },
+        "channel": {
+          "title": "channel",
+          "description": "value of lang item type 'channel'",
+          "type": "string"
+        },
+        "guild": {
+          "title": "guild",
+          "description": "value of lang item type 'guild'",
+          "type": "string"
+        },
+        "invalid": {
+          "title": "invalid",
+          "description": "value of lang item type 'invalid'",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

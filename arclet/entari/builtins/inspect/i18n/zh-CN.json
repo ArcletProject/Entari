@@ -1,0 +1,19 @@
+{
+  "$schema": ".lang.schema.json",
+  "entari::plugin_inspect": {
+    "description": "查看用户、群组或频道的详细信息",
+    "platform": "平台名: {platform}",
+    "self": "自身ID: {self_id}",
+    "user": "用户ID: {user_id}",
+    "channel": "频道ID: {channel_id}",
+    "guild": "群组ID: {guild_id}",
+    "invalid": "参数无法解析。",
+    "scene": {
+      "name": "事件场景: {scene}",
+      "direct": "私聊",
+      "text": "群聊",
+      "category": "频道分类",
+      "voice": "语音频道"
+    }
+  }
+}

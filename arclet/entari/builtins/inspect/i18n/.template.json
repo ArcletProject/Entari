@@ -1,0 +1,27 @@
+{
+  "$schema": ".template.schema.json",
+  "scopes": [
+    {
+      "scope": "entari::plugin_inspect",
+      "types": [
+        "description",
+        "platform",
+        "self",
+        {
+          "subtype": "scene",
+          "types": [
+            "name",
+            "direct",
+            "text",
+            "voice",
+            "category"
+          ]
+        },
+        "user",
+        "channel",
+        "guild",
+        "invalid"
+      ]
+    }
+  ]
+}
