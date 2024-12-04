@@ -67,6 +67,7 @@ class Watcher(Service):
             )
             if sigexit_task in done:
                 watch_task.cancel()
+        self.fail.clear()
 
 
 plug = Plugin.current()

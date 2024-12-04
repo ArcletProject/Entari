@@ -71,10 +71,7 @@ class Entari(App):
             elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
         return cls(
-            *configs,
-            log_level=log_level,
-            ignore_self_message=ignore_self_message,
-            record_message=record_message
+            *configs, log_level=log_level, ignore_self_message=ignore_self_message, record_message=record_message
         )
 
     def __init__(
@@ -100,6 +97,7 @@ class Entari(App):
         self._ref_tasks = set()
 
         if record_message:
+
             @self.on_message(priority=0)
             async def log_msg(event: MessageCreatedEvent):
                 log.message.info(

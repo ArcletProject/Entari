@@ -191,7 +191,9 @@ class Plugin:
         if self.id not in plugin_service._referents:
             plugin_service._referents[self.id] = set()
         if self.id not in plugin_service._subplugined:
-            self._lifecycle = PluginLifecycleService(self.id, set(self._metadata.requirements if self._metadata else []))
+            self._lifecycle = PluginLifecycleService(
+                self.id, set(self._metadata.requirements if self._metadata else [])
+            )
             if plugin_service.status.blocking and (self._preparing or self._running or self._cleanup):
                 it(Launart).add_component(self._lifecycle)
         finalize(self, self.dispose)

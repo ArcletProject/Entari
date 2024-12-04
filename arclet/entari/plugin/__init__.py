@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from tarina import init_spec
 
