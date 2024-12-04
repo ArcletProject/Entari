@@ -16,7 +16,7 @@ from satori.model import Event
 from tarina.generic import get_origin
 
 from .command import _commands
-from .config import Config as EntariConfig
+from .config import EntariConfig
 from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
@@ -63,15 +63,27 @@ class Entari(App):
             config = EntariConfig.instance
         ignore_self_message = config.basic.get("ignore_self_message", True)
         log_level = config.basic.get("log_level", "INFO")
+        record_message = config.basic.get("record_message", False)
         configs = []
         for conf in config.basic.get("network", []):
             if conf["type"] in ("websocket", "websockets", "ws"):
                 configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
             elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
-        return cls(*configs, log_level=log_level, ignore_self_message=ignore_self_message)
+        return cls(
+            *configs,
+            log_level=log_level,
+            ignore_self_message=ignore_self_message,
+            record_message=record_message
+        )
 
-    def __init__(self, *configs: Config, log_level: str | int = "INFO", ignore_self_message: bool = True):
+    def __init__(
+        self,
+        *configs: Config,
+        log_level: str | int = "INFO",
+        ignore_self_message: bool = True,
+        record_message: bool = True,
+    ):
         from . import __version__
 
         log.core.opt(colors=True).info(f"Entari <b><c>version {__version__}</c></b>")
@@ -87,20 +99,21 @@ class Entari(App):
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
 
-        @self.on_message(priority=0)
-        def log_msg(event: MessageCreatedEvent):
-            log.message.info(
-                f"[{event.channel.name or event.channel.id}] "
-                f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
-                f"({event.user.id}) -> {event.message.content!r}"
-            )
+        if record_message:
+            @self.on_message(priority=0)
+            async def log_msg(event: MessageCreatedEvent):
+                log.message.info(
+                    f"[{event.channel.name or event.channel.id}] "
+                    f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
+                    f"({event.user.id}) -> {event.message.content!r}"
+                )
 
-        @es.use(SendResponse.__disp_name__)
-        async def log_send(event: SendResponse):
-            if event.session:
-                log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
-            else:
-                log.message.info(f"[{event.channel}] <- {event.message!r}")
+            @es.use(SendResponse.__publisher__)
+            async def log_send(event: SendResponse):
+                if event.session:
+                    log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
+                else:
+                    log.message.info(f"[{event.channel}] <- {event.message!r}")
 
     def on(
         self,

@@ -15,6 +15,30 @@
 
 ## 示例
 
+使用配置文件:
+```yaml
+# config.yml
+basic:
+  network:
+    - type: ws
+      port: 5140
+      path: satori
+  log_level: INFO
+plugin:
+  example_plugin: {}
+  ::echo: {}
+  ::auto_reload:
+    watch_dirs: ["plugins"]
+```
+
+```python
+from arclet.entari import Entari
+
+app = Entari.load("config.yml")
+app.run()
+```
+
+
 复读:
 
 ```python
@@ -75,26 +99,3 @@ load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
 app.run()
 ```
 
-使用配置文件:
-```yaml
-# config.yml
-basic:
-  network:
-    - type: ws
-      port: 5140
-      path: satori
-  plugins:
-    example_plugin: true
-    ::echo: true
-    ::auto_reload: true
-plugin:
-  ::auto_reload:
-    watch_dirs: ["plugins"]
-```
-
-```python
-from arclet.entari import Entari
-
-app = Entari.load("config.yml")
-app.run()
-```

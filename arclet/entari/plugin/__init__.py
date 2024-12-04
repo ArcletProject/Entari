@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Any
 
 from tarina import init_spec
 
-from ..config import Config
+from ..config import EntariConfig
 from ..logger import log
 from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
@@ -36,7 +36,12 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
         config (dict): 模块配置
         recursive_guard (set[str]): 递归保护
     """
-    config = config or Config.instance.plugin.get(path)
+    if config is None:
+        _config = EntariConfig.instance.plugin.get(path)
+        if isinstance(_config, dict):
+            config = _config.copy()
+        elif _config is False:
+            return
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.builtins.")
@@ -103,13 +108,10 @@ def metadata(data: PluginMetadata):
     plugin._metadata = data  # type: ignore
 
 
-def requirements(*reqs: str):
+def plugin_config() -> dict[str, Any]:
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
-    plugin.inject(*reqs)
-
-
-inject = requirements
+    return plugin.config
 
 
 def find_plugin(name: str) -> Plugin | None:

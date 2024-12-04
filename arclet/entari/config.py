@@ -8,13 +8,13 @@ from typing import Callable, ClassVar
 
 
 @dataclass
-class Config:
+class EntariConfig:
     path: Path
     basic: dict = field(default_factory=dict, init=False)
-    plugin: dict[str, dict] = field(default_factory=dict, init=False)
-    updater: Callable[[Config], None]
+    plugin: dict[str, dict | bool] = field(default_factory=dict, init=False)
+    updater: Callable[[EntariConfig], None]
 
-    instance: ClassVar[Config]
+    instance: ClassVar[EntariConfig]
 
     def __post_init__(self):
         self.__class__.instance = self
@@ -24,7 +24,7 @@ class Config:
         self.updater(self)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[str] | None = None) -> Config:
+    def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:
         if path is None:
             _path = Path.cwd() / ".entari.json"
         else:
@@ -35,7 +35,7 @@ class Config:
             raise ValueError(f"{_path} is not a file")
         if _path.suffix.startswith(".json"):
 
-            def _updater(self: Config):
+            def _updater(self: EntariConfig):
                 with self.path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
                     if "entari" in data:
@@ -52,7 +52,7 @@ class Config:
             except ImportError:
                 raise RuntimeError("yaml is not installed")
 
-            def _updater(self: Config):
+            def _updater(self: EntariConfig):
                 with self.path.open("r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     if "entari" in data:
@@ -64,4 +64,4 @@ class Config:
         raise NotImplementedError(f"unsupported config file format: {_path.suffix}")
 
 
-load_config = Config.load
+load_config = EntariConfig.load

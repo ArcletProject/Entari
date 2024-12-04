@@ -39,6 +39,8 @@ class PluginDispatcher:
         predicate: Callable[[BasedEvent], bool] | None = None,
         name: str | None = None,
     ):
+        if len(events) == 1:
+            name = getattr(events[0], "__publisher__", name)
         id_ = f"#{plugin.id}@{name or id(self)}"
         if name and name in es.publishers:
             self.publisher = es.publishers[name]
@@ -109,11 +111,12 @@ class PluginMetadata:
     description: str | None = None
     icon: str | None = None
     classifier: list[str] = field(default_factory=list)
+    requirements: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
+    config: Any | None = None
 
     # standards: list[str] = field(default_factory=list)
     # frameworks: list[str] = field(default_factory=list)
-    # config_endpoints: list[str] = field(default_factory=list)
     # component_endpoints: list[str] = field(default_factory=list)
 
 
@@ -128,7 +131,6 @@ class Plugin:
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
-    _requires: list[str] = field(default_factory=list)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
@@ -176,7 +178,8 @@ class Plugin:
         plugin = self
         while plugin.id in plugin_service._subplugined:
             plugin = plugin_service.plugins[plugin_service._subplugined[plugin.id]]
-        plugin._requires.extend(requires)
+        if plugin._metadata:
+            plugin._metadata.requirements.extend(requires)
         if plugin._lifecycle:
             plugin._lifecycle.requires.update(requires)
         return self
@@ -188,7 +191,7 @@ class Plugin:
         if self.id not in plugin_service._referents:
             plugin_service._referents[self.id] = set()
         if self.id not in plugin_service._subplugined:
-            self._lifecycle = PluginLifecycleService(self.id, set(self._requires))
+            self._lifecycle = PluginLifecycleService(self.id, set(self._metadata.requirements if self._metadata else []))
             if plugin_service.status.blocking and (self._preparing or self._running or self._cleanup):
                 it(Launart).add_component(self._lifecycle)
         finalize(self, self.dispose)

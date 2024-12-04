@@ -6,9 +6,9 @@ from launart import Launart, Service, any_completed
 from launart.status import Phase
 from watchfiles import PythonFilter, awatch
 
-from arclet.entari import Plugin, metadata
+from arclet.entari import Plugin, dispose_plugin, load_plugin, metadata
 from arclet.entari.logger import log
-from arclet.entari.plugin import dispose, find_plugin_by_file, load_plugin
+from arclet.entari.plugin import find_plugin_by_file
 
 metadata(
     "AutoReload",
@@ -42,7 +42,7 @@ class Watcher(Service):
                     logger("INFO", f"Detected change in {plugin.id}, reloading...")
                     pid = plugin.id
                     del plugin
-                    dispose(pid)
+                    dispose_plugin(pid)
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded {plugin.id}")
                     else:

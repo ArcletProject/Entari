@@ -50,9 +50,9 @@ class SendResponse(BasedEvent):
         if self.session:
             context["session"] = self.session
 
-    __disp_name__ = "entari.event/send"
+    __publisher__ = "entari.event/send"
 
 
-send_pub = es.define(SendResponse.__disp_name__, SendResponse)
+send_pub = es.define(SendResponse.__publisher__, SendResponse)
 send_pub.bind(provide(MessageChain, target="message"))
 send_pub.bind(provide(list, target="result"))
