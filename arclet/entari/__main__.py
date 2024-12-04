@@ -1,4 +1,4 @@
-from arclet.alconna import Alconna, Args, CommandMeta, Option
+from arclet.alconna import Alconna, Args, CommandMeta, Option, command_manager
 from arclet.alconna.tools.formatter import RichConsoleFormatter
 
 from arclet.entari import Entari
@@ -17,5 +17,6 @@ def main():
     res = alc()
     if not res.matched:
         return
+    command_manager.delete(alc)
     entari = Entari.load(res.query[str]("config.path", None))
     entari.run()
