@@ -22,8 +22,9 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         command: Alconna,
         need_tome: bool = False,
         remove_tome: bool = True,
+        use_config_prefix: bool = True,
     ):
-        self.supplier = AlconnaSuppiler(command, need_tome, remove_tome)
+        self.supplier = AlconnaSuppiler(command, need_tome, remove_tome, use_config_prefix)
         super().__init__(plugin, MessageCreatedEvent)
 
         self.publisher.bind(MessageJudger(), self.supplier)
@@ -55,7 +56,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
         _auxiliaries = auxiliaries or []
-        _auxiliaries.append(ExecuteSuppiler(self.supplier.cmd))
+        _auxiliaries.append(ExecuteSuppiler(self.supplier.cmd, self.supplier.use_config_prefix))
 
         def wrapper(func):
             sub = execute_handles.register(func, priority=priority, auxiliaries=_auxiliaries, providers=providers)
@@ -68,10 +69,15 @@ class AlconnaPluginDispatcher(PluginDispatcher):
     Query = Query
 
 
-def mount(cmd: Alconna, need_tome: bool = False, remove_tome: bool = True) -> AlconnaPluginDispatcher:
+def mount(
+    cmd: Alconna,
+    need_tome: bool = False,
+    remove_tome: bool = True,
+    use_config_prefix: bool = True,
+) -> AlconnaPluginDispatcher:
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
-    disp = AlconnaPluginDispatcher(plugin, cmd, need_tome, remove_tome)
+    disp = AlconnaPluginDispatcher(plugin, cmd, need_tome, remove_tome, use_config_prefix)
     if disp.publisher.id in plugin.dispatchers:
         return plugin.dispatchers[disp.id]  # type: ignore
     plugin.dispatchers[disp.publisher.id] = disp

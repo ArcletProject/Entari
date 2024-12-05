@@ -1,4 +1,3 @@
-from copy import deepcopy
 import inspect
 from typing import Any, Literal, Optional, Union, get_args
 
@@ -11,6 +10,7 @@ from satori.client import Account
 from satori.element import At, Text
 from tarina.generic import get_origin
 
+from ..config import EntariConfig
 from ..message import MessageChain
 from .model import CommandResult, Match, Query
 
@@ -25,7 +25,7 @@ def _is_tome(message: MessageChain, account: Account):
 
 def _remove_tome(message: MessageChain, account: Account):
     if _is_tome(message, account):
-        message = deepcopy(message)
+        message = message.copy()
         message.pop(0)
         if message and isinstance(message[0], Text):
             text = message[0].text.lstrip()  # type: ignore
@@ -35,6 +35,19 @@ def _remove_tome(message: MessageChain, account: Account):
                 message[0] = Text(text)
         return message
     return message
+
+
+def _remove_config_prefix(message: MessageChain):
+    if not (command_prefix := EntariConfig.instance.basic.get("command_prefix", [])):
+        return message
+    if message and isinstance(message[0], Text):
+        text = message[0].text  # type: ignore
+        for prefix in command_prefix:
+            if text.startswith(prefix):
+                message = message.copy()
+                message[0] = Text(text[len(prefix) :])
+                return message
+    return MessageChain()
 
 
 class MessageJudger(JudgeAuxiliary):
@@ -55,11 +68,12 @@ class AlconnaSuppiler(SupplyAuxiliary):
     need_tome: bool
     remove_tome: bool
 
-    def __init__(self, cmd: Alconna, need_tome: bool, remove_tome: bool):
+    def __init__(self, cmd: Alconna, need_tome: bool, remove_tome: bool, use_config_prefix: bool = True):
         super().__init__(priority=2)
         self.cmd = cmd
         self.need_tome = need_tome
         self.remove_tome = remove_tome
+        self.use_config_prefix = use_config_prefix
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
         account: Account = interface.ctx["account"]
@@ -70,6 +84,8 @@ class AlconnaSuppiler(SupplyAuxiliary):
             output_manager.set_action(lambda x: x, self.cmd.name)
             if self.remove_tome:
                 message = _remove_tome(message, account)
+            if self.use_config_prefix and not (message := _remove_config_prefix(message)):
+                return False
             try:
                 _res = self.cmd.parse(message)
             except Exception as e:
@@ -92,12 +108,15 @@ class AlconnaSuppiler(SupplyAuxiliary):
 
 
 class ExecuteSuppiler(SupplyAuxiliary):
-    def __init__(self, cmd: Alconna):
+    def __init__(self, cmd: Alconna, use_config_prefix: bool = True):
         self.cmd = cmd
+        self.use_config_prefix = use_config_prefix
         super().__init__(priority=1)
 
     async def __call__(self, scope: Scope, interface: Interface):
         message = interface.query(MessageChain, "command")
+        if self.use_config_prefix and not (message := _remove_config_prefix(message)):
+            return False
         with output_manager.capture(self.cmd.name) as cap:
             output_manager.set_action(lambda x: x, self.cmd.name)
             try:

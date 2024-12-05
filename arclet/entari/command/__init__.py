@@ -27,12 +27,13 @@ T = TypeVar("T")
 class EntariCommands:
     __namespace__ = "Entari"
 
-    def __init__(self, need_tome: bool = False, remove_tome: bool = True):
+    def __init__(self, need_tome: bool = False, remove_tome: bool = True, use_config_prefix: bool = True):
         self.trie: CharTrie[Subscriber] = CharTrie()
         self.publisher = Publisher("entari.command", MessageCreatedEvent)
         self.publisher.bind(AlconnaProviderFactory())
         self.need_tome = need_tome
         self.remove_tome = remove_tome
+        self.use_config_prefix = use_config_prefix
         config.namespaces["Entari"] = Namespace(
             self.__namespace__,
             to_text=lambda x: x.text if x.__class__ is Text else None,
@@ -102,14 +103,17 @@ class EntariCommands:
         self,
         command: str,
         help_text: Optional[str] = None,
-        need_tome: bool = False,
-        remove_tome: bool = True,
+        need_tome: Optional[bool] = None,
+        remove_tome: Optional[bool] = None,
+        use_config_prefix: Optional[bool] = None,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TTarget[T]) -> Subscriber[T]:
-                return self.on(_cmd_self.build(), need_tome, remove_tome, auxiliaries, providers)(func)
+                return self.on(_cmd_self.build(), need_tome, remove_tome, use_config_prefix, auxiliaries, providers)(
+                    func
+                )
 
         return Command(command, help_text)
 
@@ -117,8 +121,9 @@ class EntariCommands:
     def on(
         self,
         command: Alconna,
-        need_tome: bool = False,
-        remove_tome: bool = True,
+        need_tome: Optional[bool] = None,
+        remove_tome: Optional[bool] = None,
+        use_config_prefix: Optional[bool] = None,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ) -> Callable[[TTarget[T]], Subscriber[T]]: ...
@@ -127,8 +132,9 @@ class EntariCommands:
     def on(
         self,
         command: str,
-        need_tome: bool = False,
-        remove_tome: bool = True,
+        need_tome: Optional[bool] = None,
+        remove_tome: Optional[bool] = None,
+        use_config_prefix: Optional[bool] = None,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
@@ -139,8 +145,9 @@ class EntariCommands:
     def on(
         self,
         command: Union[Alconna, str],
-        need_tome: bool = False,
-        remove_tome: bool = True,
+        need_tome: Optional[bool] = None,
+        remove_tome: Optional[bool] = None,
+        use_config_prefix: Optional[bool] = None,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
@@ -160,7 +167,13 @@ class EntariCommands:
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
                 auxiliaries.insert(
-                    0, AlconnaSuppiler(_command, need_tome or self.need_tome, remove_tome or self.remove_tome)
+                    0,
+                    AlconnaSuppiler(
+                        _command,
+                        self.need_tome if need_tome is None else need_tome,
+                        self.remove_tome if remove_tome is None else remove_tome,
+                        self.use_config_prefix if use_config_prefix is None else use_config_prefix,
+                    ),
                 )
                 target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
                 self.publisher.remove_subscriber(target)
@@ -203,9 +216,10 @@ class EntariCommands:
 _commands = EntariCommands()
 
 
-def config_commands(need_tome: bool = False, remove_tome: bool = True):
+def config_commands(need_tome: bool = False, remove_tome: bool = True, use_config_prefix: bool = True):
     _commands.need_tome = need_tome
     _commands.remove_tome = remove_tome
+    _commands.use_config_prefix = use_config_prefix
 
 
 command = _commands.command

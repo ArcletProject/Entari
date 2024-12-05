@@ -4,13 +4,21 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
-from typing import Callable, ClassVar
+from typing import Any, Callable, ClassVar, TypedDict
+
+
+class BasicConfig(TypedDict, total=False):
+    network: list[dict[str, Any]]
+    ignore_self_message: bool
+    record_message: bool
+    log_level: int | str
+    command_prefix: list[str]
 
 
 @dataclass
 class EntariConfig:
     path: Path
-    basic: dict = field(default_factory=dict, init=False)
+    basic: BasicConfig = field(default_factory=dict, init=False)  # type: ignore
     plugin: dict[str, dict | bool] = field(default_factory=dict, init=False)
     updater: Callable[[EntariConfig], None]
 
