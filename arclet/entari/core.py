@@ -17,6 +17,7 @@ from tarina.generic import get_origin
 
 from .command import _commands
 from .config import EntariConfig
+from .event.config import ConfigReload
 from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
@@ -48,6 +49,29 @@ class AccountProvider(Provider[Account]):
 
 
 global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
+
+
+def record():
+    @es.on(MessageCreatedEvent, priority=0)
+    async def log_msg(event: MessageCreatedEvent):
+        log.message.info(
+            f"[{event.channel.name or event.channel.id}] "
+            f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
+            f"({event.user.id}) -> {event.message.content!r}"
+        )
+
+    @es.use(SendResponse.__publisher__)
+    async def log_send(event: SendResponse):
+        if event.session:
+            log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
+        else:
+            log.message.info(f"[{event.channel}] <- {event.message!r}")
+
+    def dispose():
+        log_msg.dispose()
+        log_send.dispose()
+
+    return dispose
 
 
 class Entari(App):
@@ -88,6 +112,7 @@ class Entari(App):
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
         log.set_level(log_level)
+        log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
         for plug in EntariConfig.instance.plugin:
             load_plugin(plug)
         self.ignore_self_message = ignore_self_message
@@ -97,21 +122,37 @@ class Entari(App):
         self._ref_tasks = set()
 
         if record_message:
+            dispose = record()
+        else:
+            dispose = None
 
-            @self.on_message(priority=0)
-            async def log_msg(event: MessageCreatedEvent):
-                log.message.info(
-                    f"[{event.channel.name or event.channel.id}] "
-                    f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
-                    f"({event.user.id}) -> {event.message.content!r}"
-                )
-
-            @es.use(SendResponse.__publisher__)
-            async def log_send(event: SendResponse):
-                if event.session:
-                    log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
-                else:
-                    log.message.info(f"[{event.channel}] <- {event.message!r}")
+        @es.on(ConfigReload)
+        def reset_self(scope, key, value):
+            nonlocal dispose
+            if scope != "basic":
+                return
+            if key == "log_level":
+                log.set_level(value)
+                log.core.opt(colors=True).debug(f"Log level set to <y><c>{value}</c></y>")
+            elif key == "ignore_self_message":
+                self.ignore_self_message = value
+            elif key == "record_message":
+                if value and not dispose:
+                    dispose = record()
+                elif not value and dispose:
+                    dispose()
+                    dispose = None
+            elif key == "network":
+                for conn in self.connections:
+                    it(Launart).remove_component(conn)
+                self.connections.clear()
+                for conf in value:
+                    if conf["type"] in ("websocket", "websockets", "ws"):
+                        self.apply(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
+                    elif conf["type"] in ("webhook", "wh", "http"):
+                        self.apply(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
+                for conn in self.connections:
+                    it(Launart).add_component(conn)
 
     def on(
         self,

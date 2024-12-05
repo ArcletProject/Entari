@@ -26,11 +26,11 @@ class SendRequest(BasedEvent):
         if self.session:
             context["session"] = self.session
 
-    __disp_name__ = "entari.event/before_send"
+    __publisher__ = "entari.event/before_send"
     __result_type__: "type[bool | MessageChain]" = Union[bool, MessageChain]
 
 
-before_send_pub = es.define(SendRequest.__disp_name__, SendRequest)
+before_send_pub = es.define(SendRequest.__publisher__, SendRequest)
 before_send_pub.bind(provide(MessageChain, target="message"))
 
 

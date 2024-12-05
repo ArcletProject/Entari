@@ -70,7 +70,7 @@ class EntariProtocol(ApiProtocol):
         if source:
             sess = Session(self.account, source)
             sess.elements = msg
-        res = await es.post(SendRequest(self.account, channel_id, msg, sess), SendRequest.__disp_name__)
+        res = await es.post(SendRequest(self.account, channel_id, msg, sess))
         if res and res.value:
             value = res.value
             if value is True:

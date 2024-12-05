@@ -21,8 +21,8 @@ class CommandExecute(BasedEvent):
         async def __call__(self, context: Contexts):
             return context.get("command")
 
-    __disp_name__ = "entari.event/command_execute"
+    __publisher__ = "entari.event/command_execute"
     __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
 
 
-pub = es.define(CommandExecute.__disp_name__, CommandExecute)
+pub = es.define(CommandExecute.__publisher__, CommandExecute)

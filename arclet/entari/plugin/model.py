@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from weakref import finalize, proxy
 
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher, StepOut, Subscriber, es
+from arclet.letoderea.publisher import Publishable
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
@@ -248,7 +249,7 @@ class Plugin:
 
     def use(
         self,
-        pub_id: str,
+        pub_id: str | type[Publishable],
         *,
         priority: int = 16,
         auxiliaries: list[BaseAuxiliary] | None = None,
@@ -256,10 +257,14 @@ class Plugin:
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
     ) -> Callable[[Callable[..., Any]], Subscriber]:
-        if pub_id not in es.publishers:
-            raise LookupError(f"no publisher found: {pub_id}")
-        if not (disp := self.dispatchers.get(pub_id)):
-            disp = PluginDispatcher(self, name=pub_id)
+        if isinstance(pub_id, str):
+            pid = pub_id
+        else:
+            pid = getattr(pub_id, "__publisher__")
+        if pid not in es.publishers:
+            raise LookupError(f"no publisher found: {pid}")
+        if not (disp := self.dispatchers.get(pid)):
+            disp = PluginDispatcher(self, name=pid)
             self.dispatchers[disp.publisher.id] = disp
         return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)
 

@@ -174,15 +174,15 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.12.1"
+version = "0.12.2"
 requires_python = ">=3.9"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 dependencies = [
     "tarina>=0.6.7",
 ]
 files = [
-    {file = "arclet_letoderea-0.12.1-py3-none-any.whl", hash = "sha256:3520543398531b08ada2a2c741fd4a5df7e26617d33b053fbbf0d9023fb928d5"},
-    {file = "arclet_letoderea-0.12.1.tar.gz", hash = "sha256:d656cf1e4dfe2fda62a8999f015132af98dd402b83c82618c2123ceb95bcfc84"},
+    {file = "arclet_letoderea-0.12.2-py3-none-any.whl", hash = "sha256:bc8adaf16dba2c25037d40ae1cc9f5f94cbd43a7cf41669bd815a8450f66c33b"},
+    {file = "arclet_letoderea-0.12.2.tar.gz", hash = "sha256:7347b60bbdb913c65f5ea5282cb23f4c54793e2c1e66dccec5f58c1125732159"},
 ]
 
 [[package]]

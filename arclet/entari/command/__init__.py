@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Callable, Optional, TypeVar, Union, cast, overload
+from typing import Callable, Optional, TypeVar, Union, cast, overload
 
 from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, Namespace, command_manager, config, output_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
@@ -7,6 +7,7 @@ from arclet.alconna.typing import TAValue
 from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Scope, Subscriber, es
 from arclet.letoderea.handler import depend_handler
 from arclet.letoderea.provider import ProviderFactory
+from arclet.letoderea.typing import TTarget
 from nepattern import DirectPattern
 from satori.element import At, Text
 from tarina.string import split
@@ -21,7 +22,6 @@ from .plugin import mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudger, get_cmd
 
 T = TypeVar("T")
-TCallable = TypeVar("TCallable", bound=Callable[..., Any])
 
 
 class EntariCommands:
@@ -30,7 +30,7 @@ class EntariCommands:
     def __init__(self, need_tome: bool = False, remove_tome: bool = True):
         self.trie: CharTrie[Subscriber] = CharTrie()
         self.publisher = Publisher("entari.command", MessageCreatedEvent)
-        self.publisher.providers.append(AlconnaProviderFactory())
+        self.publisher.bind(AlconnaProviderFactory())
         self.need_tome = need_tome
         self.remove_tome = remove_tome
         config.namespaces["Entari"] = Namespace(
@@ -39,7 +39,7 @@ class EntariCommands:
             converter=lambda x: MessageChain(x),
         )
 
-        @self.publisher.register(auxiliaries=[MessageJudger()])
+        @es.on(MessageCreatedEvent, auxiliaries=[MessageJudger()])
         async def listener(event: MessageCreatedEvent):
             msg = str(event.content.exclude(At)).lstrip()
             if not msg:
@@ -108,7 +108,7 @@ class EntariCommands:
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
-            def __call__(_cmd_self, func: TCallable) -> TCallable:
+            def __call__(_cmd_self, func: TTarget[T]) -> Subscriber[T]:
                 return self.on(_cmd_self.build(), need_tome, remove_tome, auxiliaries, providers)(func)
 
         return Command(command, help_text)
@@ -121,7 +121,7 @@ class EntariCommands:
         remove_tome: bool = True,
         auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-    ) -> Callable[[TCallable], TCallable]: ...
+    ) -> Callable[[TTarget[T]], Subscriber[T]]: ...
 
     @overload
     def on(
@@ -134,7 +134,7 @@ class EntariCommands:
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
-    ) -> Callable[[TCallable], TCallable]: ...
+    ) -> Callable[[TTarget[T]], Subscriber[T]]: ...
 
     def on(
         self,
@@ -146,11 +146,11 @@ class EntariCommands:
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
-    ) -> Callable[[TCallable], TCallable]:
+    ) -> Callable[[TTarget[T]], Subscriber[T]]:
         auxiliaries = auxiliaries or []
         providers = providers or []
 
-        def wrapper(func: TCallable) -> TCallable:
+        def wrapper(func: TTarget[T]) -> Subscriber[T]:
             if isinstance(command, str):
                 mapping = {arg.name: arg.value for arg in Args.from_callable(func)[0]}
                 mapping.update(args or {})  # type: ignore
@@ -165,6 +165,11 @@ class EntariCommands:
                 target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
                 self.publisher.remove_subscriber(target)
                 self.trie[key] = target
+
+                def _remove(_):
+                    self.trie.pop(key, None)  # type: ignore
+
+                target._dispose = _remove
             else:
                 auxiliaries.insert(
                     0, AlconnaSuppiler(command, need_tome or self.need_tome, remove_tome or self.remove_tome)
@@ -173,16 +178,24 @@ class EntariCommands:
                 self.publisher.remove_subscriber(target)
                 if not isinstance(command.command, str):
                     raise TypeError("Command name must be a string.")
+                keys = []
                 if not command.prefixes:
                     self.trie[command.command] = target
+                    keys.append(command.command)
                 elif not all(isinstance(i, str) for i in command.prefixes):
                     raise TypeError("Command prefixes must be a list of string.")
                 else:
-                    self.publisher.remove_subscriber(target)
                     for prefix in cast(list[str], command.prefixes):
                         self.trie[prefix + command.command] = target
+                        keys.append(prefix + command.command)
+
+                def _remove(_):
+                    for key in keys:
+                        self.trie.pop(key, None)  # type: ignore
+
+                target._dispose = _remove
                 command.reset_namespace(self.__namespace__)
-            return func
+            return target
 
         return wrapper
 
@@ -200,7 +213,7 @@ on = _commands.on
 
 
 async def execute(message: Union[str, MessageChain]):
-    res = await es.post(CommandExecute(message), CommandExecute.__disp_name__)
+    res = await es.post(CommandExecute(message))
     if res:
         return res.value
 
