@@ -43,6 +43,8 @@ def _remove_config_prefix(message: MessageChain):
     if message and isinstance(message[0], Text):
         text = message[0].text  # type: ignore
         for prefix in command_prefix:
+            if not prefix:
+                return message
             if text.startswith(prefix):
                 message = message.copy()
                 message[0] = Text(text[len(prefix) :])

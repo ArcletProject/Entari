@@ -33,7 +33,12 @@ class EntariConfig:
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:
         if path is None:
-            _path = Path.cwd() / ".entari.json"
+            try:
+                import yaml
+
+                _path = Path.cwd() / "entari.yml"
+            except ImportError:
+                _path = Path.cwd() / ".entari.json"
         else:
             _path = Path(path)
         if not _path.exists():
