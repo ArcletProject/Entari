@@ -8,7 +8,7 @@ from ..event.lifespan import Cleanup, Ready, Startup
 from ..logger import log
 
 if TYPE_CHECKING:
-    from .model import RootlessPlugin, KeepingVariable, Plugin
+    from .model import KeepingVariable, Plugin, RootlessPlugin
 
 
 class PluginManagerService(Service):

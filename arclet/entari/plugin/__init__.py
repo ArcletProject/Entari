@@ -8,10 +8,11 @@ from tarina import init_spec
 
 from ..config import EntariConfig
 from ..logger import log
-from .model import RootlessPlugin as RootlessPlugin
 from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
-from .model import RegisterNotInPluginError, _current_plugin
+from .model import RegisterNotInPluginError
+from .model import RootlessPlugin as RootlessPlugin
+from .model import _current_plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
