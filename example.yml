@@ -4,7 +4,6 @@ basic:
       host: "127.0.0.1"
       port: 5140
       path: "satori"
-  record_message: true
   ignore_self_message: true
   log_level: "info"
 plugins:
@@ -12,3 +11,4 @@ plugins:
     watch_dirs: ["."]
   ::echo: true
   example_plugin: true
+  /record_message: true

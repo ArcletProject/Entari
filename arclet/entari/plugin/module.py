@@ -231,18 +231,16 @@ class PluginLoader(SourceFileLoader):
         setattr(module, "__getattr_or_import__", getattr_or_import)
 
         # enter plugin context
-        _plugin_token = _current_plugin.set(plugin)
-
-        try:
-            super().exec_module(module)
-        except Exception:
-            plugin.dispose()
-            raise
-        finally:
-            # leave plugin context
-            delattr(module, "__cached__")
-            sys.modules.pop(module.__name__, None)
-            _current_plugin.reset(_plugin_token)
+        with _current_plugin.use(plugin):
+            try:
+                super().exec_module(module)
+            except Exception:
+                plugin.dispose()
+                raise
+            finally:
+                # leave plugin context
+                delattr(module, "__cached__")
+                sys.modules.pop(module.__name__, None)
 
         # get plugin metadata
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 import os
 
@@ -18,10 +17,12 @@ from tarina.generic import get_origin
 from .command import _commands
 from .config import EntariConfig
 from .event.config import ConfigReload
+from .event.lifespan import AccountUpdate
 from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
-from .plugin import load_plugin
+from .plugin import load_plugin, plugin_config
+from .plugin.model import RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -51,8 +52,11 @@ class AccountProvider(Provider[Account]):
 global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
 
 
-def record():
-    @es.on(MessageCreatedEvent, priority=0)
+@RootlessPlugin.apply("record_message")
+def record(plg: RootlessPlugin):
+    cfg = plugin_config()
+
+    @plg.dispatch(MessageCreatedEvent).on(priority=0)
     async def log_msg(event: MessageCreatedEvent):
         log.message.info(
             f"[{event.channel.name or event.channel.id}] "
@@ -60,18 +64,14 @@ def record():
             f"({event.user.id}) -> {event.message.content!r}"
         )
 
-    @es.use(SendResponse.__publisher__)
-    async def log_send(event: SendResponse):
-        if event.session:
-            log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
-        else:
-            log.message.info(f"[{event.channel}] <- {event.message!r}")
+    if cfg.get("record_send", True):
 
-    def dispose():
-        log_msg.dispose()
-        log_send.dispose()
-
-    return dispose
+        @plg.use(SendResponse)
+        async def log_send(event: SendResponse):
+            if event.session:
+                log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
+            else:
+                log.message.info(f"[{event.channel}] <- {event.message!r}")
 
 
 class Entari(App):
@@ -87,7 +87,6 @@ class Entari(App):
             config = EntariConfig.instance
         ignore_self_message = config.basic.get("ignore_self_message", True)
         log_level = config.basic.get("log_level", "INFO")
-        record_message = config.basic.get("record_message", False)
         configs = []
         for conf in config.basic.get("network", []):
             if conf["type"] in ("websocket", "websockets", "ws"):
@@ -95,7 +94,9 @@ class Entari(App):
             elif conf["type"] in ("webhook", "wh", "http"):
                 configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
         return cls(
-            *configs, log_level=log_level, ignore_self_message=ignore_self_message, record_message=record_message
+            *configs,
+            log_level=log_level,
+            ignore_self_message=ignore_self_message,
         )
 
     def __init__(
@@ -103,7 +104,6 @@ class Entari(App):
         *configs: Config,
         log_level: str | int = "INFO",
         ignore_self_message: bool = True,
-        record_message: bool = True,
     ):
         from . import __version__
 
@@ -121,38 +121,27 @@ class Entari(App):
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
 
-        if record_message:
-            dispose = record()
-        else:
-            dispose = None
+        es.on(ConfigReload, self.reset_self)
 
-        @es.on(ConfigReload)
-        def reset_self(scope, key, value):
-            nonlocal dispose
-            if scope != "basic":
-                return
-            if key == "log_level":
-                log.set_level(value)
-                log.core.opt(colors=True).debug(f"Log level set to <y><c>{value}</c></y>")
-            elif key == "ignore_self_message":
-                self.ignore_self_message = value
-            elif key == "record_message":
-                if value and not dispose:
-                    dispose = record()
-                elif not value and dispose:
-                    dispose()
-                    dispose = None
-            elif key == "network":
-                for conn in self.connections:
-                    it(Launart).remove_component(conn)
-                self.connections.clear()
-                for conf in value:
-                    if conf["type"] in ("websocket", "websockets", "ws"):
-                        self.apply(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
-                    elif conf["type"] in ("webhook", "wh", "http"):
-                        self.apply(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
-                for conn in self.connections:
-                    it(Launart).add_component(conn)
+    def reset_self(self, scope, key, value):
+        if scope != "basic":
+            return
+        if key == "log_level":
+            log.set_level(value)
+            log.core.opt(colors=True).debug(f"Log level set to <y><c>{value}</c></y>")
+        elif key == "ignore_self_message":
+            self.ignore_self_message = value
+        elif key == "network":
+            for conn in self.connections:
+                it(Launart).remove_component(conn)
+            self.connections.clear()
+            for conf in value:
+                if conf["type"] in ("websocket", "websockets", "ws"):
+                    self.apply(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
+                elif conf["type"] in ("webhook", "wh", "http"):
+                    self.apply(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
+            for conn in self.connections:
+                it(Launart).add_component(conn)
 
     def on(
         self,
@@ -186,15 +175,7 @@ class Entari(App):
         log.core.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
-        _connected = []
-        _disconnected = []
-        for plug in plugin_service.plugins.values():
-            _connected.extend([func(account) for func in plug._connected])
-            _disconnected.extend([func(account) for func in plug._disconnected])
-        if state == LoginStatus.CONNECT:
-            await asyncio.gather(*_connected, return_exceptions=True)
-        elif state == LoginStatus.DISCONNECT:
-            await asyncio.gather(*_disconnected, return_exceptions=True)
+        es.publish(AccountUpdate(account, state))
 
     @classmethod
     def current(cls):

@@ -38,7 +38,7 @@ def _remove_tome(message: MessageChain, account: Account):
 
 
 def _remove_config_prefix(message: MessageChain):
-    if not (command_prefix := EntariConfig.instance.basic.get("command_prefix", [])):
+    if not (command_prefix := EntariConfig.instance.basic.get("prefix", [])):
         return message
     if message and isinstance(message[0], Text):
         text = message[0].text  # type: ignore
@@ -69,7 +69,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
     remove_tome: bool
 
     def __init__(self, cmd: Alconna, need_tome: bool, remove_tome: bool, use_config_prefix: bool = True):
-        super().__init__(priority=2)
+        super().__init__(priority=40)
         self.cmd = cmd
         self.need_tome = need_tome
         self.remove_tome = remove_tome

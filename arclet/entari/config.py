@@ -10,9 +10,8 @@ from typing import Any, Callable, ClassVar, TypedDict
 class BasicConfig(TypedDict, total=False):
     network: list[dict[str, Any]]
     ignore_self_message: bool
-    record_message: bool
     log_level: int | str
-    command_prefix: list[str]
+    prefix: list[str]
 
 
 @dataclass

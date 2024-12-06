@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Sequence
-from contextvars import ContextVar
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 from weakref import finalize, proxy
 
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher, StepOut, Subscriber, es
@@ -14,15 +13,15 @@ from arclet.letoderea.publisher import Publishable
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
-from satori.client import Account
+from tarina import ContextModel
 
 from ..logger import log
-from .service import PluginLifecycleService, plugin_service
+from .service import plugin_service
 
 if TYPE_CHECKING:
     from ..event.base import BasedEvent
 
-_current_plugin: ContextVar[Plugin] = ContextVar("_current_plugin")
+_current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -121,10 +120,6 @@ class PluginMetadata:
     # component_endpoints: list[str] = field(default_factory=list)
 
 
-_Lifespan = Callable[..., Awaitable[Any]]
-_AccountUpdate = Callable[[Account], Awaitable[Any]]
-
-
 @dataclass
 class Plugin:
     id: str
@@ -135,34 +130,11 @@ class Plugin:
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
-    _preparing: list[_Lifespan] = field(init=False, default_factory=list)
-    _cleanup: list[_Lifespan] = field(init=False, default_factory=list)
-    _running: list[_Lifespan] = field(init=False, default_factory=list)
-    _connected: list[_AccountUpdate] = field(init=False, default_factory=list)
-    _disconnected: list[_AccountUpdate] = field(init=False, default_factory=list)
-
-    _lifecycle: PluginLifecycleService | None = field(init=False, default=None)
     _services: dict[str, Service] = field(init=False, default_factory=dict)
 
-    def on_prepare(self, func: _Lifespan):
-        self._preparing.append(func)
-        return func
-
-    def on_running(self, func: _Lifespan):
-        self._running.append(func)
-        return func
-
-    def on_cleanup(self, func: _Lifespan):
-        self._cleanup.append(func)
-        return func
-
-    def on_connect(self, func: _AccountUpdate):
-        self._connected.append(func)
-        return func
-
-    def on_disconnect(self, func: _AccountUpdate):
-        self._disconnected.append(func)
-        return func
+    @property
+    def available(self) -> bool:
+        return not self._is_disposed
 
     @staticmethod
     def current() -> Plugin:
@@ -181,8 +153,6 @@ class Plugin:
             plugin = plugin_service.plugins[plugin_service._subplugined[plugin.id]]
         if plugin._metadata:
             plugin._metadata.requirements.extend(requires)
-        if plugin._lifecycle:
-            plugin._lifecycle.requires.update(requires)
         return self
 
     def __post_init__(self):
@@ -191,12 +161,6 @@ class Plugin:
             plugin_service._keep_values[self.id] = {}
         if self.id not in plugin_service._referents:
             plugin_service._referents[self.id] = set()
-        if self.id not in plugin_service._subplugined:
-            self._lifecycle = PluginLifecycleService(
-                self.id, set(self._metadata.requirements if self._metadata else [])
-            )
-            if plugin_service.status.blocking and (self._preparing or self._running or self._cleanup):
-                it(Launart).add_component(self._lifecycle)
         finalize(self, self.dispose)
 
     def dispose(self):
@@ -204,8 +168,6 @@ class Plugin:
         if self._is_disposed:
             return
         self._is_disposed = True
-        if self._lifecycle and self._lifecycle.status.prepared:
-            it(Launart).remove_component(self._lifecycle)
         for serv in self._services.values():
             try:
                 it(Launart).remove_component(serv)
@@ -247,6 +209,7 @@ class Plugin:
         self.dispatchers[disp.publisher.id] = disp
         return disp
 
+    @overload
     def use(
         self,
         pub_id: str | type[Publishable],
@@ -256,9 +219,34 @@ class Plugin:
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
-    ) -> Callable[[Callable[..., Any]], Subscriber]:
+    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
+
+    @overload
+    def use(
+        self,
+        pub_id: str | type[Publishable],
+        func: Callable[..., Any],
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ) -> Subscriber: ...
+
+    def use(
+        self,
+        pub_id: str | type[Publishable],
+        func: Callable[..., Any] | None = None,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ):
         if isinstance(pub_id, str):
-            pid = pub_id
+            pid = pub_id.replace("::", "entari.event/")
         else:
             pid = getattr(pub_id, "__publisher__")
         if pid not in es.publishers:
@@ -266,6 +254,8 @@ class Plugin:
         if not (disp := self.dispatchers.get(pid)):
             disp = PluginDispatcher(self, name=pid)
             self.dispatchers[disp.publisher.id] = disp
+        if func:
+            return disp.register(func=func, priority=priority, auxiliaries=auxiliaries, providers=providers)
         return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)
 
     def validate(self, func):
@@ -292,6 +282,34 @@ class Plugin:
         if plugin_service.status.blocking:
             it(Launart).add_component(serv)
         return serv
+
+
+class RootlessPlugin(Plugin):
+    @classmethod
+    def apply(cls, id: str):
+        if not id.startswith("/"):
+            id = f"/{id}"
+
+        def dispose():
+            if id in plugin_service.plugins:
+                plugin_service.plugins[id].dispose()
+
+        def wrapper(func: Callable[[RootlessPlugin], Any]):
+            plugin_service._apply[id] = lambda config: cls(id, func, config)
+            return dispose
+
+        return wrapper
+
+    def __init__(self, id: str, func: Callable[[RootlessPlugin], Any], config: dict):
+        super().__init__(id, ModuleType(id), config=config)
+        setattr(self.module, "__plugin__", self)
+        setattr(self.module, "__file__", func.__code__.co_filename)
+        self.func = func
+        with _current_plugin.use(self):
+            func(self)
+
+    def validate(self, func):
+        pass
 
 
 class KeepingVariable:

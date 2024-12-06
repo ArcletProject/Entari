@@ -17,12 +17,12 @@ metadata(__file__)
 plug = Plugin.current()
 
 
-@plug.on_prepare
+@plug.use("::startup")
 async def prepare():
     print("example: Preparing")
 
 
-@plug.on_cleanup
+@plug.use("::cleanup")
 async def cleanup():
     print("example: Cleanup")
 
@@ -80,6 +80,6 @@ print(Plugin.current().subplugins)
 print("example_plugin not in sys.modules (expect True):", "example_plugin" not in sys.modules)
 
 
-@plug.use("entari.event/before_send")
+@plug.use("::before_send")
 async def send_hook(message: MessageChain):
     return message + "喵"

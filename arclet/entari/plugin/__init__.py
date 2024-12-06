@@ -8,6 +8,7 @@ from tarina import init_spec
 
 from ..config import EntariConfig
 from ..logger import log
+from .model import RootlessPlugin as RootlessPlugin
 from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError, _current_plugin
@@ -49,6 +50,8 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
         path = plugin_service._subplugined[path]
     if path in plugin_service.plugins:
         return plugin_service.plugins[path]
+    if path in plugin_service._apply:
+        return plugin_service._apply[path](config or {})
     try:
         mod = import_plugin(path, config=config)
         if not mod:

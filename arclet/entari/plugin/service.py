@@ -1,81 +1,14 @@
-import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
-from launart import Launart, Service, any_completed
+from arclet.letoderea import es
+from launart import Launart, Service
 from launart.status import Phase
 
+from ..event.lifespan import Cleanup, Ready, Startup
 from ..logger import log
 
 if TYPE_CHECKING:
-    from .model import KeepingVariable, Plugin
-
-
-class PluginLifecycleService(Service):
-    @property
-    def id(self) -> str:
-        return f"{self.plugin_id}.lifecycle"
-
-    @property
-    def required(self) -> set[str]:
-        return {"entari.plugin.manager", *self.requires}
-
-    @property
-    def stages(self) -> set[Phase]:
-        return {"preparing", "cleanup", "blocking"}
-
-    def __init__(self, plugin_id: str, requires: set[str]):
-        super().__init__()
-        self.plugin_id = plugin_id
-        self.requires = requires
-
-    @property
-    def available(self) -> bool:
-        return bool(plug := plugin_service.plugins.get(self.plugin_id)) and bool(
-            plug._preparing or plug._running or plug._cleanup
-        )
-
-    @staticmethod
-    def iter_preparing(plug: "Plugin"):
-        yield from plug._preparing
-        for subplug in plug.subplugins:
-            yield from PluginLifecycleService.iter_preparing(plugin_service.plugins[subplug])
-
-    @staticmethod
-    def iter_cleanup(plug: "Plugin"):
-        yield from plug._cleanup
-        for subplug in plug.subplugins:
-            yield from PluginLifecycleService.iter_cleanup(plugin_service.plugins[subplug])
-
-    @staticmethod
-    def iter_running(plug: "Plugin"):
-        yield from plug._running
-        for subplug in plug.subplugins:
-            yield from PluginLifecycleService.iter_running(plugin_service.plugins[subplug])
-
-    async def launch(self, manager: Launart):
-        plug = plugin_service.plugins[self.plugin_id]
-
-        async with self.stage("preparing"):
-            await asyncio.gather(
-                *[func() for func in PluginLifecycleService.iter_preparing(plug)], return_exceptions=True
-            )
-        async with self.stage("blocking"):
-            sigexit_task = asyncio.create_task(manager.status.wait_for_sigexit())
-            running_tasks = [asyncio.create_task(func()) for func in PluginLifecycleService.iter_running(plug)]  # type: ignore
-            done, pending = await any_completed(
-                sigexit_task,
-                *running_tasks,
-            )
-            if sigexit_task in done:
-                for task in pending:
-                    task.cancel()
-                    await task
-        async with self.stage("cleanup"):
-            await asyncio.gather(
-                *[func() for func in PluginLifecycleService.iter_cleanup(plug)], return_exceptions=True
-            )
-
-        del plug
+    from .model import RootlessPlugin, KeepingVariable, Plugin
 
 
 class PluginManagerService(Service):
@@ -86,6 +19,7 @@ class PluginManagerService(Service):
     _referents: dict[str, set[str]]
     _unloaded: set[str]
     _subplugined: dict[str, str]
+    _apply: dict[str, Callable[[dict[str, Any]], "RootlessPlugin"]]
 
     def __init__(self):
         super().__init__()
@@ -94,6 +28,7 @@ class PluginManagerService(Service):
         self._referents = {}
         self._unloaded = set()
         self._subplugined = {}
+        self._apply = {}
 
     @property
     def required(self) -> set[str]:
@@ -106,16 +41,16 @@ class PluginManagerService(Service):
     async def launch(self, manager: Launart):
 
         for plug in self.plugins.values():
-            if plug._lifecycle and plug._lifecycle.available:
-                manager.add_component(plug._lifecycle)
             for serv in plug._services.values():
                 manager.add_component(serv)
 
         async with self.stage("preparing"):
-            pass
+            await es.publish(Startup())
         async with self.stage("blocking"):
+            await es.publish(Ready())
             await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):
+            await es.publish(Cleanup())
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
             for plug_id in ids:
                 plug = self.plugins[plug_id]
