@@ -124,6 +124,7 @@ class PluginMetadata:
 class Plugin:
     id: str
     module: ModuleType
+
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
@@ -287,8 +288,8 @@ class Plugin:
 class RootlessPlugin(Plugin):
     @classmethod
     def apply(cls, id: str):
-        if not id.startswith("/"):
-            id = f"/{id}"
+        if not id.startswith("~"):
+            id = f"~{id}"
 
         def dispose():
             if id in plugin_service.plugins:

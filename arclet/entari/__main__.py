@@ -9,7 +9,7 @@ from arclet.entari import Entari
 alc = Alconna(
     "entari",
     Subcommand("new", help_text="新建一个 Entari 配置文件"),
-    Option("-c|--config", Args["path", str], help_text="指定配置文件路径"),
+    Option("-c|--config", Args["path/", str], help_text="指定配置文件路径"),
     meta=CommandMeta(
         "Entari App Launcher",
     ),
@@ -33,7 +33,7 @@ JSON_TEMPLATE = """\
     "prefix": ["/"]
   },
   "plugins": {
-    "/record_message": true,
+    "~record_message": true,
     "::auto_reload": {
         "watch_dirs": ["."]
     },
@@ -55,7 +55,7 @@ basic:
   log_level: "info"
   prefix: ["/"]
 plugins:
-  /record_message: true
+  ~record_message: true
   ::auto_reload:
     watch_dirs: ["."]
   ::echo: true

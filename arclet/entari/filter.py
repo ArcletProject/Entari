@@ -11,7 +11,7 @@ class UserFilter(JudgeAuxiliary):
         super().__init__()
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (user := interface.query(User, "user", force_return=True)):
+        if not (user := await interface.query(User, "user", force_return=True)):
             return False
         return user.id in self.user_ids
 
@@ -30,7 +30,7 @@ class GuildFilter(JudgeAuxiliary):
         super().__init__()
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (guild := interface.query(Guild, "guild", force_return=True)):
+        if not (guild := await interface.query(Guild, "guild", force_return=True)):
             return False
         return guild.id in self.guild_ids
 
@@ -49,7 +49,7 @@ class ChannelFilter(JudgeAuxiliary):
         super().__init__()
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (channel := interface.query(Channel, "channel", force_return=True)):
+        if not (channel := await interface.query(Channel, "channel", force_return=True)):
             return False
         return channel.id in self.channel_ids
 
@@ -68,7 +68,7 @@ class SelfFilter(JudgeAuxiliary):
         super().__init__()
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (account := interface.query(Account, "account", force_return=True)):
+        if not (account := await interface.query(Account, "account", force_return=True)):
             return False
         return account.self_id in self.self_ids
 
@@ -87,7 +87,7 @@ class PlatformFilter(JudgeAuxiliary):
         super().__init__()
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (account := interface.query(Account, "account", force_return=True)):
+        if not (account := await interface.query(Account, "account", force_return=True)):
             return False
         return account.platform in self.platforms
 
@@ -102,7 +102,7 @@ class PlatformFilter(JudgeAuxiliary):
 
 class DirectMessageJudger(JudgeAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (channel := interface.query(Channel, "channel", force_return=True)):
+        if not (channel := await interface.query(Channel, "channel", force_return=True)):
             return False
         return channel.type == ChannelType.DIRECT
 
@@ -120,7 +120,7 @@ is_direct_message = DirectMessageJudger()
 
 class PublicMessageJudger(JudgeAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        if not (channel := interface.query(Channel, "channel", force_return=True)):
+        if not (channel := await interface.query(Channel, "channel", force_return=True)):
             return False
         return channel.type != ChannelType.DIRECT
 

@@ -9,7 +9,7 @@ from ..event import MessageCreatedEvent
 from ..event.command import pub as execute_handles
 from ..plugin.model import Plugin, PluginDispatcher
 from .model import Match, Query
-from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, ExecuteSuppiler, MessageJudger, _seminal
+from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudges, _seminal
 
 execute_handles.bind(AlconnaProviderFactory())
 
@@ -24,10 +24,10 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         remove_tome: bool = True,
         use_config_prefix: bool = True,
     ):
-        self.supplier = AlconnaSuppiler(command, need_tome, remove_tome, use_config_prefix)
+        self.supplier = AlconnaSuppiler(command)
         super().__init__(plugin, MessageCreatedEvent)
 
-        self.publisher.bind(MessageJudger(), self.supplier)
+        self.publisher.bind(MessageJudges(need_tome, remove_tome, use_config_prefix), self.supplier)
         self.publisher.bind(AlconnaProviderFactory())
 
     def assign(
@@ -56,7 +56,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
         _auxiliaries = auxiliaries or []
-        _auxiliaries.append(ExecuteSuppiler(self.supplier.cmd, self.supplier.use_config_prefix))
+        _auxiliaries.append(self.supplier)
 
         def wrapper(func):
             sub = execute_handles.register(func, priority=priority, auxiliaries=_auxiliaries, providers=providers)

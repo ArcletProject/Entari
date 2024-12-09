@@ -12,12 +12,11 @@ metadata(
     description="Inspect on any user, group or channel",
 )
 
-cmd = command.mount(
-    Alconna(
-        "inspect",
-        Args["target?", [At, Sharp]],
-        meta=CommandMeta(Lang.entari_plugin_inspect.description(), example="inspect @user\ninspect #channel\ninspect"),
-    )
+
+inspect_cmd = Alconna(
+    "inspect",
+    Args["target?", [At, Sharp]],
+    meta=CommandMeta(Lang.entari_plugin_inspect.description(), example="inspect @user\ninspect #channel\ninspect"),
 )
 
 
@@ -29,7 +28,7 @@ SceneNames = {
 }
 
 
-@cmd.handle()
+@command.on(inspect_cmd)
 async def inspect(session: Session[MessageEvent], target: Match["At | Sharp"]):
     event = session.context
     texts = [

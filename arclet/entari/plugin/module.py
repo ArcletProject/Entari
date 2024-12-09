@@ -80,11 +80,11 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
     return import_module(name, plugin_name)
 
 
-def getattr_or_import(module, name):
+def getattr_or_import(module, name, ensure_plugin: bool = False):
     try:
         return getattr(module, name)
     except AttributeError:
-        return __entari_import__(f".{name}", module.__name__, True)
+        return __entari_import__(f".{name}", module.__name__, ensure_plugin)
 
 
 class PluginLoader(SourceFileLoader):
@@ -159,7 +159,7 @@ class PluginLoader(SourceFileLoader):
                         new = ast.parse(
                             f"__mod = __entari_import__('{relative}', {name!r}, {body.level == 1});"
                             + ";".join(
-                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r})"
+                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r}, True)"
                                 for alias in body.names
                             )
                             + ";del __mod"
@@ -183,7 +183,7 @@ class PluginLoader(SourceFileLoader):
                         new = ast.parse(
                             f"__mod = __entari_import__('{relative}{body.module}', {name!r}, {body.level == 1});"
                             + ";".join(
-                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r})"
+                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r}, True)"
                                 for alias in body.names
                             )
                             + ";del __mod"

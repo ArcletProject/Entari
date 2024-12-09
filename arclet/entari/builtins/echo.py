@@ -10,7 +10,7 @@ metadata(
 )
 
 
-cmd = command.mount(Alconna("echo", Args["content?", AllParam], meta=CommandMeta(compact=True)))
+cmd = command.mount(Alconna("echo", Args["content?", AllParam], meta=CommandMeta("显示消息", compact=True)))
 
 
 @cmd.handle

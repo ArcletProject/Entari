@@ -54,24 +54,24 @@ async def _(event: MessageCreatedEvent):
 
 
 @command.on("add {a} {b}")
-async def add(a: int, b: int, session: Session):
-    await session.send_message(f"{a + b =}")
+def add(a: int, b: int):
+    return f"{a + b =}?"
 
 
 kept_data = keeping("foo", [], lambda x: x.clear())
 
 
 @command.on("append {data}")
-async def append(data: str, session: Session):
+def append(data: str):
     kept_data.append(data)
-    await session.send_message(f"Appended {data}")
+    return f"Appended {data}"
 
 
 @command.on("show")
 async def show(session: Session):
     res = await command.execute("echo 123")
     await session.send_message(f"Echo Result: {res}")
-    await session.send_message(f"Data: {kept_data}")
+    return f"Data: {kept_data}"
 
 TEST = 5
 

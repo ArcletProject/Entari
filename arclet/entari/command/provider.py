@@ -12,6 +12,7 @@ from tarina.generic import get_origin
 
 from ..config import EntariConfig
 from ..message import MessageChain
+from ..session import Session
 from .model import CommandResult, Match, Query
 
 
@@ -52,9 +53,27 @@ def _remove_config_prefix(message: MessageChain):
     return MessageChain()
 
 
-class MessageJudger(JudgeAuxiliary):
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        return "$message_content" in interface.ctx
+class MessageJudges(JudgeAuxiliary):
+    def __init__(self, need_tome: bool, remove_tome: bool, use_config_prefix: bool):
+        super().__init__(priority=10)
+        self.need_tome = need_tome
+        self.remove_tome = remove_tome
+        self.use_config_prefix = use_config_prefix
+
+    async def __call__(self, scope: Scope, interface: Interface):
+        if "$message_content" in interface.ctx:
+            message: MessageChain = interface.ctx["$message_content"]
+            account = await interface.query(Account, "account", force_return=True)
+            if not account:
+                return False
+            if self.need_tome and not _is_tome(message, account):
+                return False
+            if self.remove_tome:
+                message = _remove_tome(message, account)
+            if self.use_config_prefix and not (message := _remove_config_prefix(message)):
+                return False
+            return interface.update(**{"$message_content": message})
+        return (await interface.query(MessageChain, "message", force_return=True)) is not None
 
     @property
     def scopes(self) -> set[Scope]:
@@ -62,32 +81,23 @@ class MessageJudger(JudgeAuxiliary):
 
     @property
     def id(self) -> str:
-        return "entari.command/message_judger"
+        return "entari.command/message_judges"
 
 
 class AlconnaSuppiler(SupplyAuxiliary):
     cmd: Alconna
-    need_tome: bool
-    remove_tome: bool
 
-    def __init__(self, cmd: Alconna, need_tome: bool, remove_tome: bool, use_config_prefix: bool = True):
+    def __init__(self, cmd: Alconna):
         super().__init__(priority=40)
         self.cmd = cmd
-        self.need_tome = need_tome
-        self.remove_tome = remove_tome
-        self.use_config_prefix = use_config_prefix
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
-        account: Account = interface.ctx["account"]
-        message: MessageChain = interface.ctx["$message_content"]
-        if self.need_tome and not _is_tome(message, account):
+        message = await interface.query(MessageChain, "message", force_return=True)
+        if not message:
             return False
+        session = await interface.query(Session, "session", force_return=True)
         with output_manager.capture(self.cmd.name) as cap:
             output_manager.set_action(lambda x: x, self.cmd.name)
-            if self.remove_tome:
-                message = _remove_tome(message, account)
-            if self.use_config_prefix and not (message := _remove_config_prefix(message)):
-                return False
             try:
                 _res = self.cmd.parse(message)
             except Exception as e:
@@ -96,8 +106,10 @@ class AlconnaSuppiler(SupplyAuxiliary):
         if _res.matched:
             return interface.update(alc_result=CommandResult(self.cmd, _res, may_help_text))
         elif may_help_text:
-            await account.send(interface.event, MessageChain(may_help_text))
-            return False
+            if session:
+                await session.send(MessageChain(may_help_text))
+                return False
+            return interface.update(alc_result=CommandResult(self.cmd, _res, may_help_text))
         return False
 
     @property
@@ -106,36 +118,7 @@ class AlconnaSuppiler(SupplyAuxiliary):
 
     @property
     def id(self) -> str:
-        return "entari.command/common_supplier"
-
-
-class ExecuteSuppiler(SupplyAuxiliary):
-    def __init__(self, cmd: Alconna, use_config_prefix: bool = True):
-        self.cmd = cmd
-        self.use_config_prefix = use_config_prefix
-        super().__init__(priority=1)
-
-    async def __call__(self, scope: Scope, interface: Interface):
-        message = interface.query(MessageChain, "command")
-        if self.use_config_prefix and not (message := _remove_config_prefix(message)):
-            return False
-        with output_manager.capture(self.cmd.name) as cap:
-            output_manager.set_action(lambda x: x, self.cmd.name)
-            try:
-                _res = self.cmd.parse(message)
-            except Exception as e:
-                _res = Arparma(self.cmd._hash, message, False, error_info=e)
-            may_help_text: Optional[str] = cap.get("output", None)
-        result = CommandResult(self.cmd, _res, may_help_text)
-        return interface.update(alc_result=result)
-
-    @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
-
-    @property
-    def id(self) -> str:
-        return "entari.command/execute_supplier"
+        return "entari.command/supplier"
 
 
 class AlconnaProvider(Provider[Any]):
@@ -185,7 +168,7 @@ class Assign(JudgeAuxiliary):
         self.or_not = or_not
 
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        result = interface.query(CommandResult, "alc_result", force_return=True)
+        result = await interface.query(CommandResult, "alc_result", force_return=True)
         if result is None:
             return False
         if self.value == _seminal:

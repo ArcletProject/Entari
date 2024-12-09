@@ -116,12 +116,12 @@ class Entari(App):
         for plug in EntariConfig.instance.plugin:
             load_plugin(plug)
         self.ignore_self_message = ignore_self_message
-        es.register(_commands.publisher)
         self.register(self.handle_event)
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
 
         es.on(ConfigReload, self.reset_self)
+        es.on(MessageCreatedEvent, _commands.execute, auxiliaries=[_commands.judge])
 
     def reset_self(self, scope, key, value):
         if scope != "basic":
