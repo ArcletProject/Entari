@@ -6,36 +6,13 @@ from arclet.alconna.builtin import generate_duplication
 from arclet.letoderea import Contexts, Interface, JudgeAuxiliary, Param, Provider, Scope, Subscriber, SupplyAuxiliary
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
-from satori.client import Account
-from satori.element import At, Text
+from satori.element import Text
 from tarina.generic import get_origin
 
 from ..config import EntariConfig
 from ..message import MessageChain
 from ..session import Session
 from .model import CommandResult, Match, Query
-
-
-def _is_tome(message: MessageChain, account: Account):
-    if message and isinstance(message[0], At):
-        at: At = message[0]  # type: ignore
-        if at.id and at.id == account.self_id:
-            return True
-    return False
-
-
-def _remove_tome(message: MessageChain, account: Account):
-    if _is_tome(message, account):
-        message = message.copy()
-        message.pop(0)
-        if message and isinstance(message[0], Text):
-            text = message[0].text.lstrip()  # type: ignore
-            if not text:
-                message.pop(0)
-            else:
-                message[0] = Text(text)
-        return message
-    return message
 
 
 def _remove_config_prefix(message: MessageChain):
@@ -54,22 +31,21 @@ def _remove_config_prefix(message: MessageChain):
 
 
 class MessageJudges(JudgeAuxiliary):
-    def __init__(self, need_tome: bool, remove_tome: bool, use_config_prefix: bool):
+    def __init__(self, need_reply_me: bool, need_notice_me: bool, use_config_prefix: bool):
         super().__init__(priority=10)
-        self.need_tome = need_tome
-        self.remove_tome = remove_tome
+        self.need_reply_me = need_reply_me
+        self.need_notice_me = need_notice_me
         self.use_config_prefix = use_config_prefix
 
     async def __call__(self, scope: Scope, interface: Interface):
         if "$message_content" in interface.ctx:
             message: MessageChain = interface.ctx["$message_content"]
-            account = await interface.query(Account, "account", force_return=True)
-            if not account:
+            is_reply_me = interface.ctx.get("is_reply_me", False)
+            is_notice_me = interface.ctx.get("is_notice_me", False)
+            if self.need_reply_me and not is_reply_me:
                 return False
-            if self.need_tome and not _is_tome(message, account):
+            if self.need_notice_me and not is_notice_me:
                 return False
-            if self.remove_tome:
-                message = _remove_tome(message, account)
             if self.use_config_prefix and not (message := _remove_config_prefix(message)):
                 return False
             return interface.update(**{"$message_content": message})

@@ -6,7 +6,8 @@ from arclet.entari import (
     MessageCreatedEvent,
     Plugin,
     command,
-    is_public_message,
+    public_message,
+    to_me,
     bind,
     metadata,
     keeping,
@@ -31,7 +32,7 @@ disp_message = MessageCreatedEvent.dispatch()
 
 
 @disp_message
-@bind(is_public_message)
+@bind(public_message)
 async def _(msg: MessageChain, session: Session):
     content = msg.extract_plain_text()
     if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
@@ -41,21 +42,14 @@ async def _(msg: MessageChain, session: Session):
 disp_message1 = plug.dispatch(MessageCreatedEvent)
 
 
-from satori import select, Author
-
-
-@disp_message1.on(auxiliaries=[is_public_message])
+@disp_message1.on(auxiliaries=[public_message, to_me])
 async def _(event: MessageCreatedEvent):
-    if event.quote and (authors := select(event.quote, Author)):
-        author = authors[0]
-        reply_self = author.id == event.account.self_id
-        print(reply_self)
-        print(event.content)
+    print(event.content)
 
 
 @command.on("add {a} {b}")
 def add(a: int, b: int):
-    return f"{a + b =}?"
+    return f"{a + b =}"
 
 
 kept_data = keeping("foo", [], lambda x: x.clear())

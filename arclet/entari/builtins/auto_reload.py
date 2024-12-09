@@ -48,11 +48,15 @@ class Watcher(Service):
                         logger("DEBUG", f"Detected change in <blue>{plugin.id!r}</blue>, ignored")
                         continue
                     logger("INFO", f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
+                    await plugin._cleanup()
                     pid = plugin.id
                     del plugin
                     dispose_plugin(pid)
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
+                        plugin._load()
+                        await plugin._startup()
+                        await plugin._ready()
                         del plugin
                     else:
                         logger("ERROR", f"Failed to reload <blue>{pid!r}</blue>")
@@ -61,6 +65,10 @@ class Watcher(Service):
                     logger("INFO", f"Detected change in {change[1]!r} which failed to reload, retrying...")
                     if plugin := load_plugin(self.fail[change[1]]):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
+                        plugin._load()
+                        await plugin._startup()
+                        await plugin._ready()
+                        del plugin
                         del self.fail[change[1]]
                     else:
                         logger("ERROR", f"Failed to reload <blue>{self.fail[change[1]]!r}</blue>")
@@ -93,7 +101,9 @@ class Watcher(Service):
                     if (
                         plugin_name not in EntariConfig.instance.plugin
                         or EntariConfig.instance.plugin[plugin_name] is False
-                    ):
+                    ) and (plugin := find_plugin(pid)):
+                        await plugin._cleanup()
+                        del plugin
                         dispose_plugin(pid)
                         logger("INFO", f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
@@ -112,8 +122,12 @@ class Watcher(Service):
                         if plugin := find_plugin(pid):
                             logger("INFO", f"Detected <blue>{pid!r}</blue>'s config change, reloading...")
                             plugin_file = str(plugin.module.__file__)
+                            await plugin._cleanup()
                             dispose_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name):
+                                plugin._load()
+                                await plugin._startup()
+                                await plugin._ready()
                                 logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin
                             else:
@@ -124,7 +138,12 @@ class Watcher(Service):
                             load_plugin(plugin_name)
                 if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
                     for plugin_name in new:
-                        load_plugin(plugin_name)
+                        if not (plugin := load_plugin(plugin_name)):
+                            continue
+                        plugin._load()
+                        await plugin._startup()
+                        await plugin._ready()
+                        del plugin
 
     async def launch(self, manager: Launart):
         async with self.stage("blocking"):

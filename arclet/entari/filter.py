@@ -115,7 +115,7 @@ class DirectMessageJudger(JudgeAuxiliary):
         return "entari.filter/direct_message"
 
 
-is_direct_message = DirectMessageJudger()
+direct_message = DirectMessageJudger()
 
 
 class PublicMessageJudger(JudgeAuxiliary):
@@ -133,4 +133,55 @@ class PublicMessageJudger(JudgeAuxiliary):
         return "entari.filter/public_message"
 
 
-is_public_message = PublicMessageJudger()
+public_message = PublicMessageJudger()
+
+
+class ReplyMeJudger(JudgeAuxiliary):
+
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        return interface.ctx.get("is_reply_me", False)
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/judge_reply_me"
+
+
+reply_me = ReplyMeJudger()
+
+
+class NoticeMeJudger(JudgeAuxiliary):
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        return interface.ctx.get("is_notice_me", False)
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/judge_notice_me"
+
+
+notice_me = NoticeMeJudger()
+
+
+class ToMeJudger(JudgeAuxiliary):
+    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+        is_reply_me = interface.ctx.get("is_reply_me", False)
+        is_notice_me = interface.ctx.get("is_notice_me", False)
+        return is_reply_me or is_notice_me
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/judge_to_me"
+
+
+to_me = ToMeJudger()

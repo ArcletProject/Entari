@@ -10,7 +10,7 @@ from satori.const import Api
 from satori.element import Element
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
-from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent
+from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent, Reply
 from .event.send import SendRequest, SendResponse
 from .message import MessageChain
 
@@ -96,6 +96,7 @@ class Session(Generic[TEvent]):
         self._content = None
         if isinstance(event, MessageEvent):
             self._content = MessageChain(event.message.message)
+        self.reply: Reply | None = None
 
     async def prompt(
         self,

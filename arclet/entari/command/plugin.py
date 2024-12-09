@@ -5,6 +5,7 @@ from typing import Any
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
 
+from .._subscriber import SubscribeLoader
 from ..event import MessageCreatedEvent
 from ..event.command import pub as execute_handles
 from ..plugin.model import Plugin, PluginDispatcher
@@ -20,14 +21,14 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         self,
         plugin: Plugin,
         command: Alconna,
-        need_tome: bool = False,
-        remove_tome: bool = True,
+        need_reply_me: bool = False,
+        need_notice_me: bool = False,
         use_config_prefix: bool = True,
     ):
         self.supplier = AlconnaSuppiler(command)
         super().__init__(plugin, MessageCreatedEvent)
 
-        self.publisher.bind(MessageJudges(need_tome, remove_tome, use_config_prefix), self.supplier)
+        self.publisher.bind(MessageJudges(need_reply_me, need_notice_me, use_config_prefix), self.supplier)
         self.publisher.bind(AlconnaProviderFactory())
 
     def assign(
@@ -59,7 +60,8 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         _auxiliaries.append(self.supplier)
 
         def wrapper(func):
-            sub = execute_handles.register(func, priority=priority, auxiliaries=_auxiliaries, providers=providers)
+            caller = execute_handles.register(priority=priority, auxiliaries=_auxiliaries, providers=providers)
+            sub = SubscribeLoader(func, caller)
             self._subscribers.append(sub)
             return sub
 
@@ -71,13 +73,13 @@ class AlconnaPluginDispatcher(PluginDispatcher):
 
 def mount(
     cmd: Alconna,
-    need_tome: bool = False,
-    remove_tome: bool = True,
+    need_reply_me: bool = False,
+    need_notice_me: bool = False,
     use_config_prefix: bool = True,
 ) -> AlconnaPluginDispatcher:
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
-    disp = AlconnaPluginDispatcher(plugin, cmd, need_tome, remove_tome, use_config_prefix)
+    disp = AlconnaPluginDispatcher(plugin, cmd, need_reply_me, need_notice_me, use_config_prefix)
     if disp.publisher.id in plugin.dispatchers:
         return plugin.dispatchers[disp.id]  # type: ignore
     plugin.dispatchers[disp.publisher.id] = disp

@@ -39,12 +39,16 @@ from satori.client.protocol import ApiProtocol as ApiProtocol
 from satori.config import WebhookInfo as WebhookInfo
 from satori.config import WebsocketsInfo as WebsocketsInfo
 
+from . import command as command
 from .config import load_config as load_config
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
-from .filter import is_direct_message as is_direct_message
-from .filter import is_public_message as is_public_message
+from .filter import direct_message as direct_message
+from .filter import notice_me as notice_me
+from .filter import public_message as public_message
+from .filter import reply_me as reply_me
+from .filter import to_me as to_me
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata

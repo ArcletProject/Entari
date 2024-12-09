@@ -21,7 +21,7 @@ from .event.lifespan import AccountUpdate
 from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
-from .plugin import load_plugin, plugin_config
+from .plugin import load_plugin, plugin_config, requires
 from .plugin.model import RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
@@ -41,12 +41,18 @@ class SessionProvider(Provider[Session]):
         if "session" in context and isinstance(context["session"], Session):
             return context["session"]
         if "$origin_event" in context and "account" in context:
-            return Session(context["account"], context["$event"])
+            session = Session(context["account"], context["$event"])
+            if "$message_content" in context:
+                session.elements = context["$message_content"]
+            if "$message_reply" in context:
+                session.reply = context["$message_reply"]
+            return session
 
 
 class AccountProvider(Provider[Account]):
     async def __call__(self, context: Contexts):
-        return context["account"]
+        if "account" in context:
+            return context["account"]
 
 
 global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
@@ -113,6 +119,7 @@ class Entari(App):
             EntariConfig.load()
         log.set_level(log_level)
         log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
+        requires(*EntariConfig.instance.plugin)
         for plug in EntariConfig.instance.plugin:
             load_plugin(plug)
         self.ignore_self_message = ignore_self_message
@@ -121,7 +128,7 @@ class Entari(App):
         self._ref_tasks = set()
 
         es.on(ConfigReload, self.reset_self)
-        es.on(MessageCreatedEvent, _commands.execute, auxiliaries=[_commands.judge])
+        es.on(MessageCreatedEvent, _commands.handle, auxiliaries=[_commands.judge])
 
     def reset_self(self, scope, key, value):
         if scope != "basic":

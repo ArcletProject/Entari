@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Generic, TypeVar
 
-from arclet.letoderea import Contexts, Param, Provider
+from arclet.letoderea import Contexts, Interface, Param, Provider, Scope, SupplyAuxiliary
 from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as SatoriEvent
-from satori import EventType, Guild, Member, Quote, Role, User
+from satori import EventType, Guild, Member, Role, User
 from satori.client import Account
+from satori.element import At, Author, Quote, Text, select
 from satori.model import LoginType, MessageObject
 from tarina import gen_subclass
 
@@ -16,6 +18,95 @@ from .base import BasedEvent
 
 T = TypeVar("T")
 D = TypeVar("D")
+
+
+@dataclass
+class Reply:
+    quote: Quote
+    origin: MessageObject
+
+
+def _is_reply_me(reply: Reply, account: Account):
+    if reply.origin.user:
+        return reply.origin.user.id == account.self_id
+    if authors := select(reply.quote, Author):
+        return any(author.id == account.self_id for author in authors)
+    return False
+
+
+def _is_notice_me(message: MessageChain, account: Account):
+    if message and isinstance(message[0], At):
+        at: At = message[0]  # type: ignore
+        if at.id and at.id == account.self_id:
+            return True
+    return False
+
+
+def _remove_notice_me(message: MessageChain, account: Account):
+    message = message.copy()
+    message.pop(0)
+    if _is_notice_me(message, account):
+        message.pop(0)
+    if message and isinstance(message[0], Text):
+        text = message[0].text.lstrip()  # type: ignore
+        if not text:
+            message.pop(0)
+        else:
+            message[0] = Text(text)
+    return message
+
+
+class ReplyMeSupplier(SupplyAuxiliary):
+
+    async def __call__(self, scope: Scope, interface: Interface):
+        if self.id in interface.executed:
+            return
+        account = await interface.query(Account, "account", force_return=True)
+        reply = await interface.query(Reply, "reply", force_return=True)
+        if not account:
+            return
+        if not reply:
+            is_reply_me = False
+        else:
+            is_reply_me = _is_reply_me(reply, account)
+        return interface.update(**{"is_reply_me": is_reply_me})
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/supply_reply_me"
+
+
+reply_me_supplier = ReplyMeSupplier(priority=3)
+
+
+class NoticeMeSupplier(SupplyAuxiliary):
+
+    async def __call__(self, scope: Scope, interface: Interface):
+        if self.id in interface.executed:
+            return
+        message: MessageChain = interface.ctx["$message_content"]
+        account = await interface.query(Account, "account", force_return=True)
+        if not account:
+            return
+        is_notice_me = _is_notice_me(message, account)
+        if is_notice_me:
+            message = _remove_notice_me(message, account)
+        return interface.update(**{"$message_content": message, "is_notice_me": is_notice_me})
+
+    @property
+    def scopes(self) -> set[Scope]:
+        return {Scope.prepare}
+
+    @property
+    def id(self) -> str:
+        return "entari.filter/supply_notice_me"
+
+
+notice_me_supplier = NoticeMeSupplier(priority=5)
 
 
 class Attr(Generic[T]):
@@ -72,7 +163,8 @@ class Event(BasedEvent):
 
     class TimeProvider(Provider[datetime]):
         async def __call__(self, context: Contexts):
-            return context["$event"].timestamp
+            if "$event" in context:
+                return context["$event"].timestamp
 
     class OperatorProvider(Provider[User]):
         priority = 10
@@ -83,48 +175,64 @@ class Event(BasedEvent):
         async def __call__(self, context: Contexts):
             if "operator" in context:
                 return context["operator"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].operator
 
     class UserProvider(Provider[User]):
         async def __call__(self, context: Contexts):
             if "user" in context:
                 return context["user"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].user
 
     class MessageProvider(Provider[MessageObject]):
         async def __call__(self, context: Contexts):
             if "$message_origin" in context:
                 return context["$message_origin"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].message
 
     class ChannelProvider(Provider[Channel]):
         async def __call__(self, context: Contexts):
             if "channel" in context:
                 return context["channel"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].channel
 
     class GuildProvider(Provider[Guild]):
         async def __call__(self, context: Contexts):
             if "guild" in context:
                 return context["guild"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].guild
 
     class MemberProvider(Provider[Member]):
         async def __call__(self, context: Contexts):
             if "member" in context:
                 return context["member"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].member
 
     class RoleProvider(Provider[Role]):
         async def __call__(self, context: Contexts):
             if "role" in context:
                 return context["role"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].role
 
     class LoginProvider(Provider[LoginType]):
         async def __call__(self, context: Contexts):
             if "login" in context:
                 return context["login"]
+            if "$origin_event" not in context:
+                return
             return context["$origin_event"].login
 
     def __repr__(self):
@@ -229,12 +337,12 @@ class MessageContentProvider(Provider[MessageChain]):
     priority = 30
 
     async def __call__(self, context: Contexts):
-        return context["$message_content"]
+        return context.get("$message_content")
 
 
-class QuoteProvider(Provider[Quote]):
+class ReplyProvider(Provider[Reply]):
     async def __call__(self, context: Contexts):
-        return context["$event"].quote
+        return context.get("$message_reply")
 
 
 class MessageEvent(Event):
@@ -245,7 +353,8 @@ class MessageEvent(Event):
     content: MessageChain
     quote: Quote | None = None
 
-    providers = [MessageContentProvider, QuoteProvider]
+    providers = [MessageContentProvider, ReplyProvider]
+    auxiliaries = [reply_me_supplier, notice_me_supplier]
 
     def __init__(self, account: Account, origin: SatoriEvent):
         super().__init__(account, origin)
@@ -257,6 +366,9 @@ class MessageEvent(Event):
     async def gather(self, context: Contexts):
         await super().gather(context)
         context["$message_content"] = self.content
+        if self.quote and self.quote.id:
+            mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
+            context["$message_reply"] = Reply(self.quote, mo)
 
 
 class MessageCreatedEvent(MessageEvent):
@@ -279,7 +391,8 @@ class ReactionEvent(NoticeEvent):
     content: MessageChain
     quote: Quote | None = None
 
-    providers = [MessageContentProvider, QuoteProvider]
+    providers = [MessageContentProvider, ReplyProvider]
+    auxiliaries = [reply_me_supplier, notice_me_supplier]
 
     def __init__(self, account: Account, origin: SatoriEvent):
         super().__init__(account, origin)
@@ -291,6 +404,9 @@ class ReactionEvent(NoticeEvent):
     async def gather(self, context: Contexts):
         await super().gather(context)
         context["$message_content"] = self.content
+        if self.quote and self.quote.id:
+            mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
+            context["$message_reply"] = Reply(self.quote, mo)
 
 
 class ReactionAddedEvent(ReactionEvent):
@@ -339,7 +455,8 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
     content: MessageChain
     quote: Quote | None = None
 
-    providers = [MessageContentProvider, QuoteProvider]
+    providers = [MessageContentProvider, ReplyProvider]
+    auxiliaries = [reply_me_supplier, notice_me_supplier]
 
     def __init__(self, account: Account, origin: SatoriEvent):
         super().__init__(account, origin)
@@ -351,6 +468,9 @@ class InteractionCommandMessageEvent(InteractionCommandEvent):
     async def gather(self, context: Contexts):
         await super().gather(context)
         context["$message_content"] = self.content
+        if self.quote and self.quote.id:
+            mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
+            context["$message_reply"] = Reply(self.quote, mo)
 
 
 MAPPING: dict[str, type[Event]] = {}

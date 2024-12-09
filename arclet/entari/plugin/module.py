@@ -28,7 +28,7 @@ def package(*names: str):
 
 def requires(*names: str):
     """手动指定哪些模块是插件"""
-    _ENSURE_IS_PLUGIN.update(names)
+    _ENSURE_IS_PLUGIN.update(name.replace("::", "arclet.entari.builtins.") for name in names)
 
 
 def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):

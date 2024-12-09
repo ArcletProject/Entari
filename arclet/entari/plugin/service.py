@@ -43,6 +43,7 @@ class PluginManagerService(Service):
         for plug in self.plugins.values():
             for serv in plug._services.values():
                 manager.add_component(serv)
+            plug._load()
 
         async with self.stage("preparing"):
             await es.publish(Startup())

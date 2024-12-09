@@ -4,7 +4,8 @@ from typing import Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import BaseAuxiliary, Provider, Publisher, Subscriber, es
+from arclet.letoderea import BackendPublisher, BaseAuxiliary, Provider, Subscriber, es
+from arclet.letoderea.event import get_providers
 from arclet.letoderea.handler import generate_contexts
 from arclet.letoderea.provider import ProviderFactory
 from arclet.letoderea.typing import Contexts, TTarget
@@ -14,8 +15,10 @@ from tarina.string import split
 from tarina.trie import CharTrie
 
 from ..event.command import CommandExecute
+from ..event.config import ConfigReload
 from ..event.protocol import MessageCreatedEvent
 from ..message import MessageChain
+from ..plugin import RootlessPlugin
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -28,37 +31,17 @@ TM = TypeVar("TM", str, MessageChain)
 class EntariCommands:
     __namespace__ = "Entari"
 
-    def __init__(self, need_tome: bool = False, remove_tome: bool = True, use_config_prefix: bool = True):
+    def __init__(self, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
         self.trie: CharTrie[Subscriber[Optional[Union[str, MessageChain]]]] = CharTrie()
-        self.publisher = Publisher("entari.command", MessageCreatedEvent)
-        self.publisher.bind(AlconnaProviderFactory())
-        self.judge = MessageJudges(need_tome, remove_tome, use_config_prefix)
+        self.publisher = BackendPublisher("entari.command")
+        self.publisher.bind(*get_providers(MessageCreatedEvent), AlconnaProviderFactory())
+        self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
         config.namespaces["Entari"] = Namespace(
             self.__namespace__,
             to_text=lambda x: x.text if x.__class__ is Text else None,
             converter=lambda x: MessageChain(x),
         )
-
-        @es.on(CommandExecute)
-        async def _execute(event: CommandExecute):
-            ctx = await generate_contexts(event)
-            msg = str(event.command)
-            if matches := list(self.trie.prefixes(msg)):
-                results = await asyncio.gather(
-                    *(res.value.handle(ctx.copy(), inner=True) for res in matches if res.value)
-                )
-                for result in results:
-                    if result is not None:
-                        return result
-            data = split(msg, " ")
-            for value in self.trie.values():
-                try:
-                    command_manager.find_shortcut(get_cmd(value), data)
-                except ValueError:
-                    continue
-                result = await value.handle(ctx.copy(), inner=True)
-                if result is not None:
-                    return result
+        es.on(CommandExecute, self.execute)
 
     @property
     def all_helps(self) -> str:
@@ -67,7 +50,7 @@ class EntariCommands:
     def get_help(self, command: str) -> str:
         return command_manager.get_command(f"{self.__namespace__}::{command}").get_help()
 
-    async def execute(self, message: MessageChain, session: Session, ctx: Contexts):
+    async def handle(self, session: Session, message: MessageChain, ctx: Contexts):
         msg = str(message).lstrip()
         if not msg:
             return
@@ -87,6 +70,24 @@ class EntariCommands:
             result = await value.handle(ctx.copy(), inner=True)
             if result is not None:
                 await session.send(result)
+
+    async def execute(self, event: CommandExecute):
+        ctx = await generate_contexts(event)
+        msg = str(event.command)
+        if matches := list(self.trie.prefixes(msg)):
+            results = await asyncio.gather(*(res.value.handle(ctx.copy(), inner=True) for res in matches if res.value))
+            for result in results:
+                if result is not None:
+                    return result
+        data = split(msg, " ")
+        for value in self.trie.values():
+            try:
+                command_manager.find_shortcut(get_cmd(value), data)
+            except ValueError:
+                continue
+            result = await value.handle(ctx.copy(), inner=True)
+            if result is not None:
+                return result
 
     def command(
         self,
@@ -183,9 +184,9 @@ class EntariCommands:
 _commands = EntariCommands()
 
 
-def config_commands(need_tome: bool = False, remove_tome: bool = True, use_config_prefix: bool = True):
-    _commands.judge.need_tome = need_tome
-    _commands.judge.remove_tome = remove_tome
+def config_commands(need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
+    _commands.judge.need_notice_me = need_notice_me
+    _commands.judge.need_reply_me = need_reply_me
     _commands.judge.use_config_prefix = use_config_prefix
 
 
@@ -197,6 +198,30 @@ async def execute(message: Union[str, MessageChain]):
     res = await es.post(CommandExecute(message))
     if res:
         return res.value
+
+
+@RootlessPlugin.apply("commands")
+def _(plg: RootlessPlugin):
+    if "need_notice_me" in plg.config:
+        _commands.judge.need_notice_me = plg.config["need_notice_me"]
+    if "need_reply_me" in plg.config:
+        _commands.judge.need_reply_me = plg.config["need_reply_me"]
+    if "use_config_prefix" in plg.config:
+        _commands.judge.use_config_prefix = plg.config["use_config_prefix"]
+
+    @plg.use(ConfigReload)
+    def update(event: ConfigReload):
+        if event.scope != "plugin":
+            return
+        if event.key != "~commands":
+            return
+        if "need_notice_me" in event.value:
+            _commands.judge.need_notice_me = event.value["need_notice_me"]
+        if "need_reply_me" in event.value:
+            _commands.judge.need_reply_me = event.value["need_reply_me"]
+        if "use_config_prefix" in event.value:
+            _commands.judge.use_config_prefix = event.value["use_config_prefix"]
+        return True
 
 
 __all__ = ["_commands", "config_commands", "Match", "Query", "execute", "CommandResult", "mount", "command", "on"]

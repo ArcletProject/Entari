@@ -15,6 +15,8 @@ from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
+from .._subscriber import SubscribeLoader
+from ..event.lifespan import Cleanup, Ready, Startup
 from ..logger import log
 from .service import plugin_service
 
@@ -51,7 +53,7 @@ class PluginDispatcher:
             es.register(self.publisher)
         self.plugin = plugin
         self._events = events
-        self._subscribers = []
+        self._subscribers: list[SubscribeLoader] = []
 
     def waiter(
         self,
@@ -69,6 +71,10 @@ class PluginDispatcher:
 
         return wrapper
 
+    def _load(self):
+        for sub in self._subscribers:
+            sub.load()
+
     def dispose(self):
         for sub in self._subscribers:
             sub.dispose()
@@ -82,13 +88,13 @@ class PluginDispatcher:
             wrapper = self.publisher.register(**kwargs)
             if func:
                 self.plugin.validate(func)  # type: ignore
-                sub = wrapper(func)
+                sub = SubscribeLoader(func, wrapper)
                 self._subscribers.append(sub)
                 return sub
 
             def decorator(func1):
                 self.plugin.validate(func1)
-                sub1 = wrapper(func1)
+                sub1 = SubscribeLoader(func1, wrapper)
                 self._subscribers.append(sub1)
                 return sub1
 
@@ -155,6 +161,22 @@ class Plugin:
         if plugin._metadata:
             plugin._metadata.requirements.extend(requires)
         return self
+
+    def _load(self):
+        for disp in self.dispatchers.values():
+            disp._load()
+
+    async def _startup(self):
+        if Startup.__publisher__ in self.dispatchers:
+            await self.dispatchers[Startup.__publisher__].publisher.emit(Startup())
+
+    async def _ready(self):
+        if Ready.__publisher__ in self.dispatchers:
+            await self.dispatchers[Ready.__publisher__].publisher.emit(Ready())
+
+    async def _cleanup(self):
+        if Cleanup.__publisher__ in self.dispatchers:
+            await self.dispatchers[Cleanup.__publisher__].publisher.emit(Cleanup())
 
     def __post_init__(self):
         plugin_service.plugins[self.id] = self
