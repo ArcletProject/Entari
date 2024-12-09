@@ -15,20 +15,34 @@
 
 ## 示例
 
+使用命令行:
+```shell
+# 生成配置文件
+$ entari new
+```
+```shell
+# 运行
+$ entari
+```
+
 使用配置文件:
 ```yaml
 # config.yml
 basic:
   network:
     - type: ws
+      host: "127.0.0.1"
       port: 5140
-      path: satori
+      path: "satori"
+  ignore_self_message: true
   log_level: INFO
-plugin:
-  example_plugin: {}
-  ::echo: {}
+  prefix: ["/"]
+plugins:
+  ~record_message: true
   ::auto_reload:
-    watch_dirs: ["plugins"]
+    watch_dirs: ["."]
+  ::echo: true
+  ::inspect: true
 ```
 
 ```python
@@ -60,8 +74,8 @@ app.run()
 from arclet.entari import Session, Entari, WS, command
 
 @command.on("add {a} {b}")
-async def add(a: int, b: int, session: Session):
-    await session.send(f"{a + b = }")
+def add(a: int, b: int):
+    return f"{a + b = }"
 
 
 app = Entari(WS(port=5500, token="XXX"))

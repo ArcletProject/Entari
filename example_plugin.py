@@ -5,10 +5,8 @@ from arclet.entari import (
     MessageChain,
     MessageCreatedEvent,
     Plugin,
+    Filter,
     command,
-    public_message,
-    to_me,
-    bind,
     metadata,
     keeping,
 )
@@ -32,7 +30,7 @@ disp_message = MessageCreatedEvent.dispatch()
 
 
 @disp_message
-@bind(public_message)
+@Filter().public.bind
 async def _(msg: MessageChain, session: Session):
     content = msg.extract_plain_text()
     if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
@@ -42,9 +40,14 @@ async def _(msg: MessageChain, session: Session):
 disp_message1 = plug.dispatch(MessageCreatedEvent)
 
 
-@disp_message1.on(auxiliaries=[public_message, to_me])
-async def _(event: MessageCreatedEvent):
-    print(event.content)
+@disp_message1.on(auxiliaries=[Filter().public.to_me.and_(lambda sess: str(sess.content) == "aaa")])
+async def _(session: Session):
+    return await session.send("Filter: public message, to me, and content is 'aaa'")
+
+
+@disp_message1.on(auxiliaries=[Filter().public.to_me.not_(lambda sess: str(sess.content) == "aaa")])
+async def _(session: Session):
+    return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
 
 @command.on("add {a} {b}")

@@ -61,6 +61,7 @@ class ReplyMeSupplier(SupplyAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface):
         if self.id in interface.executed:
             return
+        message: MessageChain = interface.ctx["$message_content"]
         account = await interface.query(Account, "account", force_return=True)
         reply = await interface.query(Reply, "reply", force_return=True)
         if not account:
@@ -69,7 +70,14 @@ class ReplyMeSupplier(SupplyAuxiliary):
             is_reply_me = False
         else:
             is_reply_me = _is_reply_me(reply, account)
-        return interface.update(**{"is_reply_me": is_reply_me})
+        if is_reply_me and message and isinstance(message[0], Text):
+            message = message.copy()
+            text = message[0].text.lstrip()
+            if not text:
+                message.pop(0)
+            else:
+                message[0] = Text(text)
+        return interface.update(**{"$message_content": message, "is_reply_me": is_reply_me})
 
     @property
     def scopes(self) -> set[Scope]:
