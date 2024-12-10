@@ -113,3 +113,60 @@ load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
 app.run()
 ```
 
+
+
+## 配置文件
+
+```yaml
+basic:
+  network:
+    - type: ws
+      host: "127.0.0.1"
+      port: 5140
+      path: "satori"
+  ignore_self_message: true
+  log_level: INFO
+  prefix: ["/"]
+plugins:
+  ~record_message:
+    record_send: true
+  ~commands:
+    use_config_prefix: false
+  ::auto_reload:
+    watch_dirs: ["."]
+    watch_config: false
+  ::echo: true
+  ::help:
+    page_size: null
+```
+
+- `basic`: Entari 基础配置
+  - `network`: 网络配置, 可写多个网络配置
+    - `type`: 网络类型, 可填项有 `ws`, `websocket`, `wh`, `webhook`
+    - `host`: satori 服务器地址
+    - `port`: satori 服务器端口
+    - `path`: satori 服务器路径
+  - `ignore_self_message`: 是否忽略自己发送的消息事件
+  - `log_level`: 日志等级
+  - `prefix`: 指令前缀, 可留空
+- `plugins`: 插件配置
+  - `~record_message`: 消息日志并配置
+    - `record_send`: 是否记录发送消息 (默认为 `true`)
+  - `~commands`: 指令插件配置 (适用于所有使用了 `command.on/command.command` 的插件)
+    - `need_notice_me`: 指令是否需要 @ 机器人
+    - `need_reply_me`: 指令是否需要回复机器人
+    - `use_config_prefix`: 是否使用配置文件中的前缀
+  - `::auto_reload`: 启用自动重载插件并配置
+    - `watch_dirs`: 监听目录
+    - `watch_config`: 是否监听配置文件的变化 (默认为 `true`)
+  - `::echo`: 启用回声插件
+  - `::help`: 启用帮助插件并配置
+    - `help_command`: 帮助指令, 默认为 `help`
+    - `help_alias`: 帮助指令别名, 默认为 `["帮助", "命令帮助"]`
+    - `page_size`: 每页显示的指令数量, 留空则不分页
+
+对于其他插件的配置, 有三种写法:
+
+1. `foo.bar: true` (启用插件)
+2. `foo.bar: false` (禁用插件)
+3. `foo.bar: {"key": "value"}` (启用插件并配置)
