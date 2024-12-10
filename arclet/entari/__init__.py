@@ -35,9 +35,9 @@ from satori import User as User
 from satori import Video as Video
 from satori import transform as transform
 from satori.client import Account as Account
-from satori.client.protocol import ApiProtocol as ApiProtocol
 from satori.client.config import WebhookInfo as WebhookInfo
 from satori.client.config import WebsocketsInfo as WebsocketsInfo
+from satori.client.protocol import ApiProtocol as ApiProtocol
 
 from . import command as command
 from .config import load_config as load_config
@@ -61,4 +61,4 @@ WS = WebsocketsInfo
 WH = WebhookInfo
 filter_ = Filter
 
-__version__ = "0.9.0"
+__version__ = "0.10.0rc1"

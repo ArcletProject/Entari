@@ -9,8 +9,8 @@ from launart import Launart, Service
 from satori import LoginStatus
 from satori.client import App
 from satori.client.account import Account
-from satori.client.protocol import ApiProtocol
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
+from satori.client.protocol import ApiProtocol
 from satori.model import Event
 from tarina.generic import get_origin
 
