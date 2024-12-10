@@ -36,8 +36,8 @@ from satori import Video as Video
 from satori import transform as transform
 from satori.client import Account as Account
 from satori.client.protocol import ApiProtocol as ApiProtocol
-from satori.config import WebhookInfo as WebhookInfo
-from satori.config import WebsocketsInfo as WebsocketsInfo
+from satori.client.config import WebhookInfo as WebhookInfo
+from satori.client.config import WebsocketsInfo as WebsocketsInfo
 
 from . import command as command
 from .config import load_config as load_config

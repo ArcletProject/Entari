@@ -10,7 +10,7 @@ from satori import Event as SatoriEvent
 from satori import EventType, Guild, Member, Role, User
 from satori.client import Account
 from satori.element import At, Author, Quote, Text, select
-from satori.model import LoginType, MessageObject
+from satori.model import Login, MessageObject
 from tarina import gen_subclass
 
 from ..message import MessageChain
@@ -143,13 +143,13 @@ class Event(BasedEvent):
     _origin: SatoriEvent
     account: Account
 
-    id: int = attr()
+    sn: int = attr()
     timestamp: datetime = attr()
+    login: Login = attr()
     argv: ArgvInteraction | None = attr()
     button: ButtonInteraction | None = attr()
     channel: Channel | None = attr()
     guild: Guild | None = attr()
-    login: LoginType | None = attr()
     member: Member | None = attr()
     message: MessageObject | None = attr()
     operator: User | None = attr()
@@ -235,7 +235,7 @@ class Event(BasedEvent):
                 return
             return context["$origin_event"].role
 
-    class LoginProvider(Provider[LoginType]):
+    class LoginProvider(Provider[Login]):
         async def __call__(self, context: Contexts):
             if "login" in context:
                 return context["login"]
@@ -326,7 +326,7 @@ class GuildRoleUpdatedEvent(GuildRoleEvent):
 
 
 class LoginEvent(NoticeEvent):
-    login: LoginType = attr()
+    pass
 
 
 class LoginAddedEvent(LoginEvent):

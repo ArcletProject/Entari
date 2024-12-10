@@ -32,7 +32,7 @@ def _remove_config_prefix(message: MessageChain):
 
 class MessageJudges(JudgeAuxiliary):
     def __init__(self, need_reply_me: bool, need_notice_me: bool, use_config_prefix: bool):
-        super().__init__(priority=10)
+        super().__init__(priority=30)
         self.need_reply_me = need_reply_me
         self.need_notice_me = need_notice_me
         self.use_config_prefix = use_config_prefix

@@ -308,19 +308,32 @@ class Plugin:
 
 
 class RootlessPlugin(Plugin):
+
     @classmethod
-    def apply(cls, id: str):
+    @overload
+    def apply(cls, id: str) -> Callable[[Callable[[RootlessPlugin], Any]], Callable[[], None]]: ...
+
+    @classmethod
+    @overload
+    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any]) -> Callable[[], None]: ...
+
+    @classmethod
+    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any] | None = None) -> Any:
         if not id.startswith("~"):
             id = f"~{id}"
 
         def dispose():
             if id in plugin_service.plugins:
                 plugin_service.plugins[id].dispose()
+            else:
+                plugin_service._apply.pop(id, None)
 
         def wrapper(func: Callable[[RootlessPlugin], Any]):
             plugin_service._apply[id] = lambda config: cls(id, func, config)
             return dispose
 
+        if func:
+            return wrapper(func)
         return wrapper
 
     def __init__(self, id: str, func: Callable[[RootlessPlugin], Any], config: dict):

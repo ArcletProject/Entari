@@ -119,7 +119,7 @@ class PluginLoader(SourceFileLoader):
         try:
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:
-            return _bootstrap._call_with_frames_removed(
+            return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=_optimize
             )
         bodys = []
@@ -206,7 +206,9 @@ class PluginLoader(SourceFileLoader):
             else:
                 bodys.append(body)
         nodes.body = bodys
-        return _bootstrap._call_with_frames_removed(compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize)
+        return _bootstrap._call_with_frames_removed(  # type: ignore
+            compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize
+        )
 
     def create_module(self, spec) -> Optional[ModuleType]:
         if self.name in plugin_service.plugins:
