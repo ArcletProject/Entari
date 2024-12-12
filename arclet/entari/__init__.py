@@ -40,6 +40,7 @@ from satori.client.config import WebsocketsInfo as WebsocketsInfo
 from satori.client.protocol import ApiProtocol as ApiProtocol
 
 from . import command as command
+from . import scheduler as scheduler
 from .config import load_config as load_config
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent

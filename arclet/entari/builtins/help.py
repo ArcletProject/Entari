@@ -24,10 +24,19 @@ help_alias: list[str] = config.get("help_alias", ["帮助", "命令帮助"])
 help_all_alias: list[str] = config.get("help_all_alias", ["所有帮助", "所有命令帮助"])
 page_size: Optional[int] = config.get("page_size", None)
 
+
+class Config:
+    help_command: str = "help"
+    help_alias: list[str] = ["帮助", "命令帮助"]
+    help_all_alias: list[str] = ["所有帮助", "所有命令帮助"]
+    page_size: Optional[int] = None
+
+
 metadata(
     "help",
     ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
     description="展示所有命令帮助",
+    config=Config,
 )
 
 

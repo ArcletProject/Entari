@@ -13,10 +13,17 @@ from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import find_plugin, find_plugin_by_file
 
+
+class Config:
+    watch_dirs: list[str] = ["."]
+    watch_config: bool = False
+
+
 metadata(
     "AutoReload",
     author=["RF-Tar-Railt <rf_tar_railt@qq.com>"],
     description="Auto reload plugins when files changed",
+    config=Config,
 )
 
 
