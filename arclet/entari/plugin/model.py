@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
-from weakref import finalize, proxy
+from weakref import ProxyType, finalize, proxy
 
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher, StepOut, Subscriber, es
 from arclet.letoderea.publisher import Publishable
@@ -202,6 +202,8 @@ class Plugin:
         sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
         for member in self.module.__dict__.values():
+            if isinstance(member, ProxyType):
+                continue
             if isinstance(member, Subscriber) and not hasattr(member, "__keeping__"):
                 member.dispose()
         if self.subplugins:

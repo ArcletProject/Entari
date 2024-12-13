@@ -142,7 +142,9 @@ class PluginLoader(SourceFileLoader):
                         new = ast.parse(
                             f"__mod = __entari_import__({body.module!r}, {name!r});"
                             + ";".join(
-                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r})"
+                                f"{alias.asname or alias.name} = "
+                                f"__getattr_or_import__(__mod, {alias.name!r}, "
+                                f"__mod.__name__ in __plugin_service__.plugins)"
                                 for alias in body.names
                             )
                             + ";del __mod"
@@ -231,6 +233,7 @@ class PluginLoader(SourceFileLoader):
         setattr(module, "__plugin__", plugin)
         setattr(module, "__entari_import__", __entari_import__)
         setattr(module, "__getattr_or_import__", getattr_or_import)
+        setattr(module, "__plugin_service__", plugin_service)
 
         # enter plugin context
         with _current_plugin.use(plugin):
@@ -242,6 +245,7 @@ class PluginLoader(SourceFileLoader):
             finally:
                 # leave plugin context
                 delattr(module, "__cached__")
+                delattr(module, "__plugin_service__")
                 sys.modules.pop(module.__name__, None)
 
         # get plugin metadata
