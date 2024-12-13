@@ -12,3 +12,4 @@ plugins:
   ::echo: true
   example_plugin: true
   ~record_message: true
+  ~scheduler: true

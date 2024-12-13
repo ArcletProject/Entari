@@ -91,12 +91,12 @@ class Scheduler(Service):
     id = "entari.scheduler"
 
 
-scheduler = Scheduler()
+scheduler = service = Scheduler()
 
 
 @RootlessPlugin.apply("scheduler")
 def _(plg: RootlessPlugin):
-    plg.service(scheduler)
+    plg.service(service)
 
 
 def every_second():
@@ -186,16 +186,13 @@ def crontab(cron_str: str):
         cron_str (str): cron 表达式
     """
 
-    def _():
-        now = datetime.now()
-        it = croniter(cron_str, now)
-        return it.get_next(datetime) - now
+    it = croniter(cron_str, datetime.now())
 
-    return _
+    return lambda iter=it: iter.get_next(datetime) - datetime.now()
 
 
 def cron(pattern: str):
-    return scheduler.schedule(crontab(pattern))
+    return service.schedule(crontab(pattern))
 
 
 def every(
@@ -207,4 +204,4 @@ def every(
         "minute": every_minutes,
         "hour": every_hours,
     }
-    return scheduler.schedule(_TIMER_MAPPING[mode](value))
+    return service.schedule(_TIMER_MAPPING[mode](value))

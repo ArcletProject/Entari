@@ -9,7 +9,10 @@ from arclet.entari import (
     command,
     metadata,
     keeping,
+    scheduler,
+    Entari,
 )
+from arclet.entari.filter import Interval
 
 metadata(__file__)
 
@@ -50,7 +53,7 @@ async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
 
-@command.on("add {a} {b}")
+@command.on("add {a} {b}", [Interval(2, limit_prompt="太快了")])
 def add(a: int, b: int):
     return f"{a + b =}"
 
@@ -80,3 +83,11 @@ print("example_plugin not in sys.modules (expect True):", "example_plugin" not i
 @plug.use("::before_send")
 async def send_hook(message: MessageChain):
     return message + "喵"
+
+
+@scheduler.cron("* * * * *")
+async def broadcast(app: Entari):
+    for account in app.accounts.values():
+        channels = [channel for guild in (await account.guild_list()).data for channel in (await account.channel_list(guild.id)).data]
+        for channel in channels:
+            await account.send_message(channel, "Hello, World!")
