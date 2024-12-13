@@ -10,10 +10,12 @@ import sys
 from types import ModuleType
 from typing import Optional
 
+from arclet.letoderea import global_auxiliaries
+
 from ..config import EntariConfig
 from ..logger import log
 from .model import Plugin, PluginMetadata, _current_plugin
-from .service import plugin_service
+from .service import AccessAuxiliary, plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
@@ -219,15 +221,17 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: Optional[dict[str, str]] = None) -> None:
+        is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             plugin.subplugins.add(module.__name__)
             plugin_service._subplugined[module.__name__] = plugin.id
+            is_sub = True
 
         if self.loaded:
             return
 
         # create plugin before executing
-        plugin = Plugin(module.__name__, module, config=config or {})
+        plugin = Plugin(module.__name__, module, config=(config or {}).copy())
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)
@@ -235,14 +239,20 @@ class PluginLoader(SourceFileLoader):
         setattr(module, "__getattr_or_import__", getattr_or_import)
         setattr(module, "__plugin_service__", plugin_service)
 
+        aux = AccessAuxiliary(plugin.id)
+
         # enter plugin context
         with _current_plugin.use(plugin):
             try:
+                if not is_sub:
+                    global_auxiliaries.append(aux)
                 super().exec_module(module)
             except Exception:
                 plugin.dispose()
                 raise
             finally:
+                if not is_sub:
+                    global_auxiliaries.remove(aux)
                 # leave plugin context
                 delattr(module, "__cached__")
                 delattr(module, "__plugin_service__")

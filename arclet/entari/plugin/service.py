@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING, Any, Callable
 
-from arclet.letoderea import es
+from arclet.letoderea import JudgeAuxiliary, Scope, es
 from launart import Launart, Service
 from launart.status import Phase
 
 from ..event.lifespan import Cleanup, Ready, Startup
+from ..filter import Filter
 from ..logger import log
 
 if TYPE_CHECKING:
@@ -15,6 +16,7 @@ class PluginManagerService(Service):
     id = "entari.plugin.manager"
 
     plugins: dict[str, "Plugin"]
+    filters: dict[str, Filter]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     _referents: dict[str, set[str]]
     _unloaded: set[str]
@@ -29,6 +31,7 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
+        self.filters = {}
 
     @property
     def required(self) -> set[str]:
@@ -43,7 +46,6 @@ class PluginManagerService(Service):
         for plug in self.plugins.values():
             for serv in plug._services.values():
                 manager.add_component(serv)
-            plug._load()
 
         async with self.stage("preparing"):
             await es.publish(Startup())
@@ -69,3 +71,22 @@ class PluginManagerService(Service):
 
 
 plugin_service = PluginManagerService()
+
+
+class AccessAuxiliary(JudgeAuxiliary):
+    def __init__(self, plugin_id: str):
+        super().__init__(priority=0)
+        self.plugin_id = plugin_id
+
+    @property
+    def id(self):
+        return f"entari.plugin.access:{self.plugin_id}"
+
+    @property
+    def scopes(self):
+        return {Scope.prepare}
+
+    async def __call__(self, scope: Scope, interface):
+        if self.plugin_id in plugin_service.filters:
+            return await plugin_service.filters[self.plugin_id](scope, interface)
+        return True

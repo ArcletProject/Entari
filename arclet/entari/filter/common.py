@@ -22,7 +22,7 @@ class UserFilter(JudgeAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
         if not (user := await interface.query(User, "user", force_return=True)):
             return False
-        return user.id in self.user_ids
+        return user.id in self.user_ids if self.user_ids else True
 
     @property
     def scopes(self) -> set[Scope]:
@@ -41,7 +41,7 @@ class GuildFilter(JudgeAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
         if not (guild := await interface.query(Guild, "guild", force_return=True)):
             return False
-        return guild.id in self.guild_ids
+        return guild.id in self.guild_ids if self.guild_ids else True
 
     @property
     def scopes(self) -> set[Scope]:
@@ -60,7 +60,7 @@ class ChannelFilter(JudgeAuxiliary):
     async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
         if not (channel := await interface.query(Channel, "channel", force_return=True)):
             return False
-        return channel.id in self.channel_ids
+        return channel.id in self.channel_ids if self.channel_ids else True
 
     @property
     def scopes(self) -> set[Scope]:
@@ -110,6 +110,21 @@ class PlatformFilter(JudgeAuxiliary):
 
 
 _SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
+_keys = {
+    "user",
+    "guild",
+    "channel",
+    "self",
+    "platform",
+    "direct",
+    "private",
+    "public",
+    "reply_me",
+    "notice_me",
+    "to_me",
+}
+
+PATTERNS: TypeAlias = dict[str, Union[list[str], bool, "PATTERNS"]]
 
 
 class Filter(JudgeAuxiliary):
@@ -164,29 +179,24 @@ class Filter(JudgeAuxiliary):
         self.steps.append(PlatformFilter(*platforms, priority=2))
         return self
 
-    @property
     def direct(self) -> Self:
         self.steps.append(DirectMessageJudger(priority=8))
         return self
 
     private = direct
 
-    @property
     def public(self) -> Self:
         self.steps.append(PublicMessageJudger(priority=8))
         return self
 
-    @property
     def reply_me(self) -> Self:
         self.steps.append(ReplyMeJudger(priority=9))
         return self
 
-    @property
     def notice_me(self) -> Self:
         self.steps.append(NoticeMeJudger(priority=10))
         return self
 
-    @property
     def to_me(self) -> Self:
         self.steps.append(ToMeJudger(priority=11))
         return self
@@ -217,3 +227,23 @@ class Filter(JudgeAuxiliary):
         return new
 
     exclude = not_
+
+    @classmethod
+    def parse(cls, patterns: PATTERNS) -> Self:
+        fter = cls(priority=10)
+        for key, value in patterns.items():
+            if key in _keys:
+                if isinstance(value, list):
+                    getattr(fter, key)(*value)
+                elif isinstance(value, bool) and value:
+                    getattr(fter, key)()
+            elif key in ("$and", "$or", "$not", "$intersect", "$union", "$exclude"):
+                op = key[1:]
+                if op in ("and", "or", "not"):
+                    op += "_"
+                if not isinstance(value, dict):
+                    raise ValueError(f"Expect a dict for operator {key}")
+                fter = getattr(fter, op)(cls.parse(value))
+            else:
+                raise ValueError(f"Unknown key: {key}")
+        return fter

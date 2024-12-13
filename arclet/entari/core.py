@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import suppress
 import os
 
-from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, es, global_providers
+from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, Subscriber, es, global_providers
 from creart import it
 from launart import Launart, Service
 from satori import LoginStatus
@@ -14,7 +14,6 @@ from satori.client.protocol import ApiProtocol
 from satori.model import Event
 from tarina.generic import get_origin
 
-from .command import _commands
 from .config import EntariConfig
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
@@ -22,7 +21,7 @@ from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
 from .plugin import load_plugin, plugin_config, requires
-from .plugin.model import RootlessPlugin
+from .plugin.model import Plugin, RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -55,7 +54,17 @@ class AccountProvider(Provider[Account]):
             return context["account"]
 
 
-global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
+class PluginProvider(Provider[Plugin]):
+    async def __call__(self, context: Contexts):
+        subscriber: Subscriber = context["$subscriber"]
+        func = subscriber.callable_target
+        if hasattr(func, "__globals__") and "__plugin__" in func.__globals__:  # type: ignore
+            return func.__globals__["__plugin__"]
+        if hasattr(func, "__module__"):
+            return plugin_service.plugins.get(func.__module__)
+
+
+global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider(), PluginProvider()])
 
 
 @RootlessPlugin.apply("record_message")
@@ -117,6 +126,8 @@ class Entari(App):
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
+        if "~commands" not in EntariConfig.instance.plugin:
+            EntariConfig.instance.plugin["~commands"] = True
         log.set_level(log_level)
         log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
         requires(*EntariConfig.instance.plugin)
@@ -128,7 +139,6 @@ class Entari(App):
         self._ref_tasks = set()
 
         es.on(ConfigReload, self.reset_self)
-        es.on(MessageCreatedEvent, _commands.handle, auxiliaries=[_commands.judge])
 
     def reset_self(self, scope, key, value):
         if scope != "basic":

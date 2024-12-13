@@ -5,7 +5,6 @@ from typing import Any
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
 
-from .._subscriber import SubscribeLoader
 from ..event import MessageCreatedEvent
 from ..event.command import pub as execute_handles
 from ..plugin.model import Plugin, PluginDispatcher
@@ -60,8 +59,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         _auxiliaries.append(self.supplier)
 
         def wrapper(func):
-            caller = execute_handles.register(priority=priority, auxiliaries=_auxiliaries, providers=providers)
-            sub = SubscribeLoader(func, caller)
+            sub = execute_handles.register(func, priority=priority, auxiliaries=_auxiliaries, providers=providers)
             self._subscribers.append(sub)
             return sub
 

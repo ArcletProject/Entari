@@ -15,8 +15,8 @@ from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
-from .._subscriber import SubscribeLoader
 from ..event.lifespan import Cleanup, Ready, Startup
+from ..filter import Filter
 from ..logger import log
 from .service import plugin_service
 
@@ -53,7 +53,7 @@ class PluginDispatcher:
             es.register(self.publisher)
         self.plugin = plugin
         self._events = events
-        self._subscribers: list[SubscribeLoader] = []
+        self._subscribers: list[Subscriber] = []
 
     def waiter(
         self,
@@ -71,10 +71,6 @@ class PluginDispatcher:
 
         return wrapper
 
-    def _load(self):
-        for sub in self._subscribers:
-            sub.load()
-
     def dispose(self):
         for sub in self._subscribers:
             sub.dispose()
@@ -88,13 +84,13 @@ class PluginDispatcher:
             wrapper = self.publisher.register(**kwargs)
             if func:
                 self.plugin.validate(func)  # type: ignore
-                sub = SubscribeLoader(func, wrapper)
+                sub = wrapper(func)
                 self._subscribers.append(sub)
                 return sub
 
             def decorator(func1):
                 self.plugin.validate(func1)
-                sub1 = SubscribeLoader(func1, wrapper)
+                sub1 = wrapper(func1)
                 self._subscribers.append(sub1)
                 return sub1
 
@@ -162,10 +158,6 @@ class Plugin:
             plugin._metadata.requirements.extend(requires)
         return self
 
-    def _load(self):
-        for disp in self.dispatchers.values():
-            disp._load()
-
     async def _startup(self):
         if Startup.__publisher__ in self.dispatchers:
             await self.dispatchers[Startup.__publisher__].publisher.emit(Startup())
@@ -178,8 +170,20 @@ class Plugin:
         if Cleanup.__publisher__ in self.dispatchers:
             await self.dispatchers[Cleanup.__publisher__].publisher.emit(Cleanup())
 
+    def update_filter(self, allow: dict, deny: dict):
+        if not allow and not deny:
+            return
+        fter = Filter()
+        if allow:
+            fter = fter.and_(Filter.parse(allow))
+        if deny:
+            fter = fter.not_(Filter.parse(deny))
+        if fter.steps:
+            plugin_service.filters[self.id] = fter
+
     def __post_init__(self):
         plugin_service.plugins[self.id] = self
+        self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
         if self.id not in plugin_service._referents:

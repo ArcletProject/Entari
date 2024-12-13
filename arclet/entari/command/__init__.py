@@ -55,7 +55,7 @@ class EntariCommands:
         if not msg:
             return
         if matches := list(self.trie.prefixes(msg)):
-            results = await asyncio.gather(*(res.value.handle(ctx.copy(), inner=True) for res in matches if res.value))
+            results = await asyncio.gather(*(res.value.handle(ctx.copy()) for res in matches if res.value))
             for result in results:
                 if result is not None:
                     await session.send(result)
@@ -67,7 +67,7 @@ class EntariCommands:
                 command_manager.find_shortcut(get_cmd(value), data)
             except ValueError:
                 continue
-            result = await value.handle(ctx.copy(), inner=True)
+            result = await value.handle(ctx.copy())
             if result is not None:
                 await session.send(result)
 
@@ -143,7 +143,7 @@ class EntariCommands:
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
                 auxiliaries.insert(0, AlconnaSuppiler(_command))
-                target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
+                target = self.publisher.register(func, auxiliaries=auxiliaries, providers=providers)
                 self.publisher.remove_subscriber(target)
                 self.trie[key] = target
 
@@ -152,30 +152,34 @@ class EntariCommands:
                     self.trie.pop(key, None)  # type: ignore
 
                 target._dispose = _remove
+                return target
+
+            _command = cast(Alconna, command)
+            if not isinstance(command.command, str):
+                raise TypeError("Command name must be a string.")
+            _command.reset_namespace(self.__namespace__)
+            auxiliaries.insert(0, AlconnaSuppiler(_command))
+            keys = []
+            if not _command.prefixes:
+                keys.append(_command.command)
+            elif not all(isinstance(i, str) for i in _command.prefixes):
+                raise TypeError("Command prefixes must be a list of string.")
             else:
-                auxiliaries.insert(0, AlconnaSuppiler(command))
-                target = self.publisher.register(auxiliaries=auxiliaries, providers=providers)(func)
-                self.publisher.remove_subscriber(target)
-                if not isinstance(command.command, str):
-                    raise TypeError("Command name must be a string.")
-                keys = []
-                if not command.prefixes:
-                    self.trie[command.command] = target
-                    keys.append(command.command)
-                elif not all(isinstance(i, str) for i in command.prefixes):
-                    raise TypeError("Command prefixes must be a list of string.")
-                else:
-                    for prefix in cast(list[str], command.prefixes):
-                        self.trie[prefix + command.command] = target
-                        keys.append(prefix + command.command)
+                for prefix in cast(list[str], _command.prefixes):
+                    keys.append(prefix + _command.command)
 
-                def _remove(_):
-                    command_manager.delete(get_cmd(_))
-                    for key in keys:
-                        self.trie.pop(key, None)  # type: ignore
+            target = self.publisher.register(func, auxiliaries=auxiliaries, providers=providers)
+            self.publisher.remove_subscriber(target)
 
-                target._dispose = _remove
-                command.reset_namespace(self.__namespace__)
+            for _key in keys:
+                self.trie[_key] = target
+
+            def _remove(_):
+                command_manager.delete(get_cmd(_))
+                for _key in keys:
+                    self.trie.pop(_key, None)  # type: ignore
+
+            target._dispose = _remove
             return target
 
         return wrapper
@@ -208,6 +212,8 @@ def _(plg: RootlessPlugin):
         _commands.judge.need_reply_me = plg.config["need_reply_me"]
     if "use_config_prefix" in plg.config:
         _commands.judge.use_config_prefix = plg.config["use_config_prefix"]
+
+    plg.dispatch(MessageCreatedEvent).handle(_commands.handle, auxiliaries=[_commands.judge])
 
     @plg.use(ConfigReload)
     def update(event: ConfigReload):

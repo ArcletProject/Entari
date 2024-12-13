@@ -30,6 +30,21 @@ metadata(
 logger = log.wrapper("[AutoReload]")
 
 
+def detect_filter_change(old: dict, new: dict):
+    added = set(new) - set(old)
+    removed = set(old) - set(new)
+    changed = {key for key in set(new) & set(old) if new[key] != old[key]}
+    if "$allow" in removed:
+        allow = {}
+    else:
+        allow = new["$allow"]
+    if "$deny" in removed:
+        deny = {}
+    else:
+        deny = new["$deny"]
+    return allow, deny, not ((added | removed | changed) - {"$allow", "$deny"})
+
+
 class Watcher(Service):
     id = "watcher"
 
@@ -61,7 +76,6 @@ class Watcher(Service):
                     dispose_plugin(pid)
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
-                        plugin._load()
                         await plugin._startup()
                         await plugin._ready()
                         del plugin
@@ -72,7 +86,6 @@ class Watcher(Service):
                     logger("INFO", f"Detected change in {change[1]!r} which failed to reload, retrying...")
                     if plugin := load_plugin(self.fail[change[1]]):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
-                        plugin._load()
                         await plugin._startup()
                         await plugin._ready()
                         del plugin
@@ -102,17 +115,21 @@ class Watcher(Service):
                             f"Basic config <y>{key!r}</y> changed from <r>{old_basic[key]!r}</r> "
                             f"to <g>{EntariConfig.instance.basic[key]!r}</g>",
                         )
-                        await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
+                        await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key], old_basic[key]))
+                for key in set(EntariConfig.instance.basic) - set(old_basic):
+                    logger("DEBUG", f"Basic config <y>{key!r}</y> appended")
+                    await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
                 for plugin_name in old_plugin:
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if (
                         plugin_name not in EntariConfig.instance.plugin
                         or EntariConfig.instance.plugin[plugin_name] is False
-                    ) and (plugin := find_plugin(pid)):
-                        await plugin._cleanup()
-                        del plugin
-                        dispose_plugin(pid)
-                        logger("INFO", f"Disposed plugin <blue>{pid!r}</blue>")
+                    ):
+                        if plugin := find_plugin(pid):
+                            await plugin._cleanup()
+                            del plugin
+                            dispose_plugin(pid)
+                            logger("INFO", f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
                     if old_plugin[plugin_name] != EntariConfig.instance.plugin[plugin_name]:
                         logger(
@@ -120,19 +137,31 @@ class Watcher(Service):
                             f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_plugin[plugin_name]!r}</r> "
                             f"to <g>{EntariConfig.instance.plugin[plugin_name]!r}</g>",
                         )
-                        res = await es.post(
-                            ConfigReload("plugin", plugin_name, EntariConfig.instance.plugin[plugin_name])
-                        )
-                        if res and res.value:
-                            logger("DEBUG", f"Plugin <y>{pid!r}</y> config change handled by itself.")
-                            continue
+                        if isinstance(old_plugin[plugin_name], bool):
+                            old_conf = {}
+                        else:
+                            old_conf: dict = old_plugin[plugin_name]  # type: ignore
+                        if isinstance(EntariConfig.instance.plugin[plugin_name], bool):
+                            new_conf = {}
+                        else:
+                            new_conf: dict = EntariConfig.instance.plugin[plugin_name]  # type: ignore
                         if plugin := find_plugin(pid):
+                            allow, deny, only_filter = detect_filter_change(old_conf, new_conf)
+                            plugin.update_filter(allow, deny)
+                            if only_filter:
+                                logger("DEBUG", f"Plugin <y>{pid!r}</y> config only changed filter.")
+                                continue
+                            res = await es.post(
+                                ConfigReload("plugin", plugin_name, new_conf, old_conf),
+                            )
+                            if res and res.value:
+                                logger("DEBUG", f"Plugin <y>{pid!r}</y> config change handled by itself.")
+                                continue
                             logger("INFO", f"Detected <blue>{pid!r}</blue>'s config change, reloading...")
                             plugin_file = str(plugin.module.__file__)
                             await plugin._cleanup()
                             dispose_plugin(plugin_name)
-                            if plugin := load_plugin(plugin_name):
-                                plugin._load()
+                            if plugin := load_plugin(plugin_name, new_conf):
                                 await plugin._startup()
                                 await plugin._ready()
                                 logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
@@ -142,12 +171,11 @@ class Watcher(Service):
                                 self.fail[plugin_file] = pid
                         else:
                             logger("INFO", f"Detected <blue>{pid!r}</blue> appended, loading...")
-                            load_plugin(plugin_name)
+                            load_plugin(plugin_name, new_conf)
                 if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
                     for plugin_name in new:
                         if not (plugin := load_plugin(plugin_name)):
                             continue
-                        plugin._load()
                         await plugin._startup()
                         await plugin._ready()
                         del plugin
