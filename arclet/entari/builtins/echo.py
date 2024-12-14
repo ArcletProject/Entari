@@ -14,12 +14,12 @@ cmd = command.mount(Alconna("echo", Args["content?", AllParam], meta=CommandMeta
 
 
 @cmd.handle
-async def _(content: Match[MessageChain], session: Session):
+async def echo_handle(content: Match[MessageChain], session: Session):
     if content.available:
         return await session.send(content.result)
 
 
 @cmd.on_execute()
-async def _(content: Match[MessageChain]):
+async def echo_exec(content: Match[MessageChain]):
     if content.available:
         return content.result
