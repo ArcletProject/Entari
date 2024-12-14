@@ -12,7 +12,7 @@ from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin
-from .model import _current_plugin
+from .model import StaticPluginDispatchError, _current_plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
@@ -29,7 +29,9 @@ def dispatch(*events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] 
     return plugin.dispatch(*events, predicate=predicate, name=name)
 
 
-def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str] | None = None) -> Plugin | None:
+def load_plugin(
+    path: str, config: dict | None = None, recursive_guard: set[str] | None = None, static: bool = False
+) -> Plugin | None:
     """
     以导入路径方式加载模块
 
@@ -37,6 +39,7 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
         path (str): 模块路径
         config (dict): 模块配置
         recursive_guard (set[str]): 递归保护
+        static (bool): 是否为静态插件
     """
     if config is None:
         _config = EntariConfig.instance.plugin.get(path)
@@ -54,7 +57,10 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
     if path in plugin_service._apply:
         return plugin_service._apply[path](config or {})
     try:
-        mod = import_plugin(path, config=config)
+        conf = config or {}
+        if static:
+            conf["$static"] = True
+        mod = import_plugin(path, config=conf)
         if not mod:
             log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")
             return
@@ -77,8 +83,8 @@ def load_plugin(path: str, config: dict | None = None, recursive_guard: set[str]
                             recursive_guard.add(referent)
             plugin_service._unloaded.discard(mod.__name__)
         return mod.__plugin__
-    except RegisterNotInPluginError as e:
-        log.plugin.opt(colors=True).error(f"{e.args[0]}")
+    except (RegisterNotInPluginError, StaticPluginDispatchError) as e:
+        log.plugin.opt(colors=True).error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
     except Exception as e:
         log.plugin.opt(colors=True).exception(
             f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e

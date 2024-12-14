@@ -19,16 +19,19 @@ class EntariConfig:
     path: Path
     basic: BasicConfig = field(default_factory=dict, init=False)  # type: ignore
     plugin: dict[str, dict | bool] = field(default_factory=dict, init=False)
+    prelude_plugin: list[str] = field(default_factory=list, init=False)
     updater: Callable[[EntariConfig], None]
 
     instance: ClassVar[EntariConfig]
 
     def __post_init__(self):
         self.__class__.instance = self
-        self.updater(self)
+        self.reload()
 
     def reload(self):
         self.updater(self)
+        self.plugin.setdefault("~commands", True)
+        self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:

@@ -66,8 +66,8 @@ class Watcher(Service):
         async for event in awatch(*self.dirs, watch_filter=PythonFilter()):
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
-                    if plugin.id == "arclet.entari.builtins.auto_reload":
-                        logger("DEBUG", f"Detected change in <blue>{plugin.id!r}</blue>, ignored")
+                    if plugin.id == "arclet.entari.builtins.auto_reload" or plugin.is_static:
+                        logger("INFO", f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
                     logger("INFO", f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
                     await plugin._cleanup()
@@ -120,6 +120,8 @@ class Watcher(Service):
                     logger("DEBUG", f"Basic config <y>{key!r}</y> appended")
                     await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
                 for plugin_name in old_plugin:
+                    if plugin_name == "$prelude":
+                        continue
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if (
                         plugin_name not in EntariConfig.instance.plugin
@@ -174,6 +176,8 @@ class Watcher(Service):
                             load_plugin(plugin_name, new_conf)
                 if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
                     for plugin_name in new:
+                        if plugin_name == "$prelude":
+                            continue
                         if not (plugin := load_plugin(plugin_name)):
                             continue
                         await plugin._startup()
@@ -203,7 +207,7 @@ watch_config = plug.config.get("watch_config", False)
 plug.service(serv := Watcher(watch_dirs, watch_config))
 
 
-@plug.use(ConfigReload)
+@es.on(ConfigReload)
 def handle_config_reload(event: ConfigReload):
     if event.scope != "plugin":
         return

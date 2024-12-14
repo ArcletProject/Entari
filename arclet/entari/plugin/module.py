@@ -242,21 +242,22 @@ class PluginLoader(SourceFileLoader):
         aux = AccessAuxiliary(plugin.id)
 
         # enter plugin context
-        with _current_plugin.use(plugin):
-            try:
-                if not is_sub:
-                    global_auxiliaries.append(aux)
-                super().exec_module(module)
-            except Exception:
-                plugin.dispose()
-                raise
-            finally:
-                if not is_sub:
-                    global_auxiliaries.remove(aux)
-                # leave plugin context
-                delattr(module, "__cached__")
-                delattr(module, "__plugin_service__")
-                sys.modules.pop(module.__name__, None)
+        token = _current_plugin.set(plugin)
+        try:
+            if not is_sub:
+                global_auxiliaries.append(aux)
+            super().exec_module(module)
+        except Exception:
+            plugin.dispose()
+            raise
+        finally:
+            if not is_sub:
+                global_auxiliaries.remove(aux)
+            # leave plugin context
+            delattr(module, "__cached__")
+            delattr(module, "__plugin_service__")
+            sys.modules.pop(module.__name__, None)
+            _current_plugin.reset(token)
 
         # get plugin metadata
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)

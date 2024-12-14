@@ -126,10 +126,11 @@ class Entari(App):
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
-        if "~commands" not in EntariConfig.instance.plugin:
-            EntariConfig.instance.plugin["~commands"] = True
         log.set_level(log_level)
         log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
+        requires(*EntariConfig.instance.prelude_plugin)
+        for plug in EntariConfig.instance.prelude_plugin:
+            load_plugin(plug, static=True)
         requires(*EntariConfig.instance.plugin)
         for plug in EntariConfig.instance.plugin:
             load_plugin(plug)

@@ -33,6 +33,10 @@ class RegisterNotInPluginError(Exception):
     pass
 
 
+class StaticPluginDispatchError(Exception):
+    pass
+
+
 class PluginDispatcher:
     def __init__(
         self,
@@ -130,6 +134,7 @@ class Plugin:
     dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
+    is_static: bool = False
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
 
@@ -184,6 +189,9 @@ class Plugin:
     def __post_init__(self):
         plugin_service.plugins[self.id] = self
         self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
+        if "$static" in self.config:
+            self.is_static = True
+            self.config.pop("$static")
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
         if self.id not in plugin_service._referents:
@@ -232,6 +240,8 @@ class Plugin:
     def dispatch(
         self, *events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] | None = None, name: str | None = None
     ):
+        if self.is_static:
+            raise StaticPluginDispatchError("static plugin cannot dispatch events")
         disp = PluginDispatcher(self, *events, predicate=predicate, name=name)
         if disp.publisher.id in self.dispatchers:
             return self.dispatchers[disp.publisher.id]
@@ -274,6 +284,8 @@ class Plugin:
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
     ):
+        if self.is_static:
+            raise StaticPluginDispatchError("static plugin cannot use events by `Plugin.use`")
         if isinstance(pub_id, str):
             pid = pub_id.replace("::", "entari.event/")
         else:
@@ -347,8 +359,11 @@ class RootlessPlugin(Plugin):
         setattr(self.module, "__plugin__", self)
         setattr(self.module, "__file__", func.__code__.co_filename)
         self.func = func
-        with _current_plugin.use(self):
+        token = _current_plugin.set(self)
+        try:
             func(self)
+        finally:
+            _current_plugin.reset(token)
 
     def validate(self, func):
         pass
