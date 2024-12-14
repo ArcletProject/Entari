@@ -1,2 +1,2 @@
-from .protocol import MessageCreatedEvent as MessageCreatedEvent
-from .protocol import MessageEvent as MessageEvent
+from .base import MessageCreatedEvent as MessageCreatedEvent
+from .base import MessageEvent as MessageEvent

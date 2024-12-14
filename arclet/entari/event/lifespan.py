@@ -4,32 +4,30 @@ from arclet.letoderea import es
 from satori.client import Account
 from satori.model import LoginStatus
 
-from .base import BasedEvent
-
 
 @dataclass
-class Startup(BasedEvent):
+class Startup:
     pass
 
     __publisher__ = "entari.event/startup"
 
 
 @dataclass
-class Ready(BasedEvent):
+class Ready:
     pass
 
     __publisher__ = "entari.event/ready"
 
 
 @dataclass
-class Cleanup(BasedEvent):
+class Cleanup:
     pass
 
     __publisher__ = "entari.event/cleanup"
 
 
 @dataclass
-class AccountUpdate(BasedEvent):
+class AccountUpdate:
     account: Account
     status: LoginStatus
 

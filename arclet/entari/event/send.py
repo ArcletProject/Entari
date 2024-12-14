@@ -6,14 +6,13 @@ from satori.client import Account
 from satori.model import MessageReceipt
 
 from ..message import MessageChain
-from .base import BasedEvent
 
 if TYPE_CHECKING:
     from ..session import Session
 
 
 @dataclass
-class SendRequest(BasedEvent):
+class SendRequest:
     account: Account
     channel: str
     message: MessageChain
@@ -35,7 +34,7 @@ before_send_pub.bind(provide(MessageChain, target="message"))
 
 
 @dataclass
-class SendResponse(BasedEvent):
+class SendResponse:
     account: Account
     channel: str
     message: MessageChain

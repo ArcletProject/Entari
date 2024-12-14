@@ -1,4 +1,5 @@
 import asyncio
+from asyncio.events import _get_running_loop  # type: ignore
 from datetime import datetime, timedelta
 from traceback import print_exc
 from typing import Callable, Literal
@@ -9,7 +10,7 @@ from croniter import croniter
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
-from .plugin import RootlessPlugin
+from .plugin import RootlessPlugin, _current_plugin
 
 
 class _ScheduleEvent:
@@ -28,7 +29,7 @@ class TimerTask:
         self.handle = None
 
     def start(self, queue: asyncio.Queue):
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self.handle = loop.call_later(self.supplier().total_seconds(), queue.put_nowait, self)
 
     def cancel(self):
@@ -63,11 +64,16 @@ class Scheduler(Service):
             except Exception:
                 print_exc()
 
-    def schedule(self, timer: Callable[[], timedelta]):
+    def schedule(self, timer: Callable[[], timedelta], once: bool = False):
 
         def wrapper(func: Callable):
-            sub = pub.register(func)
+            if plugin := _current_plugin.get():
+                sub = plugin.dispatch(_ScheduleEvent).register(func, temporary=once)
+            else:
+                sub = pub.register(func, temporary=once)
             self.timers[sub.id] = TimerTask(timer, sub.id)
+            if _get_running_loop():
+                self.timers[sub.id].start(self.queue)
             return sub
 
         return wrapper
@@ -205,3 +211,8 @@ def every(
         "hour": every_hours,
     }
     return service.schedule(_TIMER_MAPPING[mode](value))
+
+
+def invoke(delay: float):
+    """延迟执行"""
+    return service.schedule(lambda: timedelta(seconds=delay), once=True)

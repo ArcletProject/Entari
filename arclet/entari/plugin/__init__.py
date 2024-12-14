@@ -2,35 +2,32 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
 from tarina import init_spec
 
 from ..config import EntariConfig
 from ..logger import log
-from .model import Plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin
 from .model import StaticPluginDispatchError, _current_plugin
+from .model import TE, Plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
 from .module import requires as requires
 from .service import plugin_service
 
-if TYPE_CHECKING:
-    from ..event.base import BasedEvent
 
-
-def dispatch(*events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] | None = None, name: str | None = None):
+def dispatch(*events: type[TE], predicate: Callable[[TE], bool] | None = None, name: str | None = None):
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     return plugin.dispatch(*events, predicate=predicate, name=name)
 
 
 def load_plugin(
-    path: str, config: dict | None = None, recursive_guard: set[str] | None = None, static: bool = False
+    path: str, config: dict | None = None, recursive_guard: set[str] | None = None, prelude: bool = False
 ) -> Plugin | None:
     """
     以导入路径方式加载模块
@@ -39,7 +36,7 @@ def load_plugin(
         path (str): 模块路径
         config (dict): 模块配置
         recursive_guard (set[str]): 递归保护
-        static (bool): 是否为静态插件
+        prelude (bool): 是否为前置插件
     """
     if config is None:
         _config = EntariConfig.instance.plugin.get(path)
@@ -58,7 +55,9 @@ def load_plugin(
         return plugin_service._apply[path](config or {})
     try:
         conf = config or {}
-        if static:
+        if "$static" in conf:
+            del conf["$static"]
+        if prelude:
             conf["$static"] = True
         mod = import_plugin(path, config=conf)
         if not mod:
@@ -119,9 +118,17 @@ def metadata(data: PluginMetadata):
 
 
 def plugin_config() -> dict[str, Any]:
+    """获取当前插件的配置"""
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     return plugin.config
+
+
+def declare_static():
+    """声明当前插件为静态插件"""
+    if not (plugin := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    plugin.is_static = True
 
 
 def find_plugin(name: str) -> Plugin | None:

@@ -7,11 +7,13 @@ from launart import Launart, Service, any_completed
 from launart.status import Phase
 from watchfiles import PythonFilter, awatch
 
-from arclet.entari import Plugin, dispose_plugin, load_plugin, metadata
+from arclet.entari import Plugin, declare_static, dispose_plugin, load_plugin, metadata
 from arclet.entari.config import EntariConfig
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import find_plugin, find_plugin_by_file
+
+declare_static()
 
 
 class Config:
@@ -66,7 +68,7 @@ class Watcher(Service):
         async for event in awatch(*self.dirs, watch_filter=PythonFilter()):
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
-                    if plugin.id == "arclet.entari.builtins.auto_reload" or plugin.is_static:
+                    if plugin.is_static:
                         logger("INFO", f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
                     logger("INFO", f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")

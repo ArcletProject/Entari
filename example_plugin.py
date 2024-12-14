@@ -10,7 +10,7 @@ from arclet.entari import (
     metadata,
     keeping,
     scheduler,
-    Entari,
+    # Entari,
 )
 from arclet.entari.filter import Interval
 
@@ -29,7 +29,7 @@ async def cleanup():
     print("example: Cleanup")
 
 
-disp_message = MessageCreatedEvent.dispatch()
+disp_message = plug.dispatch(MessageCreatedEvent)
 
 
 @disp_message
@@ -38,17 +38,20 @@ async def _(msg: MessageChain, session: Session):
     content = msg.extract_plain_text()
     if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
         return await session.send("上传设定的帮助是...")
+    if content == "test":
+        resp = await session.send("This message will recall in 5s...")
+
+        @scheduler.invoke(5)
+        async def _():
+            await session.message_delete(resp[0].id)
 
 
-disp_message1 = plug.dispatch(MessageCreatedEvent)
-
-
-@disp_message1.on(auxiliaries=[Filter().public().to_me().and_(lambda sess: str(sess.content) == "aaa")])
+@disp_message.on(auxiliaries=[Filter().public().to_me().and_(lambda sess: str(sess.content) == "aaa")])
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
-@disp_message1.on(auxiliaries=[Filter().public().to_me().not_(lambda sess: str(sess.content) == "aaa")])
+@disp_message.on(auxiliaries=[Filter().public().to_me().not_(lambda sess: str(sess.content) == "aaa")])
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
@@ -84,10 +87,9 @@ print("example_plugin not in sys.modules (expect True):", "example_plugin" not i
 async def send_hook(message: MessageChain):
     return message + "喵"
 
-
-@scheduler.cron("* * * * *")
-async def broadcast(app: Entari):
-    for account in app.accounts.values():
-        channels = [channel for guild in (await account.guild_list()).data for channel in (await account.channel_list(guild.id)).data]
-        for channel in channels:
-            await account.send_message(channel, "Hello, World!")
+# @scheduler.cron("* * * * *")
+# async def broadcast(app: Entari):
+#     for account in app.accounts.values():
+#         channels = [channel for guild in (await account.guild_list()).data for channel in (await account.channel_list(guild.id)).data]
+#         for channel in channels:
+#             await account.send_message(channel, "Hello, World!")

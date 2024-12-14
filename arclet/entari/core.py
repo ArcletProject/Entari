@@ -15,9 +15,9 @@ from satori.model import Event
 from tarina.generic import get_origin
 
 from .config import EntariConfig
+from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
-from .event.protocol import MessageCreatedEvent, event_parse
 from .event.send import SendResponse
 from .logger import log
 from .plugin import load_plugin, plugin_config, requires
@@ -130,7 +130,7 @@ class Entari(App):
         log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
         requires(*EntariConfig.instance.prelude_plugin)
         for plug in EntariConfig.instance.prelude_plugin:
-            load_plugin(plug, static=True)
+            load_plugin(plug, prelude=True)
         requires(*EntariConfig.instance.plugin)
         for plug in EntariConfig.instance.plugin:
             load_plugin(plug)

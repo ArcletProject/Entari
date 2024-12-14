@@ -4,11 +4,10 @@ from typing import Union
 from arclet.letoderea import Contexts, Provider, es
 
 from ..message import MessageChain
-from .base import BasedEvent
 
 
 @dataclass
-class CommandExecute(BasedEvent):
+class CommandExecute:
     command: Union[str, MessageChain]
 
     async def gather(self, context: Contexts):

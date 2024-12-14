@@ -49,6 +49,7 @@ from .filter import Filter as Filter
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
+from .plugin import declare_static as declare_static
 from .plugin import dispose as dispose_plugin  # noqa: F401
 from .plugin import keeping as keeping
 from .plugin import load_plugin as load_plugin

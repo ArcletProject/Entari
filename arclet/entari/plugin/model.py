@@ -20,12 +20,10 @@ from ..filter import Filter
 from ..logger import log
 from .service import plugin_service
 
-if TYPE_CHECKING:
-    from ..event.base import BasedEvent
-
 _current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
 T = TypeVar("T")
+TE = TypeVar("TE")
 R = TypeVar("R")
 
 
@@ -41,8 +39,8 @@ class PluginDispatcher:
     def __init__(
         self,
         plugin: Plugin,
-        *events: type[BasedEvent],
-        predicate: Callable[[BasedEvent], bool] | None = None,
+        *events: type[TE],
+        predicate: Callable[[TE], bool] | None = None,
         name: str | None = None,
     ):
         if len(events) == 1:
@@ -61,7 +59,7 @@ class PluginDispatcher:
 
     def waiter(
         self,
-        *events: type[BasedEvent],
+        *events: Any,
         providers: Sequence[Provider | type[Provider]] | None = None,
         auxiliaries: list[BaseAuxiliary] | None = None,
         priority: int = 15,
@@ -237,9 +235,7 @@ class Plugin:
         del plugin_service.plugins[self.id]
         del self.module
 
-    def dispatch(
-        self, *events: type[BasedEvent], predicate: Callable[[BasedEvent], bool] | None = None, name: str | None = None
-    ):
+    def dispatch(self, *events: type[TE], predicate: Callable[[TE], bool] | None = None, name: str | None = None):
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot dispatch events")
         disp = PluginDispatcher(self, *events, predicate=predicate, name=name)

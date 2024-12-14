@@ -14,9 +14,9 @@ from satori.element import Text
 from tarina.string import split
 from tarina.trie import CharTrie
 
+from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..event.config import ConfigReload
-from ..event.protocol import MessageCreatedEvent
 from ..message import MessageChain
 from ..plugin import RootlessPlugin
 from ..session import Session

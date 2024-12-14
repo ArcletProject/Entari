@@ -9,6 +9,7 @@ from satori import Channel, Guild, User
 from satori.client import Account
 from tarina import is_async
 
+from ..event.base import SatoriEvent
 from ..session import Session
 from .message import DirectMessageJudger, NoticeMeJudger, PublicMessageJudger, ReplyMeJudger, ToMeJudger
 from .op import ExcludeFilter, IntersectFilter, UnionFilter
@@ -140,6 +141,8 @@ class Filter(JudgeAuxiliary):
             self.callback = None
 
     async def __call__(self, scope: Scope, interface: Interface):
+        if not isinstance(interface.event, SatoriEvent):  # we only care about event from satori
+            return True
         for step in sorted(self.steps, key=lambda x: x.priority):
             if not await step(scope, interface):
                 return False

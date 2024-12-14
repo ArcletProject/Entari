@@ -3,11 +3,9 @@ from typing import Any, Optional
 
 from arclet.letoderea import es
 
-from .base import BasedEvent
-
 
 @dataclass
-class ConfigReload(BasedEvent):
+class ConfigReload:
     scope: str
     key: str
     value: Any

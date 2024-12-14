@@ -10,24 +10,24 @@ from satori.const import Api
 from satori.element import Element
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
-from .event.protocol import Event, FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent, Reply
+from .event.base import FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent, Reply, SatoriEvent
 from .event.send import SendRequest, SendResponse
 from .message import MessageChain
 
-TEvent = TypeVar("TEvent", bound=Event)
+TEvent = TypeVar("TEvent", bound=SatoriEvent)
 
 
 class EntariProtocol(ApiProtocol):
 
     async def send_message(
-        self, channel: str | Channel, message: str | Iterable[str | Element], source: Event | None = None
+        self, channel: str | Channel, message: str | Iterable[str | Element], source: SatoriEvent | None = None
     ) -> list[MessageReceipt]:
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel (str | Channel): 要发送的频道 ID
             message (str | Iterable[str | Element]): 要发送的消息
-            source (Event | None): 源事件
+            source (SatoriEvent | None): 源事件
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
@@ -36,14 +36,14 @@ class EntariProtocol(ApiProtocol):
         return await self.message_create(channel_id=channel_id, content=message, source=source)
 
     async def send_private_message(
-        self, user: str | User, message: str | Iterable[str | Element], source: Event | None = None
+        self, user: str | User, message: str | Iterable[str | Element], source: SatoriEvent | None = None
     ) -> list[MessageReceipt]:
         """发送私聊消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             user (str | User): 要发送的用户 ID
             message (str | Iterable[str | Element]): 要发送的消息
-            source (Event | None): 源事件
+            source (SatoriEvent | None): 源事件
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
@@ -53,14 +53,14 @@ class EntariProtocol(ApiProtocol):
         return await self.message_create(channel_id=channel.id, content=message, source=source)
 
     async def message_create(
-        self, channel_id: str, content: str | Iterable[str | Element], source: Event | None = None
+        self, channel_id: str, content: str | Iterable[str | Element], source: SatoriEvent | None = None
     ) -> list[MessageReceipt]:
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel_id (str): 频道 ID
             content (str | Iterable[str | Element]): 消息内容
-            source (Event | None): 源事件
+            source (SatoriEvent | None): 源事件
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
@@ -242,14 +242,12 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot be replied to!")
         return await self.account.protocol.send_message(self.context.channel.id, content, self.context)
 
-    async def message_delete(self) -> None:
+    async def message_delete(self, message_id: str) -> None:
         if not self.context.channel:
             raise RuntimeError("Event cannot be replied to!")
-        if not self.context.message:
-            raise RuntimeError("Event cannot update message")
         await self.account.protocol.message_delete(
             self.context.channel.id,
-            self.context.message.id,
+            message_id,
         )
 
     async def message_update(
