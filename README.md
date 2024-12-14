@@ -22,7 +22,7 @@ $ entari new
 ```
 ```shell
 # 运行
-$ entari
+$ entari run
 ```
 
 使用配置文件:
@@ -38,6 +38,8 @@ basic:
   log_level: INFO
   prefix: ["/"]
 plugins:
+  $prelude:
+    - ::auto_reload
   ~record_message: true
   ::auto_reload:
     watch_dirs: ["."]

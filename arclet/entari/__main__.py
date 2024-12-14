@@ -9,6 +9,7 @@ from arclet.entari import Entari
 alc = Alconna(
     "entari",
     Subcommand("new", help_text="新建一个 Entari 配置文件"),
+    Subcommand("run", help_text="运行 Entari"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径"),
     meta=CommandMeta(
         "Entari App Launcher",
@@ -33,6 +34,7 @@ JSON_TEMPLATE = """\
     "prefix": ["/"]
   },
   "plugins": {
+    "$prelude": ["::auto_reload"],
     "~record_message": true,
     "::auto_reload": {
         "watch_dirs": ["."]
@@ -55,6 +57,8 @@ basic:
   log_level: "info"
   prefix: ["/"]
 plugins:
+  $prelude:
+    - ::auto_reload
   ~record_message: true
   ::auto_reload:
     watch_dirs: ["."]
@@ -65,9 +69,9 @@ plugins:
 
 def main():
     res = alc()
-    if not res.matched:
+    if not res.matched or res.non_component:
+        print(alc.get_help())
         return
-    command_manager.delete(alc)
     if res.find("new"):
         if (path := res.query[str]("config.path", None)) is None:
             if find_spec("yaml"):
@@ -91,5 +95,7 @@ def main():
             return
         print(f"Unsupported file extension: {_path.suffix}")
         return
-    entari = Entari.load(res.query[str]("config.path", None))
-    entari.run()
+    if res.find("run"):
+        command_manager.delete(alc)
+        entari = Entari.load(res.query[str]("config.path", None))
+        entari.run()
