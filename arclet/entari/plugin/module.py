@@ -257,7 +257,7 @@ class PluginLoader(SourceFileLoader):
             # leave plugin context
             delattr(module, "__cached__")
             delattr(module, "__plugin_service__")
-            sys.modules.pop(module.__name__, None)
+            # sys.modules.pop(module.__name__, None)
             _current_plugin.reset(token)
 
         # get plugin metadata
@@ -313,30 +313,36 @@ def find_spec(name, package=None):
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
     if parent_name:
-        if parent_name in plugin_service.plugins:
-            parent = plugin_service.plugins[parent_name].module
+        parts = parent_name.split(".")
+        _current = parts[0]
+        if _current in plugin_service.plugins:
+            parent = plugin_service.plugins[_current].module
+            enter_plugin = True
         else:
+            parent = __import__(_current, fromlist=["__path__"])
             enter_plugin = False
-            index = 0
-            while (index := parent_name.find(".", index + 1)) != -1:
-                if parent_name[:index] in plugin_service.plugins:
+        _current += "."
+        for part in parts[1:]:
+            _current += part
+            if _current in plugin_service.plugins:
+                parent = plugin_service.plugins[_current].module
+                enter_plugin = True
+                _current += "."
+                continue
+            if _current in _ENSURE_IS_PLUGIN:
+                parent = import_plugin(_current)
+                if parent:
                     enter_plugin = True
-                    continue
-                if enter_plugin:
-                    if import_plugin(parent_name[:index]):
-                        continue
-                    else:
-                        enter_plugin = False
-                        __import__(parent_name[:index], fromlist=["__path__"])
                 else:
-                    __import__(parent_name[:index], fromlist=["__path__"])
-            if parent_name in plugin_service.plugins:
-                parent = plugin_service.plugins[parent_name].module
-            elif enter_plugin:
-                if not (parent := import_plugin(parent_name)):
-                    parent = __import__(parent_name, fromlist=["__path__"])
+                    parent = __import__(_current, fromlist=["__path__"])
+                _current += "."
+                continue
+            if enter_plugin and (parent := import_plugin(_current)):
+                pass
             else:
-                parent = __import__(parent_name, fromlist=["__path__"])
+                enter_plugin = False
+                parent = __import__(_current, fromlist=["__path__"])
+            _current += "."
         try:
             parent_path = parent.__path__
         except AttributeError as e:

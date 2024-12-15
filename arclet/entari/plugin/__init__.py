@@ -58,9 +58,12 @@ def load_plugin(
     try:
         mod = import_plugin(path, config=conf)
         if not mod:
+            path1 = f"entari_plugin_{path}"
+            mod = import_plugin(path1, config=conf)
+        if not mod:
             log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")
             return
-        log.plugin.opt(colors=True).success(f"loaded plugin <blue>{path!r}</blue>")
+        log.plugin.opt(colors=True).success(f"loaded plugin <blue>{mod.__name__!r}</blue>")
         if mod.__name__ in plugin_service._unloaded:
             if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
                 referents = plugin_service._referents[mod.__name__].copy()
@@ -89,12 +92,11 @@ def load_plugin(
 
 def load_plugins(dir_: str | PathLike | Path):
     path = dir_ if isinstance(dir_, Path) else Path(dir_)
-    if path.is_dir():
-        for p in path.iterdir():
-            if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
-                load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
-    elif path.is_file():
-        load_plugin(".".join(path.parts[:-1:1]) + "." + path.stem)
+    if not path.is_dir():
+        raise NotADirectoryError(f"{path} is not a directory")
+    for p in path.iterdir():
+        if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
+            load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
 
 
 def dispose(plugin: str):
