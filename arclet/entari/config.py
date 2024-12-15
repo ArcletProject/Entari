@@ -18,7 +18,7 @@ class BasicConfig(TypedDict, total=False):
 class EntariConfig:
     path: Path
     basic: BasicConfig = field(default_factory=dict, init=False)  # type: ignore
-    plugin: dict[str, dict | bool] = field(default_factory=dict, init=False)
+    plugin: dict[str, dict] = field(default_factory=dict, init=False)
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     updater: Callable[[EntariConfig], None]
 
@@ -30,7 +30,7 @@ class EntariConfig:
 
     def reload(self):
         self.updater(self)
-        self.plugin.setdefault("~commands", True)
+        self.plugin.setdefault(".commands", {})
         self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
 
     @classmethod

@@ -39,11 +39,13 @@ def load_plugin(
         prelude (bool): 是否为前置插件
     """
     if config is None:
-        _config = EntariConfig.instance.plugin.get(path)
-        if isinstance(_config, dict):
-            config = _config.copy()
-        elif _config is False:
-            return
+        config = EntariConfig.instance.plugin.get(path)
+    conf = config or {}
+    if "$static" in conf:
+        del conf["$static"]
+    conf = conf.copy()
+    if prelude:
+        conf["$static"] = True
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.builtins.")
@@ -52,13 +54,8 @@ def load_plugin(
     if path in plugin_service.plugins:
         return plugin_service.plugins[path]
     if path in plugin_service._apply:
-        return plugin_service._apply[path](config or {})
+        return plugin_service._apply[path](conf)
     try:
-        conf = config or {}
-        if "$static" in conf:
-            del conf["$static"]
-        if prelude:
-            conf["$static"] = True
         mod = import_plugin(path, config=conf)
         if not mod:
             log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")

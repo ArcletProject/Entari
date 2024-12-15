@@ -333,8 +333,8 @@ class RootlessPlugin(Plugin):
 
     @classmethod
     def apply(cls, id: str, func: Callable[[RootlessPlugin], Any] | None = None) -> Any:
-        if not id.startswith("~"):
-            id = f"~{id}"
+        if not id.startswith("."):
+            id = f".{id}"
 
         def dispose():
             if id in plugin_service.plugins:

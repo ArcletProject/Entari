@@ -219,7 +219,7 @@ def _(plg: RootlessPlugin):
     def update(event: ConfigReload):
         if event.scope != "plugin":
             return
-        if event.key != "~commands":
+        if event.key != ".commands":
             return
         if "need_notice_me" in event.value:
             _commands.judge.need_notice_me = event.value["need_notice_me"]

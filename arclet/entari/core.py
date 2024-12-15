@@ -131,8 +131,11 @@ class Entari(App):
         requires(*EntariConfig.instance.prelude_plugin)
         for plug in EntariConfig.instance.prelude_plugin:
             load_plugin(plug, prelude=True)
-        requires(*EntariConfig.instance.plugin)
-        for plug in EntariConfig.instance.plugin:
+        plugins = [
+            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") or not plug.startswith("$")
+        ]
+        requires(*plugins)
+        for plug in plugins:
             load_plugin(plug)
         self.ignore_self_message = ignore_self_message
         self.register(self.handle_event)

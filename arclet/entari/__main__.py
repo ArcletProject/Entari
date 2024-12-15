@@ -59,7 +59,7 @@ basic:
 plugins:
   $prelude:
     - ::auto_reload
-  ~record_message: true
+  .record_message: true
   ::auto_reload:
     watch_dirs: ["."]
   ::echo: true

@@ -39,11 +39,11 @@ def detect_filter_change(old: dict, new: dict):
     if "$allow" in removed:
         allow = {}
     else:
-        allow = new["$allow"]
+        allow = new.get("$allow", {})
     if "$deny" in removed:
         deny = {}
     else:
-        deny = new["$deny"]
+        deny = new.get("$deny", {})
     return allow, deny, not ((added | removed | changed) - {"$allow", "$deny"})
 
 
@@ -122,13 +122,10 @@ class Watcher(Service):
                     logger("DEBUG", f"Basic config <y>{key!r}</y> appended")
                     await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
                 for plugin_name in old_plugin:
-                    if plugin_name == "$prelude":
+                    if plugin_name.startswith("$") or plugin_name.startswith("~"):
                         continue
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
-                    if (
-                        plugin_name not in EntariConfig.instance.plugin
-                        or EntariConfig.instance.plugin[plugin_name] is False
-                    ):
+                    if plugin_name not in EntariConfig.instance.plugin:
                         if plugin := find_plugin(pid):
                             await plugin._cleanup()
                             del plugin
@@ -141,14 +138,8 @@ class Watcher(Service):
                             f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_plugin[plugin_name]!r}</r> "
                             f"to <g>{EntariConfig.instance.plugin[plugin_name]!r}</g>",
                         )
-                        if isinstance(old_plugin[plugin_name], bool):
-                            old_conf = {}
-                        else:
-                            old_conf: dict = old_plugin[plugin_name]  # type: ignore
-                        if isinstance(EntariConfig.instance.plugin[plugin_name], bool):
-                            new_conf = {}
-                        else:
-                            new_conf: dict = EntariConfig.instance.plugin[plugin_name]  # type: ignore
+                        old_conf = old_plugin[plugin_name]
+                        new_conf = EntariConfig.instance.plugin[plugin_name]
                         if plugin := find_plugin(pid):
                             allow, deny, only_filter = detect_filter_change(old_conf, new_conf)
                             plugin.update_filter(allow, deny)
@@ -178,7 +169,7 @@ class Watcher(Service):
                             load_plugin(plugin_name, new_conf)
                 if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
                     for plugin_name in new:
-                        if plugin_name == "$prelude":
+                        if plugin_name.startswith("$") or plugin_name.startswith("~"):
                             continue
                         if not (plugin := load_plugin(plugin_name)):
                             continue

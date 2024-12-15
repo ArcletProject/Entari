@@ -1,4 +1,3 @@
-import re
 import sys
 from arclet.entari import (
     Session,
@@ -29,21 +28,17 @@ async def cleanup():
     print("example: Cleanup")
 
 
-disp_message = plug.dispatch(MessageCreatedEvent)
-
-
-@disp_message
+@plug.dispatch(MessageCreatedEvent)
 @Filter().public().bind
-async def _(msg: MessageChain, session: Session):
-    content = msg.extract_plain_text()
-    if re.match(r"(.{0,3})(上传|设定)(.{0,3})(上传|设定)(.{0,3})", content):
-        return await session.send("上传设定的帮助是...")
-    if content == "test":
+async def _(session: Session):
+    if session.content == "test":
         resp = await session.send("This message will recall in 5s...")
 
         @scheduler.invoke(5)
         async def _():
             await session.message_delete(resp[0].id)
+
+disp_message = plug.dispatch(MessageCreatedEvent)
 
 
 @disp_message.on(auxiliaries=[Filter().public().to_me().and_(lambda sess: str(sess.content) == "aaa")])

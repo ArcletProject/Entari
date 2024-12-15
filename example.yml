@@ -9,7 +9,7 @@ basic:
 plugins:
   ::auto_reload:
     watch_dirs: ["."]
-  ::echo: true
-  example_plugin: true
-  ~record_message: true
-  ~scheduler: true
+  ::echo: {}
+  example_plugin: {}
+  .record_message: {}
+  .scheduler: {}
