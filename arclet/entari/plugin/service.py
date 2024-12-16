@@ -57,7 +57,8 @@ class PluginManagerService(Service):
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
             for plug_id in ids:
                 plug = self.plugins[plug_id]
-                log.plugin.opt(colors=True).debug(f"disposing plugin <y>{plug.id}</y>")
+                if not plug.id.startswith("."):
+                    log.plugin.opt(colors=True).debug(f"disposing plugin <y>{plug.id}</y>")
                 try:
                     plug.dispose()
                 except Exception as e:

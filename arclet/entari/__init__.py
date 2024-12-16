@@ -58,9 +58,10 @@ from .plugin import metadata as metadata
 from .plugin import package as package
 from .plugin import plugin_config as plugin_config
 from .session import Session as Session
+from .utils.local_data import local_data as local_data
 
 WS = WebsocketsInfo
 WH = WebhookInfo
 filter_ = Filter
 
-__version__ = "0.10.0rc2"
+__version__ = "0.10.0"

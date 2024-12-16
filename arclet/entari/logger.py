@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 if TYPE_CHECKING:
-    from loguru import Logger
+    from loguru import Logger, Record
 
 
 class LoggerManager:
@@ -89,7 +89,7 @@ def default_filter(record):
 
 
 logger.remove()
-logger.add(
+logger_id = logger.add(
     sys.stdout,
     level=0,
     diagnose=True,
@@ -98,12 +98,13 @@ logger.add(
     filter=default_filter,
     format="<lk>{time:YYYY-MM-DD HH:mm:ss}</lk> <lvl>{level:8}</lvl> | <m><u>{name}</u></m> <lvl>{message}</lvl>",
 )
+"""默认日志处理器 id"""
 
 
-def _hidden_upsteam(record):
-    if record["name"].startswith("satori"):
+def _hidden_upsteam(record: Record):
+    if record["name"].startswith("satori"):  # type: ignore
         record["name"] = "satori"
-    if record["name"].startswith("launart"):
+    if record["name"].startswith("launart"):  # type: ignore
         record["name"] = "launart"
 
 

@@ -9,6 +9,7 @@ from arclet.entari import (
     metadata,
     keeping,
     scheduler,
+    local_data,
     # Entari,
 )
 from arclet.entari.filter import Interval
@@ -75,7 +76,7 @@ TEST = 5
 
 print([*Plugin.current().dispatchers.keys()])
 print(Plugin.current().subplugins)
-print("example_plugin not in sys.modules (expect True):", "example_plugin" not in sys.modules)
+print(local_data.get_temp_dir())
 
 
 @plug.use("::before_send")
