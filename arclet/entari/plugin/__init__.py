@@ -128,6 +128,8 @@ def declare_static():
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     plugin.is_static = True
+    if plugin.dispatchers:
+        raise StaticPluginDispatchError("static plugin cannot dispatch events")
 
 
 def find_plugin(name: str) -> Plugin | None:

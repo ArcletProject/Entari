@@ -151,7 +151,7 @@ class LocalData:
         self.root: Optional[Path] = None
         self.app_name = "Entari"
         self._temp_dir = TemporaryDirectory()
-        finalize(local_data, lambda obj: obj._temp_dir.cleanup(), self)
+        finalize(self, lambda obj: obj._temp_dir.cleanup(), self)
 
     def _get_base_cache_dir(self) -> Path:
         return user_cache_dir(self.app_name).resolve() if self.root is None else self.root

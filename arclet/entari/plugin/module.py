@@ -117,7 +117,7 @@ class PluginLoader(SourceFileLoader):
         """
         is_init = Path(path).name == "__init__.py"
         name = self.name
-        if not is_init and self.name.count("."):
+        if is_init and self.name.count("."):
             name = self.name.rpartition(".")[0]
         try:
             nodes = ast.parse(data, type_comments=True)
