@@ -10,7 +10,7 @@ from croniter import croniter
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
-from .plugin import RootlessPlugin, _current_plugin
+from .plugin import _current_plugin
 
 
 class _ScheduleEvent:
@@ -98,11 +98,6 @@ class Scheduler(Service):
 
 
 scheduler = service = Scheduler()
-
-
-@RootlessPlugin.apply("scheduler")
-def _(plg: RootlessPlugin):
-    plg.service(service)
 
 
 def every_second():

@@ -4,9 +4,7 @@ import sys
 from tempfile import TemporaryDirectory
 from typing import Callable, Literal, Optional
 from typing_extensions import ParamSpec
-
-from launart import Launart, Service
-from launart.status import Phase
+from weakref import finalize
 
 from ..event.config import ConfigReload
 from ..plugin.model import RootlessPlugin
@@ -132,24 +130,6 @@ if WINDOWS:
 P = ParamSpec("P")
 
 
-# APP_NAME = "nonebot2"
-# BASE_CACHE_DIR = (
-#     user_cache_dir(APP_NAME).resolve()
-#     if plugin_config.localstore_cache_dir is None
-#     else plugin_config.localstore_cache_dir.resolve()
-# )
-# BASE_CONFIG_DIR = (
-#     user_config_dir(APP_NAME).resolve()
-#     if plugin_config.localstore_config_dir is None
-#     else plugin_config.localstore_config_dir.resolve()
-# )
-# BASE_DATA_DIR = (
-#     user_data_dir(APP_NAME).resolve()
-#     if plugin_config.localstore_data_dir is None
-#     else plugin_config.localstore_data_dir.resolve()
-# )
-#
-#
 def _ensure_dir(path: Path) -> None:
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
@@ -166,20 +146,12 @@ def _auto_create_dir(func: Callable[P, Path]) -> Callable[P, Path]:
     return wrapper
 
 
-class LocalData(Service):
+class LocalData:
     def __init__(self):
-        super().__init__()
         self.root: Optional[Path] = None
         self.app_name = "Entari"
         self._temp_dir = TemporaryDirectory()
-
-    @property
-    def required(self) -> set[str]:
-        return set()
-
-    @property
-    def stages(self) -> set[Phase]:
-        return {"cleanup", "blocking"}
+        finalize(local_data, lambda obj: obj._temp_dir.cleanup(), self)
 
     def _get_base_cache_dir(self) -> Path:
         return user_cache_dir(self.app_name).resolve() if self.root is None else self.root
@@ -209,13 +181,6 @@ class LocalData(Service):
 
     def get_temp_file(self, filename: str) -> Path:
         return self.get_temp_dir() / filename
-
-    async def launch(self, manager: Launart):
-        async with self.stage("blocking"):
-            await manager.status.wait_for_sigexit()
-
-        async with self.stage("cleanup"):
-            self._temp_dir.cleanup()
 
 
 local_data = LocalData()
