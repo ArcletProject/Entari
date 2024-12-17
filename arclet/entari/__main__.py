@@ -8,7 +8,7 @@ from arclet.entari import Entari
 
 alc = Alconna(
     "entari",
-    Subcommand("new", help_text="新建一个 Entari 配置文件"),
+    Subcommand("new", Option("--dev", help_text="是否生成开发用配置文件"), help_text="新建一个 Entari 配置文件"),
     Subcommand("run", help_text="运行 Entari"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径"),
     meta=CommandMeta(
@@ -18,7 +18,7 @@ alc = Alconna(
 )
 
 
-JSON_TEMPLATE = """\
+JSON_BASIC_TEMPLATE = """\
 {
   "basic": {
     "network": [
@@ -33,6 +33,9 @@ JSON_TEMPLATE = """\
     "log_level": "info",
     "prefix": ["/"]
   },
+"""
+
+JSON_PLUGIN_COMMON_TEMPLATE = """\
   "plugins": {
     "~record_message": {},
     "::echo": {},
@@ -41,8 +44,23 @@ JSON_TEMPLATE = """\
 }
 """
 
+JSON_PLUGIN_DEV_TEMPLATE = """\
+  "plugins": {
+    "$prelude": [
+      "::auto_reload"
+    ],
+    "~record_message": {},
+    "::echo": {},
+    "::inspect": {},
+    "::auto_reload": {
+      "watch_config": true
+    }
+  }
+}
+"""
 
-YAML_TEMPLATE = """\
+
+YAML_BASIC_TEMPLATE = """\
 basic:
   network:
     - type: websocket
@@ -52,10 +70,24 @@ basic:
   ignore_self_message: true
   log_level: "info"
   prefix: ["/"]
+"""
+
+YAML_PLUGIN_COMMON_TEMPLATE = """\
 plugins:
   .record_message: {}
   ::echo: {}
   ::inspect: {}
+"""
+
+YAML_PLUGIN_DEV_TEMPLATE = """\
+plugins:
+  $prelude:
+    - ::auto_reload
+  .record_message: {}
+  ::echo: {}
+  ::inspect: {}
+  ::auto_reload:
+    watch_config: true
 """
 
 
@@ -65,6 +97,7 @@ def main():
         print(alc.get_help())
         return
     if res.find("new"):
+        is_dev = res.find("new.dev")
         if (path := res.query[str]("config.path", None)) is None:
             if find_spec("yaml"):
                 _path = Path.cwd() / "entari.yml"
@@ -77,12 +110,12 @@ def main():
             return
         if _path.suffix.startswith(".json"):
             with _path.open("w", encoding="utf-8") as f:
-                f.write(JSON_TEMPLATE)
+                f.write(JSON_BASIC_TEMPLATE + (JSON_PLUGIN_DEV_TEMPLATE if is_dev else JSON_PLUGIN_COMMON_TEMPLATE))
             print(f"Config file created at {_path}")
             return
         if _path.suffix in (".yaml", ".yml"):
             with _path.open("w", encoding="utf-8") as f:
-                f.write(YAML_TEMPLATE)
+                f.write(YAML_BASIC_TEMPLATE + (YAML_PLUGIN_DEV_TEMPLATE if is_dev else YAML_PLUGIN_COMMON_TEMPLATE))
             print(f"Config file created at {_path}")
             return
         print(f"Unsupported file extension: {_path.suffix}")

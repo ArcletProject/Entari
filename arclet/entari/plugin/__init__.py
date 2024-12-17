@@ -133,7 +133,10 @@ def declare_static():
 
 
 def find_plugin(name: str) -> Plugin | None:
-    return plugin_service.plugins.get(name)
+    if name in plugin_service.plugins:
+        return plugin_service.plugins[name]
+    if f"entari_plugin_{name}" in plugin_service.plugins:
+        return plugin_service.plugins[f"entari_plugin_{name}"]
 
 
 def find_plugin_by_file(file: str) -> Plugin | None:
