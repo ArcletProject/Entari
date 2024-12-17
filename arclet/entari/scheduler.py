@@ -6,7 +6,6 @@ from typing import Callable, Literal
 
 from arclet.letoderea import es
 from arclet.letoderea.typing import Contexts
-from croniter import croniter
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
@@ -186,6 +185,10 @@ def crontab(cron_str: str):
     Args:
         cron_str (str): cron 表达式
     """
+    try:
+        from croniter import croniter
+    except ImportError:
+        raise ImportError("Please install croniter to use cron expression") from None
 
     it = croniter(cron_str, datetime.now())
 

@@ -2,10 +2,10 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "dev", "yaml"]
+groups = ["default", "cron", "dev", "yaml"]
 strategy = []
 lock_version = "4.5.0"
-content_hash = "sha256:93b3af27b81eaad510965e649e0725cfb80f983a317ea5bee29caa4a71c5dcf8"
+content_hash = "sha256:a492226fb4991b1e3cac796ce300fcf34a260a4f65a9805503de67ec8eadd794"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
