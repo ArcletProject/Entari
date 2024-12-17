@@ -300,10 +300,10 @@ class Plugin:
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
             raise RegisterNotInPluginError(
-                f"Handler {func.__qualname__} should define "
+                f"Handler `{func.__qualname__}` should define "
                 f"in the same module as the plugin: {self.module.__name__}. "
-                f"Please use the `load_plugin({func.__module__!r})` or "
-                f"`package({func.__module__!r})` before import it."
+                f"Please use the `load_plugin({func.__module__!r})` or `requires({func.__module__!r})`"
+                f"or `package({func.__module__!r})` before import it."
             )
 
     def proxy(self):

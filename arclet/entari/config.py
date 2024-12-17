@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Callable, ClassVar, TypedDict
+import warnings
 
 
 class BasicConfig(TypedDict, total=False):
@@ -32,6 +33,20 @@ class EntariConfig:
         self.updater(self)
         self.plugin.setdefault(".commands", {})
         self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
+        disabled = []
+        for k, v in self.plugin.items():
+            if v is True:
+                self.plugin[k] = {}
+                warnings.warn(
+                    f"`True` usage in plugin '{k}' config is deprecated, use empty dict instead", DeprecationWarning
+                )
+            elif v is False:
+                disabled.append(k)
+        for k in disabled:
+            self.plugin[f"~{k}"] = self.plugin.pop(k)
+            warnings.warn(
+                f"`False` usage in plugin '{k}' config is deprecated, use `~` prefix instead", DeprecationWarning
+            )
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:

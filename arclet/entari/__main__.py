@@ -34,13 +34,9 @@ JSON_TEMPLATE = """\
     "prefix": ["/"]
   },
   "plugins": {
-    "$prelude": ["::auto_reload"],
-    "~record_message": true,
-    "::auto_reload": {
-        "watch_dirs": ["."]
-    },
-    "::echo": true,
-    "::inspect": true
+    "~record_message": {},
+    "::echo": {},
+    "::inspect": {}
   }
 }
 """
@@ -57,13 +53,9 @@ basic:
   log_level: "info"
   prefix: ["/"]
 plugins:
-  $prelude:
-    - ::auto_reload
-  .record_message: true
-  ::auto_reload:
-    watch_dirs: ["."]
-  ::echo: true
-  ::inspect: true
+  .record_message: {}
+  ::echo: {}
+  ::inspect: {}
 """
 
 

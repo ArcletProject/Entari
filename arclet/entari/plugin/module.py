@@ -5,7 +5,6 @@ from importlib import import_module
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
-from pathlib import Path
 import sys
 from types import ModuleType
 from typing import Optional
@@ -115,10 +114,7 @@ class PluginLoader(SourceFileLoader):
 
         The 'data' argument can be any object type that compile() supports.
         """
-        is_init = Path(path).name == "__init__.py"
         name = self.name
-        if is_init and self.name.count("."):
-            name = self.name.rpartition(".")[0]
         try:
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:

@@ -1,6 +1,6 @@
 [project]
 name = "arclet-entari"
-version = "0.10.2"
+version = "0.10.3"
 description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
@@ -27,6 +27,9 @@ classifiers = [
 yaml = ["pyyaml>=6.0.2"]
 cron = [
     "croniter>=5.0.1",
+]
+reload = [
+    "watchfiles>=1.0.3",
 ]
 
 [project.scripts]

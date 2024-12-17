@@ -82,7 +82,7 @@ def load_plugin(
                             recursive_guard.add(referent)
             plugin_service._unloaded.discard(mod.__name__)
         return mod.__plugin__
-    except (RegisterNotInPluginError, StaticPluginDispatchError) as e:
+    except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
         log.plugin.opt(colors=True).error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
     except Exception as e:
         log.plugin.opt(colors=True).exception(
