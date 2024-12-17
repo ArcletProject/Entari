@@ -5,8 +5,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex, TypeAlias
 
-from satori import Element, Text
 from satori import select as satori_select
+from satori.element import At, Element, Link, Sharp, Style, Text
 
 T = TypeVar("T")
 TE = TypeVar("TE", bound=Element)
@@ -610,3 +610,8 @@ class MessageChain(list[TE]):
             else:
                 break
         return self.__class__(copy)
+
+    def display(self):
+        return "".join(
+            str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link)) else elem.__class__.__name__ for elem in self
+        )

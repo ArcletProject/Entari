@@ -138,7 +138,7 @@ _seminal = type("_seminal", (object,), {})
 
 class Assign(JudgeAuxiliary):
     def __init__(self, path: str, value: Any = _seminal, or_not: bool = False):
-        super().__init__()
+        super().__init__(priority=60)
         self.path = path
         self.value = value
         self.or_not = or_not

@@ -37,7 +37,6 @@ from satori import transform as transform
 from satori.client import Account as Account
 from satori.client.config import WebhookInfo as WebhookInfo
 from satori.client.config import WebsocketsInfo as WebsocketsInfo
-from satori.client.protocol import ApiProtocol as ApiProtocol
 
 from . import command as command
 from . import scheduler as scheduler
@@ -64,4 +63,4 @@ WS = WebsocketsInfo
 WH = WebhookInfo
 filter_ = Filter
 
-__version__ = "0.10.3"
+__version__ = "0.10.4"

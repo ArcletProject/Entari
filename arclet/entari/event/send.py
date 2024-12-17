@@ -8,7 +8,7 @@ from satori.model import MessageReceipt
 from ..message import MessageChain
 
 if TYPE_CHECKING:
-    from ..session import Session
+    from ..session import SatoriEvent, Session
 
 
 @dataclass
@@ -16,7 +16,7 @@ class SendRequest:
     account: Account
     channel: str
     message: MessageChain
-    session: Union["Session", None] = None
+    session: Union["Session[SatoriEvent]", None] = None
 
     async def gather(self, context: Contexts):
         context["account"] = self.account

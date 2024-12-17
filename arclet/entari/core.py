@@ -79,14 +79,16 @@ def record(plg: RootlessPlugin):
             f"({event.user.id}) -> {event.message.content!r}"
         )
 
-    if cfg.get("record_send", True):
+    if cfg.get("record_send", False):
 
         @plg.use(SendResponse)
         async def log_send(event: SendResponse):
             if event.session:
-                log.message.info(f"[{event.session.channel.name or event.session.channel.id}] <- {event.message!r}")
+                log.message.info(
+                    f"[{event.session.channel.name or event.session.channel.id}] <- {event.message.display()!r}"
+                )
             else:
-                log.message.info(f"[{event.channel}] <- {event.message!r}")
+                log.message.info(f"[{event.channel}] <- {event.message.display()!r}")
 
 
 class Entari(App):
@@ -132,7 +134,7 @@ class Entari(App):
         for plug in EntariConfig.instance.prelude_plugin:
             load_plugin(plug, prelude=True)
         plugins = [
-            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") or not plug.startswith("$")
+            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") and not plug.startswith("$")
         ]
         requires(*plugins)
         for plug in plugins:
