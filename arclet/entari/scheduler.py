@@ -192,8 +192,8 @@ def crontab(cron_str: str):
     """
     try:
         from croniter import croniter
-    except ImportError:
-        raise ImportError("Please install croniter to use cron expression") from None
+    except ModuleNotFoundError:
+        raise ImportError("Please install `croniter` first. Install with `pip install arclet-entari[cron]`") from None
 
     it = croniter(cron_str, datetime.now())
 

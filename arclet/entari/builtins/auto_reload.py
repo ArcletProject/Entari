@@ -5,7 +5,11 @@ from typing import Union
 from arclet.letoderea import es
 from launart import Launart, Service, any_completed
 from launart.status import Phase
-from watchfiles import PythonFilter, awatch
+
+try:
+    from watchfiles import PythonFilter, awatch
+except ModuleNotFoundError:
+    raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
 from arclet.entari import Plugin, declare_static, dispose_plugin, load_plugin, metadata
 from arclet.entari.config import EntariConfig

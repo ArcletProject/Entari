@@ -31,6 +31,11 @@ cron = [
 reload = [
     "watchfiles>=1.0.3",
 ]
+full = [
+    "pyyaml>=6.0.2",
+    "croniter>=5.0.1",
+    "watchfiles>=1.0.3",
+]
 
 [project.scripts]
 entari = "arclet.entari.__main__:main"
