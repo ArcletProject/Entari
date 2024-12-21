@@ -1,6 +1,6 @@
 import ast
 from collections.abc import Sequence
-from importlib import _bootstrap  # type: ignore
+from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib import import_module
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
@@ -253,7 +253,7 @@ class PluginLoader(SourceFileLoader):
             # leave plugin context
             delattr(module, "__cached__")
             delattr(module, "__plugin_service__")
-            # sys.modules.pop(module.__name__, None)
+            sys.modules.pop(module.__name__, None)
             _current_plugin.reset(token)
 
         # get plugin metadata
@@ -261,6 +261,38 @@ class PluginLoader(SourceFileLoader):
         if metadata and not plugin.metadata:
             plugin._metadata = metadata
         return
+
+
+class _NamespacePath(_bootstrap_external._NamespacePath):
+    def _get_parent_path(self):
+        parent_module_name, path_attr_name = self._find_parent_path_names()
+        if parent_module_name in plugin_service.plugins:
+            return plugin_service.plugins[parent_module_name].module.__path__
+        return getattr(sys.modules[parent_module_name], path_attr_name)
+
+
+def _path_find_spec(fullname, path=None, target=None):
+    """Try to find a spec for 'fullname' on sys.path or 'path'.
+
+    The search is based on sys.path_hooks and sys.path_importer_cache.
+    """
+    if path is None:
+        path = sys.path
+    spec = PathFinder._get_spec(fullname, path, target)  # type: ignore
+    if spec is None:
+        return None
+    elif spec.loader is None:
+        namespace_path = spec.submodule_search_locations
+        if namespace_path:
+            # We found at least one namespace path.  Return a spec which
+            # can create the namespace package.
+            spec.origin = None
+            spec.submodule_search_locations = _NamespacePath(fullname, namespace_path, PathFinder._get_spec)  # type: ignore
+            return spec
+        else:
+            return None
+    else:
+        return spec
 
 
 class _PluginFinder(MetaPathFinder):
@@ -271,7 +303,7 @@ class _PluginFinder(MetaPathFinder):
         path: Optional[Sequence[str]],
         target: Optional[ModuleType] = None,
     ):
-        module_spec = PathFinder.find_spec(fullname, path, target)
+        module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
             return
         module_origin = module_spec.origin
@@ -350,7 +382,7 @@ def find_spec(name, package=None):
         parent_path = None
     if spec := _PluginFinder.find_spec(fullname, parent_path):
         return spec
-    module_spec = PathFinder.find_spec(fullname, parent_path, None)
+    module_spec = _path_find_spec(fullname, parent_path, None)
     if not module_spec:
         return
     module_origin = module_spec.origin
