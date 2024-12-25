@@ -17,7 +17,8 @@ class _ScheduleEvent:
         pass
 
 
-pub = es.define("entari.event/schedule", _ScheduleEvent)
+pub = es.define(_ScheduleEvent, "entari.event/schedule")
+scope = es.scope("entari.scheduler")
 contexts: Contexts = {"$event": _ScheduleEvent()}  # type: ignore
 
 
@@ -54,22 +55,21 @@ class Scheduler(Service):
     async def fetch(self):
         while True:
             timer = await self.queue.get()
-            if timer.sub_id not in pub.subscribers:
+            if timer.sub_id not in scope.subscribers:
                 del self.timers[timer.sub_id]
                 continue
             timer.start(self.queue)
             try:
-                await pub.subscribers[timer.sub_id].handle(contexts.copy())
+                await scope.subscribers[timer.sub_id][0].handle(contexts.copy())
             except Exception:
                 print_exc()
 
     def schedule(self, timer: Callable[[], timedelta], once: bool = False):
 
         def wrapper(func: Callable):
+            sub = scope.register(func, temporary=once, publisher=pub)
             if plugin := _current_plugin.get():
-                sub = plugin.dispatch(_ScheduleEvent).register(func, temporary=once)
-            else:
-                sub = pub.register(func, temporary=once)
+                plugin.collect(sub.dispose)
             self.timers[sub.id] = TimerTask(timer, sub.id)
             if _get_running_loop():
                 self.timers[sub.id].start(self.queue)

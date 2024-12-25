@@ -3,15 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 from arclet.alconna import Alconna, command_manager
-from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory
+from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, es
 
 from ..event import MessageCreatedEvent
-from ..event.command import pub as execute_handles
+from ..event.command import CommandExecute
 from ..plugin.model import Plugin, PluginDispatcher
 from .model import Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudges, _seminal
 
-execute_handles.bind(AlconnaProviderFactory())
+exec_pub = es.define(CommandExecute)
 
 
 class AlconnaPluginDispatcher(PluginDispatcher):
@@ -25,10 +25,12 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         use_config_prefix: bool = True,
     ):
         self.supplier = AlconnaSuppiler(command)
-        super().__init__(plugin, MessageCreatedEvent)
-
-        self.publisher.bind(MessageJudges(need_reply_me, need_notice_me, use_config_prefix), self.supplier)
-        self.publisher.bind(AlconnaProviderFactory())
+        super().__init__(plugin, MessageCreatedEvent, command.path)
+        self.scope.bind(
+            MessageJudges(need_reply_me, need_notice_me, use_config_prefix),
+            self.supplier,
+            AlconnaProviderFactory(),
+        )
 
     def assign(
         self,
@@ -55,15 +57,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        _auxiliaries = auxiliaries or []
-        _auxiliaries.append(self.supplier)
-
-        def wrapper(func):
-            sub = execute_handles.register(func, priority=priority, auxiliaries=_auxiliaries, providers=providers)
-            self._subscribers.append(sub)
-            return sub
-
-        return wrapper
+        return self.scope.register(priority=priority, auxiliaries=auxiliaries, providers=providers, publisher=exec_pub)
 
     Match = Match
     Query = Query
@@ -78,7 +72,7 @@ def mount(
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
     disp = AlconnaPluginDispatcher(plugin, cmd, need_reply_me, need_notice_me, use_config_prefix)
-    if disp.publisher.id in plugin.dispatchers:
-        return plugin.dispatchers[disp.id]  # type: ignore
-    plugin.dispatchers[disp.publisher.id] = disp
+    if disp.scope.id in plugin.dispatchers:
+        return plugin.dispatchers[disp.scope.id]  # type: ignore
+    plugin.dispatchers[disp.scope.id] = disp
     return disp

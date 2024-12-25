@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Callable
 
-from arclet.letoderea import JudgeAuxiliary, Scope, es
+from arclet.letoderea import BaseAuxiliary, es
 from launart import Launart, Service
 from launart.status import Phase
 
@@ -74,20 +74,19 @@ class PluginManagerService(Service):
 plugin_service = PluginManagerService()
 
 
-class AccessAuxiliary(JudgeAuxiliary):
+class AccessAuxiliary(BaseAuxiliary):
     def __init__(self, plugin_id: str):
-        super().__init__(priority=0)
         self.plugin_id = plugin_id
 
     @property
     def id(self):
         return f"entari.plugin.access:{self.plugin_id}"
 
-    @property
-    def scopes(self):
-        return {Scope.prepare}
-
-    async def __call__(self, scope: Scope, interface):
+    async def on_prepare(self, interface):
         if self.plugin_id in plugin_service.filters:
-            return await plugin_service.filters[self.plugin_id](scope, interface)
+            return await plugin_service.filters[self.plugin_id].on_prepare(interface)
         return True
+
+    @property
+    def after(self) -> set[str]:
+        return {"entari.filter"}

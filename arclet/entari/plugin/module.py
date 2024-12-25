@@ -1,7 +1,6 @@
 import ast
 from collections.abc import Sequence
-from importlib import _bootstrap, _bootstrap_external  # type: ignore
-from importlib import import_module
+from importlib import _bootstrap, _bootstrap_external, import_module  # type: ignore
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name

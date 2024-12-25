@@ -76,14 +76,11 @@ class Watcher(Service):
                         logger("INFO", f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
                     logger("INFO", f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
-                    await plugin._cleanup()
                     pid = plugin.id
                     del plugin
                     dispose_plugin(pid)
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
-                        await plugin._startup()
-                        await plugin._ready()
                         del plugin
                     else:
                         logger("ERROR", f"Failed to reload <blue>{pid!r}</blue>")
@@ -92,8 +89,6 @@ class Watcher(Service):
                     logger("INFO", f"Detected change in {change[1]!r} which failed to reload, retrying...")
                     if plugin := load_plugin(self.fail[change[1]]):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
-                        await plugin._startup()
-                        await plugin._ready()
                         del plugin
                         del self.fail[change[1]]
                     else:
@@ -131,7 +126,6 @@ class Watcher(Service):
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if plugin_name not in EntariConfig.instance.plugin:
                         if plugin := find_plugin(pid):
-                            await plugin._cleanup()
                             del plugin
                             dispose_plugin(pid)
                             logger("INFO", f"Disposed plugin <blue>{pid!r}</blue>")
@@ -158,11 +152,8 @@ class Watcher(Service):
                                 continue
                             logger("INFO", f"Detected <blue>{pid!r}</blue>'s config change, reloading...")
                             plugin_file = str(plugin.module.__file__)
-                            await plugin._cleanup()
                             dispose_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name, new_conf):
-                                await plugin._startup()
-                                await plugin._ready()
                                 logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin
                             else:
@@ -177,8 +168,6 @@ class Watcher(Service):
                             continue
                         if not (plugin := load_plugin(plugin_name)):
                             continue
-                        await plugin._startup()
-                        await plugin._ready()
                         del plugin
 
     async def launch(self, manager: Launart):

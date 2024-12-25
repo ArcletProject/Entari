@@ -29,7 +29,7 @@ class SendRequest:
     __result_type__: "type[bool | MessageChain]" = Union[bool, MessageChain]
 
 
-before_send_pub = es.define(SendRequest.__publisher__, SendRequest)
+before_send_pub = es.define(SendRequest)
 before_send_pub.bind(provide(MessageChain, target="message"))
 
 
@@ -39,7 +39,7 @@ class SendResponse:
     channel: str
     message: MessageChain
     result: list[MessageReceipt]
-    session: Union["Session", None] = None
+    session: Union["Session[SatoriEvent]", None] = None
 
     async def gather(self, context: Contexts):
         context["account"] = self.account
@@ -52,6 +52,6 @@ class SendResponse:
     __publisher__ = "entari.event/send"
 
 
-send_pub = es.define(SendResponse.__publisher__, SendResponse)
+send_pub = es.define(SendResponse)
 send_pub.bind(provide(MessageChain, target="message"))
 send_pub.bind(provide(list, target="result"))

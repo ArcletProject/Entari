@@ -5,17 +5,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
+from typing import Any, Callable, TypeVar, overload
 from weakref import ProxyType, finalize, proxy
 
-from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Publisher, StepOut, Subscriber, es
-from arclet.letoderea.publisher import Publishable
+from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, StepOut, Subscriber, es
+from arclet.letoderea.publisher import Publisher, _publishers
+from arclet.letoderea.scope import _scopes
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
-from ..event.lifespan import Cleanup, Ready, Startup
 from ..filter import Filter
 from ..logger import log
 from .service import plugin_service
@@ -39,23 +39,17 @@ class PluginDispatcher:
     def __init__(
         self,
         plugin: Plugin,
-        *events: type[TE],
-        predicate: Callable[[TE], bool] | None = None,
+        event: type[TE],
         name: str | None = None,
     ):
-        if len(events) == 1:
-            name = getattr(events[0], "__publisher__", name)
-        id_ = f"#{plugin.id}@{name or id(self)}"
-        if name and name in es.publishers:
-            self.publisher = es.publishers[name]
-        elif id_ in es.publishers:
-            self.publisher = es.publishers[id_]
-        else:
-            self.publisher = Publisher(id_, *events, predicate=predicate)
-            es.register(self.publisher)
+        self.publisher = es.define(event)
         self.plugin = plugin
-        self._events = events
-        self._subscribers: list[Subscriber] = []
+        self._event = event
+        scope_id = f"{plugin.id}#{name or self.publisher.id}"
+        if scope_id in _scopes:
+            self.scope = _scopes[scope_id]
+        else:
+            self.scope = es.scope(f"{self.plugin.id}#{name or self.publisher.id}")
 
     def waiter(
         self,
@@ -68,35 +62,103 @@ class PluginDispatcher:
         def wrapper(func: TTarget[R]):
             nonlocal events
             if not events:
-                events = self._events
+                events = (self._event,)
             return StepOut(list(events), func, providers, auxiliaries, priority, block)  # type: ignore
 
         return wrapper
 
     def dispose(self):
-        for sub in self._subscribers:
-            sub.dispose()
-        self._subscribers.clear()
+        self.scope.dispose()
 
-    if TYPE_CHECKING:
-        register = Publisher.register
-    else:
+    @overload
+    def register(
+        self,
+        func: Callable[..., Any],
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+        temporary: bool = False,
+    ) -> Subscriber: ...
 
-        def register(self, func: Callable | None = None, **kwargs) -> Any:
-            wrapper = self.publisher.register(**kwargs)
-            if func:
-                self.plugin.validate(func)  # type: ignore
-                sub = wrapper(func)
-                self._subscribers.append(sub)
-                return sub
+    @overload
+    def register(
+        self,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+        temporary: bool = False,
+    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
 
-            def decorator(func1):
-                self.plugin.validate(func1)
-                sub1 = wrapper(func1)
-                self._subscribers.append(sub1)
-                return sub1
+    def register(
+        self,
+        func: Callable[..., Any] | None = None,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+        temporary: bool = False,
+    ):
+        wrapper = self.scope.register(
+            priority=priority,
+            auxiliaries=auxiliaries,
+            providers=providers,
+            temporary=temporary,
+            publisher=self.publisher,
+        )
+        if func:
+            self.plugin.validate(func)  # type: ignore
+            return wrapper(func)
 
-            return decorator
+        def decorator(func1, /):
+            self.plugin.validate(func1)
+            return wrapper(func1)
+
+        return decorator
+
+    @overload
+    def once(
+        self,
+        func: Callable[..., Any],
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ) -> Subscriber: ...
+
+    @overload
+    def once(
+        self,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
+
+    def once(
+        self,
+        func: Callable[..., Any] | None = None,
+        *,
+        priority: int = 16,
+        auxiliaries: list[BaseAuxiliary] | None = None,
+        providers: (
+            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
+        ) = None,
+    ):
+        if func:
+            return self.register(func, priority=priority, auxiliaries=auxiliaries, providers=providers, temporary=True)
+        return self.register(priority=priority, auxiliaries=auxiliaries, providers=providers, temporary=True)
 
     on = register
     handle = register
@@ -135,8 +197,8 @@ class Plugin:
     is_static: bool = False
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
-
     _services: dict[str, Service] = field(init=False, default_factory=dict)
+    _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
 
     @property
     def available(self) -> bool:
@@ -161,17 +223,9 @@ class Plugin:
             plugin._metadata.requirements.extend(requires)
         return self
 
-    async def _startup(self):
-        if Startup.__publisher__ in self.dispatchers:
-            await self.dispatchers[Startup.__publisher__].publisher.emit(Startup())
-
-    async def _ready(self):
-        if Ready.__publisher__ in self.dispatchers:
-            await self.dispatchers[Ready.__publisher__].publisher.emit(Ready())
-
-    async def _cleanup(self):
-        if Cleanup.__publisher__ in self.dispatchers:
-            await self.dispatchers[Cleanup.__publisher__].publisher.emit(Cleanup())
+    def collect(self, *disposes: Callable[[], None]):
+        self._dispose_callbacks.extend(disposes)
+        return self
 
     def update_filter(self, allow: dict, deny: dict):
         if not allow and not deny:
@@ -185,6 +239,7 @@ class Plugin:
             plugin_service.filters[self.id] = fter
 
     def __post_init__(self):
+
         plugin_service.plugins[self.id] = self
         self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
         if "$static" in self.config:
@@ -210,6 +265,9 @@ class Plugin:
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
+        for callback in self._dispose_callbacks:
+            callback()
+        self._dispose_callbacks.clear()
         delattr(self.module, "__plugin__")
         for member in self.module.__dict__.values():
             if isinstance(member, ProxyType):
@@ -235,19 +293,19 @@ class Plugin:
         del plugin_service.plugins[self.id]
         del self.module
 
-    def dispatch(self, *events: type[TE], predicate: Callable[[TE], bool] | None = None, name: str | None = None):
+    def dispatch(self, event: type[TE], name: str | None = None):
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot dispatch events")
-        disp = PluginDispatcher(self, *events, predicate=predicate, name=name)
-        if disp.publisher.id in self.dispatchers:
-            return self.dispatchers[disp.publisher.id]
-        self.dispatchers[disp.publisher.id] = disp
+        disp = PluginDispatcher(self, event, name=name)
+        if disp.scope.id in self.dispatchers:
+            return self.dispatchers[disp.scope.id]
+        self.dispatchers[disp.scope.id] = disp
         return disp
 
     @overload
     def use(
         self,
-        pub_id: str | type[Publishable],
+        pub: Any,
         *,
         priority: int = 16,
         auxiliaries: list[BaseAuxiliary] | None = None,
@@ -259,7 +317,7 @@ class Plugin:
     @overload
     def use(
         self,
-        pub_id: str | type[Publishable],
+        pub: Any,
         func: Callable[..., Any],
         *,
         priority: int = 16,
@@ -271,7 +329,7 @@ class Plugin:
 
     def use(
         self,
-        pub_id: str | type[Publishable],
+        pub: Any,
         func: Callable[..., Any] | None = None,
         *,
         priority: int = 16,
@@ -282,15 +340,19 @@ class Plugin:
     ):
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot use events by `Plugin.use`")
-        if isinstance(pub_id, str):
-            pid = pub_id.replace("::", "entari.event/")
+        if isinstance(pub, str):
+            pid = pub.replace("::", "entari.event/")
+        elif isinstance(pub, Publisher):
+            pid = pub.id
         else:
-            pid = getattr(pub_id, "__publisher__")
-        if pid not in es.publishers:
+            pid = getattr(pub, "__publisher__")
+        if pid not in _publishers:
             raise LookupError(f"no publisher found: {pid}")
-        if not (disp := self.dispatchers.get(pid)):
-            disp = PluginDispatcher(self, name=pid)
-            self.dispatchers[disp.publisher.id] = disp
+        disp = PluginDispatcher(self, _publishers[pid].target)
+        if disp.scope.id in self.dispatchers:
+            disp = self.dispatchers[disp.scope.id]
+        else:
+            self.dispatchers[disp.scope.id] = disp
         if func:
             return disp.register(func=func, priority=priority, auxiliaries=auxiliaries, providers=providers)
         return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)

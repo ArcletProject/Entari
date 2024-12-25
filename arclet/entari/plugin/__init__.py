@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from tarina import init_spec
 
@@ -20,10 +20,10 @@ from .module import requires as requires
 from .service import plugin_service
 
 
-def dispatch(*events: type[TE], predicate: Callable[[TE], bool] | None = None, name: str | None = None):
+def dispatch(event: type[TE], name: str | None = None):
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
-    return plugin.dispatch(*events, predicate=predicate, name=name)
+    return plugin.dispatch(event, name=name)
 
 
 def load_plugin(

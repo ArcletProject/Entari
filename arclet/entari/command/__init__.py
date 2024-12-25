@@ -4,10 +4,9 @@ from typing import Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import BackendPublisher, BaseAuxiliary, Provider, Subscriber, es
-from arclet.letoderea.event import get_providers
+from arclet.letoderea import BaseAuxiliary, Provider, Scope, Subscriber, es
 from arclet.letoderea.handler import generate_contexts
-from arclet.letoderea.provider import ProviderFactory
+from arclet.letoderea.provider import ProviderFactory, get_providers
 from arclet.letoderea.typing import Contexts, TTarget
 from nepattern import DirectPattern
 from satori.element import Text
@@ -33,8 +32,8 @@ class EntariCommands:
 
     def __init__(self, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
         self.trie: CharTrie[Subscriber[Optional[Union[str, MessageChain]]]] = CharTrie()
-        self.publisher = BackendPublisher("entari.command")
-        self.publisher.bind(*get_providers(MessageCreatedEvent), AlconnaProviderFactory())
+        self.scope = Scope("entari.command")
+        self.scope.bind(*get_providers(MessageCreatedEvent), AlconnaProviderFactory())
         self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
         config.namespaces["Entari"] = Namespace(
             self.__namespace__,
@@ -143,8 +142,8 @@ class EntariCommands:
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
                 auxiliaries.insert(0, AlconnaSuppiler(_command))
-                target = self.publisher.register(func, auxiliaries=auxiliaries, providers=providers)
-                self.publisher.remove_subscriber(target)
+                target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
+                self.scope.remove_subscriber(target)
                 self.trie[key] = target
 
                 def _remove(_):
@@ -168,8 +167,8 @@ class EntariCommands:
                 for prefix in cast(list[str], _command.prefixes):
                     keys.append(prefix + _command.command)
 
-            target = self.publisher.register(func, auxiliaries=auxiliaries, providers=providers)
-            self.publisher.remove_subscriber(target)
+            target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
+            self.scope.remove_subscriber(target)
 
             for _key in keys:
                 self.trie[_key] = target

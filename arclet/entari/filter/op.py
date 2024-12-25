@@ -1,56 +1,44 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from arclet.letoderea import Interface, JudgeAuxiliary, Scope
+from arclet.letoderea import BaseAuxiliary, Interface
+
+if TYPE_CHECKING:
+    from .common import Filter
 
 
-class IntersectFilter(JudgeAuxiliary):
-    def __init__(self, left: JudgeAuxiliary, right: JudgeAuxiliary, priority: int = 10):
+class IntersectFilter(BaseAuxiliary):
+    def __init__(self, left: "Filter", right: "Filter"):
         self.left = left
         self.right = right
-        super().__init__(priority=priority)
 
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        return await self.left(scope, interface) and await self.right(scope, interface)
-
-    @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
+    async def on_prepare(self, interface: Interface) -> Optional[bool]:
+        return await self.left.on_prepare(interface) and await self.right.on_prepare(interface)
 
     @property
     def id(self) -> str:
         return "entari.filter/intersect"
 
 
-class UnionFilter(JudgeAuxiliary):
-    def __init__(self, left: JudgeAuxiliary, right: JudgeAuxiliary, priority: int = 10):
+class UnionFilter(BaseAuxiliary):
+    def __init__(self, left: "Filter", right: "Filter"):
         self.left = left
         self.right = right
-        super().__init__(priority=priority)
 
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        return await self.left(scope, interface) or await self.right(scope, interface)
-
-    @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
+    async def on_prepare(self, interface: Interface) -> Optional[bool]:
+        return await self.left.on_prepare(interface) or await self.right.on_prepare(interface)
 
     @property
     def id(self) -> str:
         return "entari.filter/union"
 
 
-class ExcludeFilter(JudgeAuxiliary):
-    def __init__(self, left: JudgeAuxiliary, right: JudgeAuxiliary, priority: int = 10):
+class ExcludeFilter(BaseAuxiliary):
+    def __init__(self, left: "Filter", right: "Filter"):
         self.left = left
         self.right = right
-        super().__init__(priority=priority)
 
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
-        return await self.left(scope, interface) and not await self.right(scope, interface)
-
-    @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
+    async def on_prepare(self, interface: Interface) -> Optional[bool]:
+        return await self.left.on_prepare(interface) and not await self.right.on_prepare(interface)
 
     @property
     def id(self) -> str:

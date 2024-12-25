@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
-from arclet.letoderea import Contexts, Interface, JudgeAuxiliary, Param, Provider, Scope, Subscriber, SupplyAuxiliary
+from arclet.letoderea import BaseAuxiliary, Contexts, Interface, Param, Provider, Subscriber
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
 from satori.element import Text
@@ -30,14 +30,13 @@ def _remove_config_prefix(message: MessageChain):
     return MessageChain()
 
 
-class MessageJudges(JudgeAuxiliary):
+class MessageJudges(BaseAuxiliary):
     def __init__(self, need_reply_me: bool, need_notice_me: bool, use_config_prefix: bool):
-        super().__init__(priority=30)
         self.need_reply_me = need_reply_me
         self.need_notice_me = need_notice_me
         self.use_config_prefix = use_config_prefix
 
-    async def __call__(self, scope: Scope, interface: Interface):
+    async def on_prepare(self, interface: Interface):
         if "$message_content" in interface.ctx:
             message: MessageChain = interface.ctx["$message_content"]
             is_reply_me = interface.ctx.get("is_reply_me", False)
@@ -52,22 +51,25 @@ class MessageJudges(JudgeAuxiliary):
         return (await interface.query(MessageChain, "message", force_return=True)) is not None
 
     @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
+    def before(self) -> set[str]:
+        return {"entari.filter"}
+
+    @property
+    def after(self) -> set[str]:
+        return {"entari.command/supplier"}
 
     @property
     def id(self) -> str:
         return "entari.command/message_judges"
 
 
-class AlconnaSuppiler(SupplyAuxiliary):
+class AlconnaSuppiler(BaseAuxiliary):
     cmd: Alconna
 
     def __init__(self, cmd: Alconna):
-        super().__init__(priority=40)
         self.cmd = cmd
 
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
+    async def on_prepare(self, interface: Interface) -> Optional[Union[bool, Interface.Update]]:
         message = await interface.query(MessageChain, "message", force_return=True)
         if not message:
             return False
@@ -87,10 +89,6 @@ class AlconnaSuppiler(SupplyAuxiliary):
                 return False
             return interface.update(alc_result=CommandResult(self.cmd, _res, may_help_text))
         return False
-
-    @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
 
     @property
     def id(self) -> str:
@@ -136,14 +134,13 @@ class AlconnaProvider(Provider[Any]):
 _seminal = type("_seminal", (object,), {})
 
 
-class Assign(JudgeAuxiliary):
+class Assign(BaseAuxiliary):
     def __init__(self, path: str, value: Any = _seminal, or_not: bool = False):
-        super().__init__(priority=60)
         self.path = path
         self.value = value
         self.or_not = or_not
 
-    async def __call__(self, scope: Scope, interface: Interface) -> Optional[bool]:
+    async def on_prepare(self, interface: Interface) -> Optional[bool]:
         result = await interface.query(CommandResult, "alc_result", force_return=True)
         if result is None:
             return False
@@ -161,8 +158,8 @@ class Assign(JudgeAuxiliary):
             return False
 
     @property
-    def scopes(self) -> set[Scope]:
-        return {Scope.prepare}
+    def before(self) -> set[str]:
+        return {"entari.command/supplier"}
 
     @property
     def id(self) -> str:
@@ -192,4 +189,4 @@ class AlconnaProviderFactory(ProviderFactory):
 
 
 def get_cmd(target: Subscriber):
-    return next(a for a in target.auxiliaries[Scope.prepare] if isinstance(a, AlconnaSuppiler)).cmd
+    return next(a for a in target.auxiliaries["prepare"] if isinstance(a, AlconnaSuppiler)).cmd

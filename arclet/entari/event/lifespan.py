@@ -1,40 +1,30 @@
 from dataclasses import dataclass
 
-from arclet.letoderea import es
+from arclet.letoderea import make_event
 from satori.client import Account
 from satori.model import LoginStatus
 
 
 @dataclass
+@make_event(name="entari.event/startup")
 class Startup:
     pass
 
-    __publisher__ = "entari.event/startup"
-
 
 @dataclass
+@make_event(name="entari.event/ready")
 class Ready:
     pass
 
-    __publisher__ = "entari.event/ready"
-
 
 @dataclass
+@make_event(name="entari.event/cleanup")
 class Cleanup:
     pass
 
-    __publisher__ = "entari.event/cleanup"
-
 
 @dataclass
+@make_event(name="entari.event/account_update")
 class AccountUpdate:
     account: Account
     status: LoginStatus
-
-    __publisher__ = "entari.event/account_update"
-
-
-es.define("entari.event/startup", Startup)
-es.define("entari.event/ready", Ready)
-es.define("entari.event/cleanup", Cleanup)
-es.define("entari.event/account_update", AccountUpdate)

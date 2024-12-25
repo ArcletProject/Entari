@@ -69,7 +69,7 @@ def append(data: str):
 @command.on("show")
 async def show(session: Session):
     res = await command.execute("echo 123")
-    await session.send_message(f"Echo Result: {res}")
+    await session.send_message(f"Execute `echo 123` Result: {res}")
     return f"Data: {kept_data}"
 
 TEST = 5

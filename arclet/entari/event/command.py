@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import Union
 
-from arclet.letoderea import Contexts, Provider, es
+from arclet.letoderea import Contexts, Provider, make_event
 
 from ..message import MessageChain
 
 
 @dataclass
+@make_event(name="entari.event/command_execute")
 class CommandExecute:
     command: Union[str, MessageChain]
 
@@ -20,8 +21,4 @@ class CommandExecute:
         async def __call__(self, context: Contexts):
             return context.get("command")
 
-    __publisher__ = "entari.event/command_execute"
     __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
-
-
-pub = es.define(CommandExecute.__publisher__, CommandExecute)
