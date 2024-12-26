@@ -73,7 +73,7 @@ app.run()
 指令 `add {a} {b}`:
 
 ```python
-from arclet.entari import Session, Entari, WS, command
+from arclet.entari import Entari, WS, command
 
 @command.on("add {a} {b}")
 def add(a: int, b: int):
@@ -87,7 +87,7 @@ app.run()
 编写插件:
 
 ```python
-from arclet.entari import Session, MessageCreatedEvent, metadata, plugin
+from arclet.entari import Session, MessageCreatedEvent, metadata, listen
 
 metadata(
     name="Hello, World!",
@@ -97,7 +97,7 @@ metadata(
 )
 # or __plugin_metadata__ = PluginMetadata(...)
 
-@plugin.dispatch(MessageCreatedEvent)
+@listen(MessageCreatedEvent)  # or plugin.dispatch(MessageCreatedEvent)
 async def _(session: Session):
     await session.send("Hello, World!")
 ```

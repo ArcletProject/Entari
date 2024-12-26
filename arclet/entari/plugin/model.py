@@ -23,6 +23,7 @@ _current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
 T = TypeVar("T")
 TE = TypeVar("TE")
+TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
 
 
@@ -359,7 +360,7 @@ class Plugin:
     def subproxy(self, sub_id: str):
         return proxy(plugin_service.plugins[sub_id].module)
 
-    def service(self, serv: Service | type[Service]):
+    def service(self, serv: TS | type[TS]) -> TS:
         if isinstance(serv, type):
             serv = serv()
         self._services[serv.id] = serv

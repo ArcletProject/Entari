@@ -11,7 +11,7 @@ try:
 except ModuleNotFoundError:
     raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
-from arclet.entari import Plugin, declare_static, dispose_plugin, load_plugin, metadata
+from arclet.entari import add_service, declare_static, load_plugin, metadata, plugin_config, unload_plugin
 from arclet.entari.config import EntariConfig
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
@@ -78,7 +78,7 @@ class Watcher(Service):
                     logger("INFO", f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
                     pid = plugin.id
                     del plugin
-                    dispose_plugin(pid)
+                    unload_plugin(pid)
                     if plugin := load_plugin(pid):
                         logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
@@ -127,7 +127,7 @@ class Watcher(Service):
                     if plugin_name not in EntariConfig.instance.plugin:
                         if plugin := find_plugin(pid):
                             del plugin
-                            dispose_plugin(pid)
+                            unload_plugin(pid)
                             logger("INFO", f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
                     if old_plugin[plugin_name] != EntariConfig.instance.plugin[plugin_name]:
@@ -152,7 +152,7 @@ class Watcher(Service):
                                 continue
                             logger("INFO", f"Detected <blue>{pid!r}</blue>'s config change, reloading...")
                             plugin_file = str(plugin.module.__file__)
-                            dispose_plugin(plugin_name)
+                            unload_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name, new_conf):
                                 logger("INFO", f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin
@@ -186,11 +186,11 @@ class Watcher(Service):
         self.fail.clear()
 
 
-plug = Plugin.current()
-watch_dirs = plug.config.get("watch_dirs", ["."])
-watch_config = plug.config.get("watch_config", False)
+conf = plugin_config()
+watch_dirs = conf.get("watch_dirs", ["."])
+watch_config = conf.get("watch_config", False)
 
-plug.service(serv := Watcher(watch_dirs, watch_config))
+add_service(serv := Watcher(watch_dirs, watch_config))
 
 
 @es.on(ConfigReload)

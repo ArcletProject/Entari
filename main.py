@@ -1,6 +1,6 @@
 from satori import Image
 
-from arclet.entari import Session, Entari, command, load_plugin, dispose_plugin
+from arclet.entari import Session, Entari, command, load_plugin, unload_plugin
 
 
 @command.on("echoimg {img}")
@@ -21,7 +21,7 @@ async def load(plugin: str, session: Session):
 
 @command.on("unload {plugin}")
 async def unload(plugin: str, session: Session):
-    if dispose_plugin(plugin):
+    if unload_plugin(plugin):
         await session.send_message(f"Unloaded {plugin}")
     else:
         await session.send_message(f"Failed to unload {plugin}")

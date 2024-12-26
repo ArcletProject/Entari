@@ -1,4 +1,5 @@
 from arclet.letoderea import bind as bind
+from arclet.letoderea import es as es
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
@@ -48,19 +49,21 @@ from .filter import Filter as Filter
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
+from .plugin import add_service as add_service
 from .plugin import declare_static as declare_static
-from .plugin import dispose as dispose_plugin  # noqa: F401
 from .plugin import keeping as keeping
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .plugin import metadata as metadata
 from .plugin import package as package
 from .plugin import plugin_config as plugin_config
+from .plugin import unload_plugin as unload_plugin
 from .session import Session as Session
 from .utils.local_data import local_data as local_data
 
 WS = WebsocketsInfo
 WH = WebhookInfo
 filter_ = Filter
+listen = es.on
 
 __version__ = "0.10.5"

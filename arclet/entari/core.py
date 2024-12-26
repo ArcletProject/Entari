@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import suppress
 import os
 
-from arclet.letoderea import BaseAuxiliary, Contexts, Param, Provider, ProviderFactory, Subscriber, es, global_providers
+from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, es, global_providers
 from creart import it
 from launart import Launart, Service
 from satori import LoginStatus
@@ -21,7 +21,7 @@ from .event.lifespan import AccountUpdate
 from .event.send import SendResponse
 from .logger import log
 from .plugin import load_plugin, plugin_config, requires
-from .plugin.model import Plugin, RootlessPlugin
+from .plugin.model import RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -54,17 +54,18 @@ class AccountProvider(Provider[Account]):
             return context["account"]
 
 
-class PluginProvider(Provider[Plugin]):
-    async def __call__(self, context: Contexts):
-        subscriber: Subscriber = context["$subscriber"]
-        func = subscriber.callable_target
-        if hasattr(func, "__globals__") and "__plugin__" in func.__globals__:  # type: ignore
-            return func.__globals__["__plugin__"]
-        if hasattr(func, "__module__"):
-            return plugin_service.plugins.get(func.__module__)
+#
+# class PluginProvider(Provider[Plugin]):
+#     async def __call__(self, context: Contexts):
+#         subscriber: Subscriber = context["$subscriber"]
+#         func = subscriber.callable_target
+#         if hasattr(func, "__globals__") and "__plugin__" in func.__globals__:  # type: ignore
+#             return func.__globals__["__plugin__"]
+#         if hasattr(func, "__module__"):
+#             return plugin_service.plugins.get(func.__module__)
 
 
-global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider(), PluginProvider()])
+global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
 
 
 @RootlessPlugin.apply("record_message")
@@ -166,22 +167,8 @@ class Entari(App):
             for conn in self.connections:
                 it(Launart).add_component(conn)
 
-    def on(
-        self,
-        *events: type,
-        priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
-        providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
-    ):
-        return es.on(events, priority=priority, auxiliaries=auxiliaries, providers=providers)
-
-    def on_message(
-        self,
-        priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
-        providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
-    ):
-        return es.on(MessageCreatedEvent, priority=priority, auxiliaries=auxiliaries, providers=providers)
+    def on_message(self, priority: int = 16):
+        return es.on(MessageCreatedEvent, priority=priority)
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager

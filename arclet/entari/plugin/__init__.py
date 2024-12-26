@@ -12,7 +12,7 @@ from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin
 from .model import StaticPluginDispatchError, _current_plugin
-from .model import TE, Plugin
+from .model import TE, TS, Plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
@@ -75,7 +75,7 @@ def load_plugin(
                         log.plugin.opt(colors=True).debug(
                             f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>"
                         )
-                        dispose(referent)
+                        unload_plugin(referent)
                         if not load_plugin(referent):
                             plugin_service._referents[mod.__name__].add(referent)
                         else:
@@ -99,7 +99,7 @@ def load_plugins(dir_: str | PathLike | Path):
             load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
 
 
-def dispose(plugin: str):
+def unload_plugin(plugin: str):
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if plugin not in plugin_service.plugins:
@@ -130,6 +130,12 @@ def declare_static():
     plugin.is_static = True
     if plugin._scope.subscribers:
         raise StaticPluginDispatchError("static plugin cannot dispatch events")
+
+
+def add_service(serv: TS | type[TS]) -> TS:
+    if not (plugin := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    return plugin.service(serv)
 
 
 def find_plugin(name: str) -> Plugin | None:

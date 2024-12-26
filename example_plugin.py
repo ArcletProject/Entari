@@ -1,4 +1,3 @@
-import sys
 from arclet.entari import (
     Session,
     MessageChain,
