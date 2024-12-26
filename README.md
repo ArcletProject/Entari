@@ -130,9 +130,10 @@ basic:
   log_level: INFO
   prefix: ["/"]
 plugins:
-  ~record_message:
+  $prelude: ["::auto_reload"]
+  .record_message:
     record_send: true
-  ~commands:
+  .commands:
     use_config_prefix: false
   ::auto_reload:
     watch_dirs: ["."]
@@ -152,9 +153,9 @@ plugins:
   - `log_level`: 日志等级
   - `prefix`: 指令前缀, 可留空
 - `plugins`: 插件配置
-  - `~record_message`: 消息日志并配置
+  - `.record_message`: 消息日志并配置
     - `record_send`: 是否记录发送消息 (默认为 `true`)
-  - `~commands`: 指令插件配置 (适用于所有使用了 `command.on/command.command` 的插件)
+  - `.commands`: 指令插件配置 (适用于所有使用了 `command.on/command.command` 的插件)
     - `need_notice_me`: 指令是否需要 @ 机器人
     - `need_reply_me`: 指令是否需要回复机器人
     - `use_config_prefix`: 是否使用配置文件中的前缀
@@ -169,6 +170,6 @@ plugins:
 
 对于其他插件的配置, 有三种写法:
 
-1. `foo.bar: true` (启用插件)
-2. `foo.bar: false` (禁用插件)
+1. `foo.bar: {}` (仅启用插件)
+2. `~foo.bar: xxxx` (禁用插件)
 3. `foo.bar: {"key": "value"}` (启用插件并配置)
