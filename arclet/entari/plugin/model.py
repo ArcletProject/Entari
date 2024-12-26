@@ -8,9 +8,8 @@ from types import ModuleType
 from typing import Any, Callable, TypeVar, overload
 from weakref import ProxyType, finalize, proxy
 
-from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, StepOut, Subscriber, es
+from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Scope, StepOut, Subscriber, es
 from arclet.letoderea.publisher import Publisher, _publishers
-from arclet.letoderea.scope import _scopes
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
@@ -42,14 +41,11 @@ class PluginDispatcher:
         event: type[TE],
         name: str | None = None,
     ):
-        self.publisher = es.define(event)
+        self.publisher = es.define(event, name)
         self.plugin = plugin
         self._event = event
-        scope_id = f"{plugin.id}#{name or self.publisher.id}"
-        if scope_id in _scopes:
-            self.scope = _scopes[scope_id]
-        else:
-            self.scope = es.scope(f"{self.plugin.id}#{name or self.publisher.id}")
+        self.providers: list[Provider[Any] | ProviderFactory] = []
+        self.auxiliaries: list[BaseAuxiliary] = []
 
     def waiter(
         self,
@@ -66,9 +62,6 @@ class PluginDispatcher:
             return StepOut(list(events), func, providers, auxiliaries, priority, block)  # type: ignore
 
         return wrapper
-
-    def dispose(self):
-        self.scope.dispose()
 
     @overload
     def register(
@@ -106,10 +99,12 @@ class PluginDispatcher:
         ) = None,
         temporary: bool = False,
     ):
-        wrapper = self.scope.register(
+        _auxiliaries = auxiliaries or []
+        _providers = providers or []
+        wrapper = self.plugin._scope.register(
             priority=priority,
-            auxiliaries=auxiliaries,
-            providers=providers,
+            auxiliaries=[*self.auxiliaries, *_auxiliaries],
+            providers=[*self.providers, *_providers],
             temporary=temporary,
             publisher=self.publisher,
         )
@@ -191,7 +186,6 @@ class Plugin:
     id: str
     module: ModuleType
 
-    dispatchers: dict[str, PluginDispatcher] = field(default_factory=dict)
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
     is_static: bool = False
@@ -199,6 +193,7 @@ class Plugin:
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
     _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
+    _scope: Scope = field(init=False)
 
     @property
     def available(self) -> bool:
@@ -239,7 +234,7 @@ class Plugin:
             plugin_service.filters[self.id] = fter
 
     def __post_init__(self):
-
+        self._scope = es.scope(self.id)
         plugin_service.plugins[self.id] = self
         self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
         if "$static" in self.config:
@@ -287,20 +282,14 @@ class Plugin:
                     log.plugin.opt(colors=True).error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
-        for disp in self.dispatchers.values():
-            disp.dispose()
-        self.dispatchers.clear()
+        self._scope.dispose()
         del plugin_service.plugins[self.id]
         del self.module
 
     def dispatch(self, event: type[TE], name: str | None = None):
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot dispatch events")
-        disp = PluginDispatcher(self, event, name=name)
-        if disp.scope.id in self.dispatchers:
-            return self.dispatchers[disp.scope.id]
-        self.dispatchers[disp.scope.id] = disp
-        return disp
+        return PluginDispatcher(self, event, name=name)
 
     @overload
     def use(
@@ -349,10 +338,6 @@ class Plugin:
         if pid not in _publishers:
             raise LookupError(f"no publisher found: {pid}")
         disp = PluginDispatcher(self, _publishers[pid].target)
-        if disp.scope.id in self.dispatchers:
-            disp = self.dispatchers[disp.scope.id]
-        else:
-            self.dispatchers[disp.scope.id] = disp
         if func:
             return disp.register(func=func, priority=priority, auxiliaries=auxiliaries, providers=providers)
         return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)

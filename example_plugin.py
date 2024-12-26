@@ -74,7 +74,7 @@ async def show(session: Session):
 
 TEST = 5
 
-print([*Plugin.current().dispatchers.keys()])
+print([*Plugin.current()._scope.subscribers])
 print(Plugin.current().subplugins)
 print(local_data.get_temp_dir())
 

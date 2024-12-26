@@ -128,7 +128,7 @@ def declare_static():
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     plugin.is_static = True
-    if plugin.dispatchers:
+    if plugin._scope.subscribers:
         raise StaticPluginDispatchError("static plugin cannot dispatch events")
 
 

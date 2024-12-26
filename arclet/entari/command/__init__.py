@@ -17,7 +17,7 @@ from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..event.config import ConfigReload
 from ..message import MessageChain
-from ..plugin import RootlessPlugin
+from ..plugin import RootlessPlugin, _current_plugin
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -130,6 +130,8 @@ class EntariCommands:
         meta: Optional[CommandMeta] = None,
     ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]:
         auxiliaries = auxiliaries or []
+        if plg := _current_plugin.get():
+            auxiliaries.extend(plg._scope.auxiliaries)
         providers = providers or []
 
         def wrapper(func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:

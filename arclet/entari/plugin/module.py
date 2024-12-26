@@ -8,7 +8,7 @@ import sys
 from types import ModuleType
 from typing import Optional
 
-from arclet.letoderea import global_auxiliaries
+from arclet.letoderea.context import scope_ctx
 
 from ..config import EntariConfig
 from ..logger import log
@@ -235,24 +235,24 @@ class PluginLoader(SourceFileLoader):
         setattr(module, "__getattr_or_import__", getattr_or_import)
         setattr(module, "__plugin_service__", plugin_service)
 
-        aux = AccessAuxiliary(plugin.id)
-
         # enter plugin context
         token = _current_plugin.set(plugin)
-        try:
+        if not plugin.is_static:
             if not is_sub:
-                global_auxiliaries.append(aux)
+                plugin._scope.auxiliaries.append(AccessAuxiliary(plugin.id))
+            token1 = scope_ctx.set(plugin._scope)
+        try:
             super().exec_module(module)
         except Exception:
             plugin.dispose()
             raise
         finally:
-            if not is_sub:
-                global_auxiliaries.remove(aux)
             # leave plugin context
             delattr(module, "__cached__")
             delattr(module, "__plugin_service__")
             sys.modules.pop(module.__name__, None)
+            if not plugin.is_static:
+                scope_ctx.reset(token1)  # type: ignore
             _current_plugin.reset(token)
 
         # get plugin metadata
@@ -262,7 +262,7 @@ class PluginLoader(SourceFileLoader):
         return
 
 
-class _NamespacePath(_bootstrap_external._NamespacePath):
+class _NamespacePath(_bootstrap_external._NamespacePath):  # type: ignore
     def _get_parent_path(self):
         parent_module_name, path_attr_name = self._find_parent_path_names()
         if parent_module_name in plugin_service.plugins:
