@@ -40,11 +40,11 @@ basic:
 plugins:
   $prelude:
     - ::auto_reload
-  ~record_message: true
+  .record_message: {}
   ::auto_reload:
     watch_dirs: ["."]
-  ::echo: true
-  ::inspect: true
+  ::echo: {}
+  ::inspect: {}
 ```
 
 ```python
@@ -138,7 +138,7 @@ plugins:
   ::auto_reload:
     watch_dirs: ["."]
     watch_config: false
-  ::echo: true
+  ::echo: {}
   ::help:
     page_size: null
 ```
