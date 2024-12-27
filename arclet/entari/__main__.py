@@ -37,7 +37,7 @@ JSON_BASIC_TEMPLATE = """\
 
 JSON_PLUGIN_COMMON_TEMPLATE = """\
   "plugins": {
-    "~record_message": {},
+    ".record_message": {},
     "::echo": {},
     "::inspect": {}
   }
@@ -49,7 +49,10 @@ JSON_PLUGIN_DEV_TEMPLATE = """\
     "$prelude": [
       "::auto_reload"
     ],
-    "~record_message": {},
+    ".record_message": {
+      "record_send": true,
+    },
+    "::help": {},
     "::echo": {},
     "::inspect": {},
     "::auto_reload": {
@@ -83,8 +86,10 @@ YAML_PLUGIN_DEV_TEMPLATE = """\
 plugins:
   $prelude:
     - ::auto_reload
-  .record_message: {}
+  .record_message:
+    record_send: true
   ::echo: {}
+  ::help: {}
   ::inspect: {}
   ::auto_reload:
     watch_config: true
