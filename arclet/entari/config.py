@@ -29,8 +29,36 @@ class EntariConfig:
         self.__class__.instance = self
         self.reload()
 
+    @staticmethod
+    def _load_plugin(path: Path):
+        if path.suffix.startswith(".json"):
+            with path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        if path.suffix in (".yaml", ".yml"):
+            try:
+                import yaml
+            except ImportError:
+                raise RuntimeError("yaml is not installed")
+
+            with path.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+        raise NotImplementedError(f"unsupported plugin config file format: {path!s}")
+
     def reload(self):
         self.updater(self)
+        plugin_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
+        for file in plugin_files:
+            path = Path(file)
+            if not path.exists():
+                raise FileNotFoundError(file)
+            if path.is_dir():
+                for _path in path.iterdir():
+                    if not _path.is_file():
+                        continue
+                    self.plugin[_path.stem] = self._load_plugin(_path)
+            else:
+                self.plugin[path.stem] = self._load_plugin(path)
+
         self.plugin.setdefault(".commands", {})
         self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
         disabled = []
@@ -91,7 +119,7 @@ class EntariConfig:
                     self.plugin = data.get("plugins", {})
 
             return cls(_path, _updater)
-        raise NotImplementedError(f"unsupported config file format: {_path.suffix}")
+        raise NotImplementedError(f"unsupported config file format: {_path!s}")
 
 
 load_config = EntariConfig.load
