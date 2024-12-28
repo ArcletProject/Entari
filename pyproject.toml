@@ -11,6 +11,7 @@ dependencies = [
     "satori-python-core>=0.15.2",
     "satori-python-client>=0.15.2",
     "arclet-alconna-tools>=0.7.3",
+    "nonestorage>=0.1.0",
 ]
 requires-python = ">=3.9"
 readme = "README.md"
