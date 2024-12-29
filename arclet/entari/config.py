@@ -21,6 +21,7 @@ class EntariConfig:
     basic: BasicConfig = field(default_factory=dict, init=False)  # type: ignore
     plugin: dict[str, dict] = field(default_factory=dict, init=False)
     prelude_plugin: list[str] = field(default_factory=list, init=False)
+    plugin_extra_files: list[str] = field(default_factory=list, init=False)
     updater: Callable[[EntariConfig], None]
 
     instance: ClassVar[EntariConfig]
@@ -46,8 +47,8 @@ class EntariConfig:
 
     def reload(self):
         self.updater(self)
-        plugin_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
-        for file in plugin_files:
+        self.plugin_extra_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
+        for file in self.plugin_extra_files:
             path = Path(file)
             if not path.exists():
                 raise FileNotFoundError(file)

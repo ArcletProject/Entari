@@ -76,11 +76,18 @@ TEST = 5
 print([*Plugin.current()._scope.subscribers])
 print(Plugin.current().subplugins)
 print(local_data.get_temp_dir())
+print(plug.config)
 
 
 @plug.use("::before_send")
 async def send_hook(message: MessageChain):
     return message + "喵"
+
+
+@plug.use("::config_reload")
+async def config_reload():
+    print("Config Reloaded")
+    return True
 
 # @scheduler.cron("* * * * *")
 # async def broadcast(app: Entari):

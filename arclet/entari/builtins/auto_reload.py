@@ -95,16 +95,20 @@ class Watcher(Service):
                         logger("ERROR", f"Failed to reload <blue>{self.fail[change[1]]!r}</blue>")
 
     async def watch_config(self):
-        file = EntariConfig.instance.path
-        async for event in awatch(file.resolve().absolute().parent, recursive=False):
+        file = EntariConfig.instance.path.resolve()
+        extra = [file.parent.joinpath(path) for path in EntariConfig.instance.plugin_extra_files]
+        async for event in awatch(file.absolute(), *(dir_.absolute() for dir_ in extra), recursive=False):
             for change in event:
-                if change[0].name != "modified":
-                    continue
-                if Path(change[1]).resolve().name != file.name:
-                    continue
                 if not self.is_watch_config:
                     continue
-                logger("INFO", f"Detected change in {str(file)!r}, reloading config...")
+                if not (
+                    (change[0].name == "modified" and Path(change[1]).resolve() == file)
+                    or Path(change[1]).resolve() in extra
+                    or Path(change[1]).resolve().parent in extra
+                ):
+                    print(change)
+                    continue
+                logger("INFO", f"Detected change in {change[1]!r}, reloading config...")
 
                 old_basic = EntariConfig.instance.basic.copy()
                 old_plugin = EntariConfig.instance.plugin.copy()
@@ -150,7 +154,7 @@ class Watcher(Service):
                             if res and res.value:
                                 logger("DEBUG", f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
-                            logger("INFO", f"Detected <blue>{pid!r}</blue>'s config change, reloading...")
+                            logger("INFO", f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
                             unload_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name, new_conf):
