@@ -100,16 +100,6 @@ def load_plugins(dir_: str | PathLike | Path):
             load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
 
 
-def unload_plugin(plugin: str):
-    while plugin in plugin_service._subplugined:
-        plugin = plugin_service._subplugined[plugin]
-    if plugin not in plugin_service.plugins:
-        return False
-    _plugin = plugin_service.plugins[plugin]
-    _plugin.dispose()
-    return True
-
-
 @init_spec(PluginMetadata)
 def metadata(data: PluginMetadata):
     if not (plugin := _current_plugin.get(None)):
@@ -178,6 +168,15 @@ def find_plugin_by_file(file: str) -> Plugin | None:
                 return plugin
             path1 = path1.parent
     return None
+
+
+def unload_plugin(plugin: str):
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
+    if not (_plugin := find_plugin(plugin)):
+        return False
+    _plugin.dispose()
+    return True
 
 
 listen = es.on
