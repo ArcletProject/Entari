@@ -1,6 +1,6 @@
 [project]
 name = "arclet-entari"
-version = "0.10.5"
+version = "0.11.0"
 description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},

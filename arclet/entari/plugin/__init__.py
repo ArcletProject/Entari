@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, Callable, overload
 
+from arclet.letoderea import es
 from tarina import init_spec
 
 from ..config import C, EntariConfig, config_model_validate
@@ -133,6 +134,9 @@ def plugin_config(model_type: type[C] | None = None):
     return plugin.config
 
 
+get_config = plugin_config
+
+
 def declare_static():
     """声明当前插件为静态插件"""
     if not (plugin := _current_plugin.get(None)):
@@ -146,6 +150,12 @@ def add_service(serv: TS | type[TS]) -> TS:
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     return plugin.service(serv)
+
+
+def collect_disposes(*disposes: Callable[[], None]):
+    if not (plugin := _current_plugin.get(None)):
+        raise LookupError("no plugin context found")
+    plugin.collect(*disposes)
 
 
 def find_plugin(name: str) -> Plugin | None:
@@ -168,3 +178,6 @@ def find_plugin_by_file(file: str) -> Plugin | None:
                 return plugin
             path1 = path1.parent
     return None
+
+
+listen = es.on

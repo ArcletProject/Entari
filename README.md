@@ -87,19 +87,27 @@ app.run()
 编写插件:
 
 ```python
-from arclet.entari import Session, MessageCreatedEvent, metadata, listen
+from arclet.entari import BasicConfModel, Session, MessageCreatedEvent, plugin
 
-metadata(
+
+class Config(BasicConfModel):
+    name: str
+
+
+plugin.metadata(
     name="Hello, World!",
     author=["Arclet"],
     version="0.1.0",
-    description="A simple plugin that replies 'Hello, World!' to every message."
+    description="A simple plugin that replies 'Hello, World!' to every message.",
+    config=Config
 )
 # or __plugin_metadata__ = PluginMetadata(...)
 
-@listen(MessageCreatedEvent)  # or plugin.dispatch(MessageCreatedEvent)
+config = plugin.get_config(Config)
+
+@plugin.listen(MessageCreatedEvent)  # or plugin.dispatch(MessageCreatedEvent)
 async def _(session: Session):
-    await session.send("Hello, World!")
+    await session.send(f"Hello, World! {config.name}")
 ```
 
 加载插件:
@@ -108,13 +116,12 @@ async def _(session: Session):
 from arclet.entari import Entari, WS, load_plugin
 
 app = Entari(WS(port=5140, path="satori"))
-load_plugin("example_plugin")
+load_plugin("example_plugin", {"name": "Entari"})
 load_plugin("::echo")
 load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
 
 app.run()
 ```
-
 
 
 ## 配置文件
@@ -130,6 +137,7 @@ basic:
   log_level: INFO
   prefix: ["/"]
 plugins:
+  $files: ["./plugins"]
   $prelude: ["::auto_reload"]
   .record_message:
     record_send: true
@@ -153,6 +161,8 @@ plugins:
   - `log_level`: 日志等级
   - `prefix`: 指令前缀, 可留空
 - `plugins`: 插件配置
+  - `$files`: 额外的插件配置文件搜索目录
+  - `$prelude`: 预加载插件列表
   - `.record_message`: 消息日志并配置
     - `record_send`: 是否记录发送消息 (默认为 `true`)
   - `.commands`: 指令插件配置 (适用于所有使用了 `command.on/command.command` 的插件)

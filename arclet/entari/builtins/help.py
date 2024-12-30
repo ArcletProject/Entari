@@ -1,5 +1,5 @@
-import random
 from dataclasses import field
+import random
 from typing import Optional
 
 from arclet.alconna import (
