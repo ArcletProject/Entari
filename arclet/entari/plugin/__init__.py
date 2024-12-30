@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 from tarina import init_spec
 
-from ..config import EntariConfig
+from ..config import C, EntariConfig, config_model_validate
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
@@ -116,10 +116,20 @@ def metadata(data: PluginMetadata):
     plugin._metadata = data  # type: ignore
 
 
-def plugin_config() -> dict[str, Any]:
+@overload
+def plugin_config() -> dict[str, Any]: ...
+
+
+@overload
+def plugin_config(model_type: type[C]) -> C: ...
+
+
+def plugin_config(model_type: type[C] | None = None):
     """获取当前插件的配置"""
     if not (plugin := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
+    if model_type:
+        return config_model_validate(model_type, plugin.config)
     return plugin.config
 
 

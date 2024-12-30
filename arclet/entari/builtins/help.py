@@ -1,4 +1,5 @@
 import random
+from dataclasses import field
 from typing import Optional
 
 from arclet.alconna import (
@@ -16,20 +17,17 @@ from arclet.alconna import (
 )
 from tarina import lang
 
-from arclet.entari import Session, command, metadata, plugin_config
-
-config = plugin_config()
-help_command: str = config.get("help_command", "help")
-help_alias: list[str] = config.get("help_alias", ["帮助", "命令帮助"])
-help_all_alias: list[str] = config.get("help_all_alias", ["所有帮助", "所有命令帮助"])
-page_size: Optional[int] = config.get("page_size", None)
+from arclet.entari import BasicConfModel, Session, command, metadata, plugin_config
 
 
-class Config:
+class Config(BasicConfModel):
     help_command: str = "help"
-    help_alias: list[str] = ["帮助", "命令帮助"]
-    help_all_alias: list[str] = ["所有帮助", "所有命令帮助"]
+    help_alias: list[str] = field(default_factory=lambda: ["帮助", "命令帮助"])
+    help_all_alias: list[str] = field(default_factory=lambda: ["所有帮助", "所有命令帮助"])
     page_size: Optional[int] = None
+
+
+config = plugin_config(Config)
 
 
 metadata(
@@ -44,7 +42,7 @@ with namespace("builtin/help") as ns:
     ns.disable_builtin_options = {"shortcut"}
 
     help_cmd = Alconna(
-        help_command,
+        config.help_command,
         Args[
             "query#选择某条命令的id或者名称查看具体帮助;/?",
             str,
@@ -70,13 +68,13 @@ with namespace("builtin/help") as ns:
         meta=CommandMeta(
             description="显示所有命令帮助",
             usage="可以使用 --hide 参数来显示隐藏命令，使用 -P 参数来显示命令所属插件名称",
-            example=f"${help_command} 1",
+            example=f"${config.help_command} 1",
         ),
     )
 
-    for alias in set(help_alias):
+    for alias in set(config.help_alias):
         help_cmd.shortcut(alias, {"prefix": True, "fuzzy": False})
-    for alias in set(help_all_alias):
+    for alias in set(config.help_all_alias):
         help_cmd.shortcut(alias, {"args": ["--hide"], "prefix": True, "fuzzy": False})
 
 
@@ -122,7 +120,7 @@ def help_cmd_handle(arp: Arparma, interactive: bool = False):
             return f"{command_string}\n{footer}"
         return slot.get_help()
 
-    if not page_size:
+    if not config.page_size:
         header = lang.require("manager", "help_header")
         command_string = "\n".join(
             (
@@ -134,10 +132,10 @@ def help_cmd_handle(arp: Arparma, interactive: bool = False):
         )
         return f"{header}\n{command_string}\n{footer}"
 
-    max_page = len(cmds) // page_size + 1
+    max_page = len(cmds) // config.page_size + 1
     if page < 1 or page > max_page:
         page = 1
-    max_length = page_size
+    max_length = config.page_size
     if interactive:
         footer += "\n" + "输入 '<', 'a' 或 '>', 'd' 来翻页"
 

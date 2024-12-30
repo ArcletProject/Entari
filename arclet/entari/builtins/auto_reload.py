@@ -12,7 +12,7 @@ except ModuleNotFoundError:
     raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
 from arclet.entari import add_service, declare_static, load_plugin, metadata, plugin_config, unload_plugin
-from arclet.entari.config import EntariConfig
+from arclet.entari.config import BasicConfModel, EntariConfig, field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import find_plugin, find_plugin_by_file
@@ -20,8 +20,8 @@ from arclet.entari.plugin import find_plugin, find_plugin_by_file
 declare_static()
 
 
-class Config:
-    watch_dirs: list[str] = ["."]
+class Config(BasicConfModel):
+    watch_dirs: list[Union[str, Path]] = field(default_factory=lambda: ["."])
     watch_config: bool = False
 
 
@@ -190,11 +190,9 @@ class Watcher(Service):
         self.fail.clear()
 
 
-conf = plugin_config()
-watch_dirs = conf.get("watch_dirs", ["."])
-watch_config = conf.get("watch_config", False)
+conf = plugin_config(Config)
 
-add_service(serv := Watcher(watch_dirs, watch_config))
+add_service(serv := Watcher(conf.watch_dirs, conf.watch_config))
 
 
 @es.on(ConfigReload)
@@ -203,6 +201,7 @@ def handle_config_reload(event: ConfigReload):
         return
     if event.key not in ("::auto_reload", "arclet.entari.builtins.auto_reload"):
         return
-    serv.dirs = event.value.get("watch_dirs", ["."])
-    serv.is_watch_config = event.value.get("watch_config", False)
+    new_conf = event.plugin_config(Config)
+    serv.dirs = new_conf.watch_dirs
+    serv.is_watch_config = new_conf.watch_config
     return True
