@@ -20,12 +20,12 @@ plug = Plugin.current()
 
 @plug.use("::startup")
 async def prepare():
-    print("example: Preparing")
+    print(">> example: Preparing")
 
 
 @plug.use("::cleanup")
 async def cleanup():
-    print("example: Cleanup")
+    print(">> example: Cleanup")
 
 
 @plug.dispatch(MessageCreatedEvent)
@@ -84,10 +84,21 @@ async def send_hook(message: MessageChain):
     return message + "喵"
 
 
-@plug.use("::config_reload")
+@plug.use("::config/reload")
 async def config_reload():
-    print("Config Reloaded")
+    print(">> Config Reloaded")
     return True
+
+
+@plug.use("::plugin/loaded_success")
+async def loaded_success(event):
+    print(f">> Plugin {event.name} Loaded Successfully")
+
+
+@plug.use("::plugin/unloaded")
+async def unloaded(event):
+    print(f">> Plugin {event.name} Unloaded")
+
 
 # @scheduler.cron("* * * * *")
 # async def broadcast(app: Entari):

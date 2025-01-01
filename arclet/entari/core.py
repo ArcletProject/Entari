@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 import os
 
@@ -228,3 +229,5 @@ class ServiceProviderFactory(ProviderFactory):
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore
+
+es.loop = it(asyncio.AbstractEventLoop)

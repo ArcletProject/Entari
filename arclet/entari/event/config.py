@@ -7,7 +7,7 @@ from ..config import C, config_model_validate
 
 
 @dataclass
-@make_event(name="entari.event/config_reload")
+@make_event(name="entari.event/config/reload")
 class ConfigReload:
     scope: str
     key: str

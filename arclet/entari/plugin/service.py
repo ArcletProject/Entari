@@ -5,6 +5,7 @@ from launart import Launart, Service
 from launart.status import Phase
 
 from ..event.lifespan import Cleanup, Ready, Startup
+from ..event.plugin import PluginUnloaded
 from ..filter import Filter
 from ..logger import log
 
@@ -55,11 +56,12 @@ class PluginManagerService(Service):
         async with self.stage("cleanup"):
             await es.publish(Cleanup())
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
-            for plug_id in ids:
+            for plug_id in reversed(ids):
                 plug = self.plugins[plug_id]
                 if not plug.id.startswith("."):
                     log.plugin.opt(colors=True).debug(f"disposing plugin <y>{plug.id}</y>")
                 try:
+                    await es.publish(PluginUnloaded(plug.id))
                     plug.dispose()
                 except Exception as e:
                     log.plugin.opt(colors=True).error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")

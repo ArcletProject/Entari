@@ -7,7 +7,7 @@ from ..message import MessageChain
 
 
 @dataclass
-@make_event(name="entari.event/command_execute")
+@make_event(name="entari.event/command/execute")
 class CommandExecute:
     command: Union[str, MessageChain]
 

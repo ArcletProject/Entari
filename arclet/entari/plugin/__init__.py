@@ -3,12 +3,13 @@ from __future__ import annotations
 from os import PathLike
 from pathlib import Path
 from typing import Any, Callable, overload
-
+import inspect
 from arclet.letoderea import es
 from tarina import init_spec
 
 from ..config import C, EntariConfig, config_model_validate
 from ..logger import log
+from ..event.plugin import PluginLoadedSuccess, PluginLoadedFailed, PluginUnloaded
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin
@@ -21,10 +22,28 @@ from .module import requires as requires
 from .service import plugin_service
 
 
-def dispatch(event: type[TE], name: str | None = None):
-    if not (plugin := _current_plugin.get(None)):
+def get_plugin(depth: int | None = None) -> Plugin:
+    if plugin := _current_plugin.get(None):
+        return plugin
+    if depth is None:
         raise LookupError("no plugin context found")
-    return plugin.dispatch(event, name=name)
+    current_frame = inspect.currentframe()
+    if current_frame is None:
+        raise ValueError("Depth out of range")
+    frame = current_frame
+    d = depth + 1
+    while d > 0:
+        frame = frame.f_back
+        if frame is None:
+            raise ValueError("Depth out of range")
+        d -= 1
+    if (mod := inspect.getmodule(frame)) and "__plugin__" in mod.__dict__:
+        return mod.__plugin__
+    raise LookupError("no plugin context found")
+
+
+def dispatch(event: type[TE], name: str | None = None):
+    return get_plugin().dispatch(event, name=name)
 
 
 def load_plugin(
@@ -63,6 +82,7 @@ def load_plugin(
             mod = import_plugin(path1, config=conf)
         if not mod:
             log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")
+            es.publish(PluginLoadedFailed(path))
             return
         log.plugin.opt(colors=True).success(f"loaded plugin <blue>{mod.__name__!r}</blue>")
         if mod.__name__ in plugin_service._unloaded:
@@ -82,13 +102,16 @@ def load_plugin(
                         else:
                             recursive_guard.add(referent)
             plugin_service._unloaded.discard(mod.__name__)
+        es.publish(PluginLoadedSuccess(mod.__name__))
         return mod.__plugin__
     except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
         log.plugin.opt(colors=True).error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
+        es.publish(PluginLoadedFailed(path, e))
     except Exception as e:
         log.plugin.opt(colors=True).exception(
             f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e
         )
+        es.publish(PluginLoadedFailed(path, e))
 
 
 def load_plugins(dir_: str | PathLike | Path):
@@ -102,9 +125,7 @@ def load_plugins(dir_: str | PathLike | Path):
 
 @init_spec(PluginMetadata)
 def metadata(data: PluginMetadata):
-    if not (plugin := _current_plugin.get(None)):
-        raise LookupError("no plugin context found")
-    plugin._metadata = data  # type: ignore
+    get_plugin()._metadata = data  # type: ignore
 
 
 @overload
@@ -117,8 +138,7 @@ def plugin_config(model_type: type[C]) -> C: ...
 
 def plugin_config(model_type: type[C] | None = None):
     """获取当前插件的配置"""
-    if not (plugin := _current_plugin.get(None)):
-        raise LookupError("no plugin context found")
+    plugin = get_plugin()
     if model_type:
         return config_model_validate(model_type, plugin.config)
     return plugin.config
@@ -129,23 +149,18 @@ get_config = plugin_config
 
 def declare_static():
     """声明当前插件为静态插件"""
-    if not (plugin := _current_plugin.get(None)):
-        raise LookupError("no plugin context found")
+    plugin = get_plugin()
     plugin.is_static = True
     if plugin._scope.subscribers:
         raise StaticPluginDispatchError("static plugin cannot dispatch events")
 
 
 def add_service(serv: TS | type[TS]) -> TS:
-    if not (plugin := _current_plugin.get(None)):
-        raise LookupError("no plugin context found")
-    return plugin.service(serv)
+    return get_plugin().service(serv)
 
 
 def collect_disposes(*disposes: Callable[[], None]):
-    if not (plugin := _current_plugin.get(None)):
-        raise LookupError("no plugin context found")
-    plugin.collect(*disposes)
+    return get_plugin().collect(*disposes)
 
 
 def find_plugin(name: str) -> Plugin | None:
@@ -175,6 +190,7 @@ def unload_plugin(plugin: str):
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
+    es.publish(PluginUnloaded(_plugin.id))
     _plugin.dispose()
     return True
 
