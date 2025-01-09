@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
-from arclet.letoderea import BaseAuxiliary, Contexts, Interface, Param, Provider, Subscriber
+from arclet.letoderea import BaseAuxiliary, Contexts, Interface, Param, Provider
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
 from satori.element import Text
@@ -186,7 +186,3 @@ class AlconnaProviderFactory(ProviderFactory):
         if isinstance(param.default, Query):
             return AlconnaProvider("query", {"query": param.default})
         return AlconnaProvider("args", {"name": param.name, "anno": param.annotation})
-
-
-def get_cmd(target: Subscriber):
-    return next(a for a in target.auxiliaries["prepare"] if isinstance(a, AlconnaSuppiler)).cmd

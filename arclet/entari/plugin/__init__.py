@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import inspect
 from os import PathLike
 from pathlib import Path
 from typing import Any, Callable, overload
-import inspect
+
 from arclet.letoderea import es
 from tarina import init_spec
 
 from ..config import C, EntariConfig, config_model_validate
+from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..logger import log
-from ..event.plugin import PluginLoadedSuccess, PluginLoadedFailed, PluginUnloaded
 from .model import PluginMetadata as PluginMetadata
 from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin

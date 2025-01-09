@@ -195,6 +195,7 @@ class Plugin:
     _services: dict[str, Service] = field(init=False, default_factory=dict)
     _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
     _scope: Scope = field(init=False)
+    _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
 
     @property
     def available(self) -> bool:
@@ -265,11 +266,6 @@ class Plugin:
             callback()
         self._dispose_callbacks.clear()
         delattr(self.module, "__plugin__")
-        for member in self.module.__dict__.values():
-            if isinstance(member, ProxyType):
-                continue
-            if isinstance(member, Subscriber) and not hasattr(member, "__keeping__"):
-                member.dispose()
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs

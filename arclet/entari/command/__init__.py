@@ -22,16 +22,20 @@ from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
 from .plugin import mount
-from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges, get_cmd
+from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges
 
 TM = TypeVar("TM", str, MessageChain)
+
+
+def get_cmd(target: Subscriber):
+    return next(a for a in target.auxiliaries["prepare"] if isinstance(a, AlconnaSuppiler)).cmd
 
 
 class EntariCommands:
     __namespace__ = "Entari"
 
     def __init__(self, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
-        self.trie: CharTrie[Subscriber[Optional[Union[str, MessageChain]]]] = CharTrie()
+        self.trie: CharTrie[str] = CharTrie()
         self.scope = Scope("entari.command")
         self.scope.bind(*get_providers(MessageCreatedEvent), AlconnaProviderFactory())
         self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
@@ -54,7 +58,8 @@ class EntariCommands:
         if not msg:
             return
         if matches := list(self.trie.prefixes(msg)):
-            results = await asyncio.gather(*(res.value.handle(ctx.copy()) for res in matches if res.value))
+            subs = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            results = await asyncio.gather(*(sub.handle(ctx.copy()) for sub in subs))
             for result in results:
                 if result is not None:
                     await session.send(result)
@@ -62,11 +67,14 @@ class EntariCommands:
         # shortcut
         data = split(msg, " ")
         for value in self.trie.values():
+            if value not in self.scope.subscribers:
+                continue
+            sub = self.scope.subscribers[value][0]
             try:
-                command_manager.find_shortcut(get_cmd(value), data)
+                command_manager.find_shortcut(get_cmd(sub), data)
             except ValueError:
                 continue
-            result = await value.handle(ctx.copy())
+            result = await sub.handle(ctx.copy())
             if result is not None:
                 await session.send(result)
 
@@ -74,17 +82,21 @@ class EntariCommands:
         ctx = await generate_contexts(event)
         msg = str(event.command)
         if matches := list(self.trie.prefixes(msg)):
-            results = await asyncio.gather(*(res.value.handle(ctx.copy(), inner=True) for res in matches if res.value))
+            subs = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
             for result in results:
                 if result is not None:
                     return result
         data = split(msg, " ")
         for value in self.trie.values():
+            if value not in self.scope.subscribers:
+                continue
+            sub = self.scope.subscribers[value][0]
             try:
-                command_manager.find_shortcut(get_cmd(value), data)
+                command_manager.find_shortcut(get_cmd(sub), data)
             except ValueError:
                 continue
-            result = await value.handle(ctx.copy(), inner=True)
+            result = await sub.handle(ctx.copy(), inner=True)
             if result is not None:
                 return result
 
@@ -143,16 +155,20 @@ class EntariCommands:
                 key = _command.name + "".join(
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
-                auxiliaries.insert(0, AlconnaSuppiler(_command))
+                auxiliaries.append(AlconnaSuppiler(_command))
                 target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
-                self.scope.remove_subscriber(target)
-                self.trie[key] = target
+                self.trie[key] = target.id
 
                 def _remove(_):
+                    self.scope.remove_subscriber(_)
                     command_manager.delete(get_cmd(_))
                     self.trie.pop(key, None)  # type: ignore
 
-                target._dispose = _remove
+                if plg:
+                    plg.collect(lambda: _remove(target))
+                    plg._extra.setdefault("commands", []).append(([], _command.command))
+                else:
+                    target._dispose = _remove
                 return target
 
             _command = cast(Alconna, command)
@@ -170,17 +186,21 @@ class EntariCommands:
                     keys.append(prefix + _command.command)
 
             target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
-            self.scope.remove_subscriber(target)
 
             for _key in keys:
-                self.trie[_key] = target
+                self.trie[_key] = target.id
 
             def _remove(_):
+                self.scope.remove_subscriber(_)
                 command_manager.delete(get_cmd(_))
                 for _key in keys:
                     self.trie.pop(_key, None)  # type: ignore
 
-            target._dispose = _remove
+            if plg:
+                plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
+                plg.collect(lambda: _remove(target))
+            else:
+                target._dispose = _remove
             return target
 
         return wrapper

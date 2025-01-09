@@ -25,6 +25,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         need_notice_me: bool = False,
         use_config_prefix: bool = True,
     ):
+        plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
         self.supplier = AlconnaSuppiler(command)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         self.auxiliaries.append(
