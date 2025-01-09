@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from types import ModuleType
 from typing import Any, Callable, TypeVar, overload
-from weakref import ProxyType, finalize, proxy
+from weakref import finalize, proxy
 
 from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Scope, StepOut, Subscriber, es
 from arclet.letoderea.publisher import Publisher, _publishers
