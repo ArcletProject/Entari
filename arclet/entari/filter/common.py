@@ -194,8 +194,10 @@ class Filter(BaseAuxiliary):
         self.steps.append(ToMeJudger())
         return self
 
-    def bind(self, func):
+    def __call__(self, func):
         return _bind(self)(func)
+
+    bind = __call__
 
     def and_(self, other: Union["Filter", _SessionFilter]) -> "Filter":
         new = Filter()

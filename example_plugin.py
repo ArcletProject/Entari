@@ -46,7 +46,7 @@ async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
-@disp_message.on(auxiliaries=[Filter().public().to_me().not_(lambda sess: str(sess.content) == "aaa")])
+@Filter().public().to_me().not_(lambda sess: str(sess.content) == "aaa")
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
