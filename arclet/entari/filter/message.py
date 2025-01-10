@@ -62,3 +62,10 @@ class ToMeJudger(BaseAuxiliary):
     @property
     def before(self) -> set[str]:
         return {"entari.filter/judge_reply_me", "entari.filter/judge_notice_me"}
+
+
+public_message = PublicMessageJudger()
+direct_message = DirectMessageJudger()
+reply_me = ReplyMeJudger()
+notice_me = NoticeMeJudger()
+to_me = ToMeJudger()

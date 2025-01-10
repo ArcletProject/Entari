@@ -46,6 +46,7 @@ from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
 from .filter import Filter as Filter
+from .filter import filter_ as filter_
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
@@ -65,6 +66,5 @@ from .utils.local_data import local_data as local_data
 
 WS = WebsocketsInfo
 WH = WebhookInfo
-filter_ = Filter
 
 __version__ = "0.11.1"

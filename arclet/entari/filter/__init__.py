@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 from arclet.letoderea import BaseAuxiliary, Interface
 
@@ -57,3 +57,11 @@ class Semaphore(BaseAuxiliary):
     async def on_cleanup(self, interface: Interface) -> Optional[bool]:
         self.semaphore.release()
         return True
+
+
+class _Wrapper:
+    def __getattr__(self, item):
+        return getattr(Filter(), item)
+
+
+filter_ = cast(Filter, _Wrapper())

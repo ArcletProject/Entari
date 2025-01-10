@@ -3,8 +3,8 @@ from arclet.entari import (
     MessageChain,
     MessageCreatedEvent,
     Plugin,
-    Filter,
     command,
+    filter_,
     metadata,
     keeping,
     scheduler,
@@ -29,7 +29,7 @@ async def cleanup():
 
 
 @plug.dispatch(MessageCreatedEvent)
-@Filter().public().bind
+@filter_.public().bind
 async def _(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...")
@@ -41,12 +41,13 @@ async def _(session: Session):
 disp_message = plug.dispatch(MessageCreatedEvent)
 
 
-@disp_message.on(auxiliaries=[Filter().public().to_me().and_(lambda sess: str(sess.content) == "aaa")])
+@disp_message.on(auxiliaries=[filter_.public().to_me().and_(lambda sess: str(sess.content) == "aaa")])
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
-@Filter().public().to_me().not_(lambda sess: str(sess.content) == "aaa")
+@disp_message
+@filter_.public().to_me().not_(lambda sess: str(sess.content) != "aaa")
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 

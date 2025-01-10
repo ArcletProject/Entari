@@ -30,7 +30,7 @@ SceneNames = {
 
 @command.on(inspect_cmd)
 async def inspect(session: Session[MessageEvent], target: Match["At | Sharp"]):
-    event = session.context
+    event = session.event
     texts = [
         Lang.entari_plugin_inspect.platform(platform=session.account.platform),
         Lang.entari_plugin_inspect.self(self_id=session.account.self_id),
