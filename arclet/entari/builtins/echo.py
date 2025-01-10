@@ -1,6 +1,6 @@
-from arclet.alconna import Alconna, AllParam, Args, CommandMeta
+from arclet.alconna import Arparma
 
-from arclet.entari import MessageChain, Session, command, metadata
+from arclet.entari import MessageChain, command, metadata
 from arclet.entari.command import Match
 
 metadata(
@@ -10,16 +10,16 @@ metadata(
 )
 
 
-cmd = command.mount(Alconna("echo", Args["content?", AllParam], meta=CommandMeta("显示消息", compact=True)))
-
-
-@cmd.handle
-async def echo_handle(content: Match[MessageChain], session: Session):
-    if content.available:
-        return await session.send(content.result)
-
-
-@cmd.on_execute()
-async def echo_exec(content: Match[MessageChain]):
-    if content.available:
+@(
+    command.command("echo <...content>", "显示消息")
+    .option("escape", "-e|--escape # 发送转义消息")
+    .option("unescape", "-E|--unescape # 发送反转义消息")
+    .config(compact=True)
+)
+def echo(content: Match[MessageChain], arp: Arparma):
+    if arp.find("unescape"):
+        return MessageChain.of(content.result.extract_plain_text())
+    elif arp.find("escape"):
+        return str(content.result)
+    else:
         return content.result

@@ -24,7 +24,7 @@ from .model import CommandResult, Match, Query
 from .plugin import mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges
 
-TM = TypeVar("TM", str, MessageChain)
+TM = TypeVar("TM", bound=Union[str, MessageChain])
 
 
 def get_cmd(target: Subscriber):

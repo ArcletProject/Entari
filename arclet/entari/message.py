@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex, TypeAlias
 
 from satori import select as satori_select
-from satori.element import At, Element, Link, Sharp, Style, Text
+from satori.element import At, Element, Link, Sharp, Style, Text, transform
+from satori.parser import parse
 
 T = TypeVar("T")
 TE = TypeVar("TE", bound=Element)
@@ -615,3 +616,7 @@ class MessageChain(list[TE]):
         return "".join(
             str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link)) else elem.__class__.__name__ for elem in self
         )
+
+    @staticmethod
+    def of(text: str):
+        return MessageChain(transform(parse(text)))
