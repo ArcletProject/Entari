@@ -83,6 +83,8 @@ logging.basicConfig(
 
 
 def default_filter(record):
+    if record["name"].startswith("launart"):
+        return record["level"].no >= logger.level("SUCCESS").no
     log_level = record["extra"].get("entari_log_level", "INFO")
     levelno = logger.level(log_level).no if isinstance(log_level, str) else log_level
     return record["level"].no >= levelno
