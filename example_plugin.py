@@ -72,7 +72,7 @@ async def show(session: Session):
     await session.send_message(f"Execute `echo 123` Result: {res}")
     return f"Data: {kept_data}"
 
-TEST = 5
+TEST = 6
 
 print([*Plugin.current()._scope.subscribers])
 print(Plugin.current().subplugins)

@@ -37,14 +37,12 @@ class LoggerManager:
         return self.loggers["[message]"]
 
     def wrapper(self, name: str, color: str = "blue"):
-        patched = logger.patch(lambda r: r.update(name="entari"))
+        patched = logger.patch(
+            lambda r: r.update(name="entari", extra={"entari_plugin_name": name, "entari_plugin_color": color})
+        )
         patched = patched.bind(name=f"plugins.{name}")
         self.loggers[f"plugin.{name}"] = patched
-
-        def _log(level: str, message: str, exception: Exception | None = None):
-            patched.opt(colors=True, exception=exception).log(level, f"| <{color}>{name}</{color}> {message}")
-
-        return _log
+        return patched
 
     @staticmethod
     def set_level(level: str | int):
@@ -90,6 +88,21 @@ def default_filter(record):
     return record["level"].no >= levelno
 
 
+def _custom_format(record: Record):
+    if "entari_plugin_name" in record["extra"]:
+        plugin = (
+            f" <{record['extra']['entari_plugin_color']}>"
+            f"{record['extra']['entari_plugin_name']}"
+            f"</{record['extra']['entari_plugin_color']}>"
+        )
+    else:
+        plugin = ""
+    return (
+        f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level}}</lvl> | <m><u>{{name}}</u></m>"
+        f"{plugin} <lvl>{{message}}</lvl>\n"
+    )
+
+
 logger.remove()
 logger_id = logger.add(
     sys.stdout,
@@ -98,7 +111,7 @@ logger_id = logger.add(
     backtrace=True,
     colorize=True,
     filter=default_filter,
-    format="<lk>{time:YYYY-MM-DD HH:mm:ss}</lk> <lvl>{level:8}</lvl> | <m><u>{name}</u></m> <lvl>{message}</lvl>",
+    format=_custom_format,
 )
 """默认日志处理器 id"""
 
