@@ -19,6 +19,7 @@ class BasicConfig(TypedDict, total=False):
     ignore_self_message: bool
     log_level: int | str
     prefix: list[str]
+    cmd_count: int
 
 
 @dataclass

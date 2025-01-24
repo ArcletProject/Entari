@@ -4,6 +4,7 @@ import asyncio
 from contextlib import suppress
 import os
 
+from arclet.alconna import config as alconna_config
 from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, es, global_providers
 from creart import it
 from launart import Launart, Service
@@ -130,6 +131,7 @@ class Entari(App):
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
+        alconna_config.command_max_count = EntariConfig.instance.basic.get("cmd_count", 4096)
         log.set_level(log_level)
         log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
         requires(*EntariConfig.instance.prelude_plugin)
