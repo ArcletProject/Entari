@@ -47,7 +47,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
     if name in _ENSURE_IS_PLUGIN:
         mod = import_plugin(name)
         if mod:
-            log.plugin.opt(colors=True).success(f"loaded plugin <blue>{name!r}</blue>")
+            log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
             if plugin_name != mod.__plugin__.id:
                 plugin_service._referents[mod.__plugin__.id].add(plugin_name)
             return mod.__plugin__.proxy()
@@ -58,7 +58,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
             del config["$static"]
         mod = import_plugin(name, config=config)
         if mod:
-            log.plugin.opt(colors=True).success(f"loaded plugin <blue>{name!r}</blue>")
+            log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
             if plugin_name != mod.__plugin__.id:
                 plugin_service._referents[mod.__plugin__.id].add(plugin_name)
             return mod.__plugin__.proxy()
@@ -68,7 +68,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
             if plugin_name != module.__plugin__.id:
                 plugin_service._referents[module.__plugin__.id].add(plugin_name)
             return module.__plugin__.subproxy(f"{plugin_name}{name}")
-        log.plugin.opt(colors=True).success(f"loaded plugin <blue>{name!r}</blue>")
+        log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
         return module
     # if name not in sys.modules and name not in sys.builtin_module_names:
     #     mod = import_plugin(name, plugin_name)

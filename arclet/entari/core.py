@@ -127,13 +127,13 @@ class Entari(App):
     ):
         from . import __version__
 
-        log.core.opt(colors=True).info(f"Entari <b><c>version {__version__}</c></b>")
+        log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.get("cmd_count", 4096)
         log.set_level(log_level)
-        log.core.opt(colors=True).debug(f"Log level set to <y><c>{log_level}</c></y>")
+        log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
         requires(*EntariConfig.instance.prelude_plugin)
         for plug in EntariConfig.instance.prelude_plugin:
             load_plugin(plug, prelude=True)
@@ -155,7 +155,7 @@ class Entari(App):
             return
         if key == "log_level":
             log.set_level(value)
-            log.core.opt(colors=True).debug(f"Log level set to <y><c>{value}</c></y>")
+            log.core.debug(f"Log level set to <y><c>{value}</c></y>")
         elif key == "ignore_self_message":
             self.ignore_self_message = value
         elif key == "network":

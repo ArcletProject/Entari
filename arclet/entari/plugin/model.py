@@ -269,14 +269,14 @@ class Plugin:
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
-            log.plugin.opt(colors=True).debug(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
+            log.plugin.debug(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
                     continue
                 try:
                     plugin_service.plugins[subplug].dispose()
                 except Exception as e:
-                    log.plugin.opt(colors=True).error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
+                    log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
         self._scope.dispose()

@@ -59,12 +59,12 @@ class PluginManagerService(Service):
             for plug_id in reversed(ids):
                 plug = self.plugins[plug_id]
                 if not plug.id.startswith("."):
-                    log.plugin.opt(colors=True).debug(f"disposing plugin <y>{plug.id}</y>")
+                    log.plugin.debug(f"disposing plugin <y>{plug.id}</y>")
                 try:
                     await es.publish(PluginUnloaded(plug.id))
                     plug.dispose()
                 except Exception as e:
-                    log.plugin.opt(colors=True).error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")
+                    log.plugin.error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")
                     self.plugins.pop(plug_id, None)
             for values in self._keep_values.values():
                 for value in values.values():

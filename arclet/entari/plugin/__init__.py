@@ -82,10 +82,10 @@ def load_plugin(
             path1 = f"entari_plugin_{path}"
             mod = import_plugin(path1, config=conf)
         if not mod:
-            log.plugin.opt(colors=True).error(f"cannot found plugin <blue>{path!r}</blue>")
+            log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             es.publish(PluginLoadedFailed(path))
             return
-        log.plugin.opt(colors=True).success(f"loaded plugin <blue>{mod.__name__!r}</blue>")
+        log.plugin.success(f"loaded plugin <blue>{mod.__name__!r}</blue>")
         if mod.__name__ in plugin_service._unloaded:
             if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
                 referents = plugin_service._referents[mod.__name__].copy()
@@ -94,7 +94,7 @@ def load_plugin(
                     if referent in recursive_guard:
                         continue
                     if referent in plugin_service.plugins:
-                        log.plugin.opt(colors=True).debug(
+                        log.plugin.debug(
                             f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>"
                         )
                         unload_plugin(referent)
@@ -106,10 +106,10 @@ def load_plugin(
         es.publish(PluginLoadedSuccess(mod.__name__))
         return mod.__plugin__
     except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
-        log.plugin.opt(colors=True).error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
+        log.plugin.error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
         es.publish(PluginLoadedFailed(path, e))
     except Exception as e:
-        log.plugin.opt(colors=True).exception(
+        log.plugin.exception(
             f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e
         )
         es.publish(PluginLoadedFailed(path, e))

@@ -20,7 +20,7 @@ class LoggerManager:
 
     def fork(self, child_name: str):
         patched = logger.patch(lambda r: r.update(name=child_name))
-        patched = patched.bind(name=child_name)
+        patched = patched.bind(name=child_name).opt(colors=True)
         self.loggers[child_name] = patched
         return patched
 

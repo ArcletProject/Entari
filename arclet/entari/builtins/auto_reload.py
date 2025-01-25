@@ -33,7 +33,7 @@ metadata(
 )
 
 
-logger = log.wrapper("[AutoReload]")
+logger = log.wrapper("[AutoReload]").opt(colors=True)
 
 
 def detect_filter_change(old: dict, new: dict):
@@ -73,28 +73,28 @@ class Watcher(Service):
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
                     if plugin.is_static:
-                        logger.opt(colors=True).info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
+                        logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
-                    logger.opt(colors=True).info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
+                    logger.info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
                     pid = plugin.id
                     del plugin
                     unload_plugin(pid)
                     if plugin := load_plugin(pid):
-                        logger.opt(colors=True).info(f"Reloaded <blue>{plugin.id!r}</blue>")
+                        logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
                     else:
-                        logger.opt(colors=True).error(f"Failed to reload <blue>{pid!r}</blue>")
+                        logger.error(f"Failed to reload <blue>{pid!r}</blue>")
                         self.fail[change[1]] = pid
                 elif change[1] in self.fail:
-                    logger.opt(colors=True).info(
+                    logger.info(
                         f"Detected change in {change[1]!r} which failed to reload, retrying..."
                     )
                     if plugin := load_plugin(self.fail[change[1]]):
-                        logger.opt(colors=True).info(f"Reloaded <blue>{plugin.id!r}</blue>")
+                        logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
                         del self.fail[change[1]]
                     else:
-                        logger.opt(colors=True).error(f"Failed to reload <blue>{self.fail[change[1]]!r}</blue>")
+                        logger.error(f"Failed to reload <blue>{self.fail[change[1]]!r}</blue>")
 
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
@@ -110,20 +110,20 @@ class Watcher(Service):
                 ):
                     print(change)
                     continue
-                logger.opt(colors=True).info(f"Detected change in {change[1]!r}, reloading config...")
+                logger.info(f"Detected change in {change[1]!r}, reloading config...")
 
                 old_basic = EntariConfig.instance.basic.copy()
                 old_plugin = EntariConfig.instance.plugin.copy()
                 EntariConfig.instance.reload()
                 for key in old_basic:
                     if key in EntariConfig.instance.basic and old_basic[key] != EntariConfig.instance.basic[key]:
-                        logger.opt(colors=True).debug(
+                        logger.debug(
                             f"Basic config <y>{key!r}</y> changed from <r>{old_basic[key]!r}</r> "
                             f"to <g>{EntariConfig.instance.basic[key]!r}</g>",
                         )
                         await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key], old_basic[key]))
                 for key in set(EntariConfig.instance.basic) - set(old_basic):
-                    logger.opt(colors=True).debug(f"Basic config <y>{key!r}</y> appended")
+                    logger.debug(f"Basic config <y>{key!r}</y> appended")
                     await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
                 for plugin_name in old_plugin:
                     if plugin_name.startswith("$") or plugin_name.startswith("~"):
@@ -133,10 +133,10 @@ class Watcher(Service):
                         if plugin := find_plugin(pid):
                             del plugin
                             unload_plugin(pid)
-                            logger.opt(colors=True).info(f"Disposed plugin <blue>{pid!r}</blue>")
+                            logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
                     if old_plugin[plugin_name] != EntariConfig.instance.plugin[plugin_name]:
-                        logger.opt(colors=True).debug(
+                        logger.debug(
                             f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_plugin[plugin_name]!r}</r> "
                             f"to <g>{EntariConfig.instance.plugin[plugin_name]!r}</g>",
                         )
@@ -146,27 +146,27 @@ class Watcher(Service):
                             allow, deny, only_filter = detect_filter_change(old_conf, new_conf)
                             plugin.update_filter(allow, deny)
                             if only_filter:
-                                logger.opt(colors=True).debug(f"Plugin <y>{pid!r}</y> config only changed filter.")
+                                logger.debug(f"Plugin <y>{pid!r}</y> config only changed filter.")
                                 continue
                             res = await es.post(
                                 ConfigReload("plugin", plugin_name, new_conf, old_conf),
                             )
                             if res and res.value:
-                                logger.opt(colors=True).debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
+                                logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
-                            logger.opt(colors=True).info(
+                            logger.info(
                                 f"Detected config of <blue>{pid!r}</blue> changed, reloading..."
                             )
                             plugin_file = str(plugin.module.__file__)
                             unload_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name, new_conf):
-                                logger.opt(colors=True).info(f"Reloaded <blue>{plugin.id!r}</blue>")
+                                logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin
                             else:
-                                logger.opt(colors=True).error(f"Failed to reload <blue>{plugin_name!r}</blue>")
+                                logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
                                 self.fail[plugin_file] = pid
                         else:
-                            logger.opt(colors=True).info(f"Detected <blue>{pid!r}</blue> appended, loading...")
+                            logger.info(f"Detected <blue>{pid!r}</blue> appended, loading...")
                             load_plugin(plugin_name, new_conf)
                 if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
                     for plugin_name in new:
