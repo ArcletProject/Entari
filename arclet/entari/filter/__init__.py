@@ -1,23 +1,61 @@
 import asyncio
+from collections.abc import Awaitable
 from datetime import datetime
-from typing import Optional, Union
+from typing import Any, Callable, Final, Optional, Union
+from typing_extensions import ParamSpec, TypeAlias
 
-from arclet.letoderea import STOP, Propagator
+from arclet.letoderea import STOP, Depends, Propagator
+from arclet.letoderea.typing import Result, TTarget, run_sync
+from tarina import is_coroutinefunction
 
+from . import common
 from ..message import MessageChain
 from ..session import Session
-from .common import filter_ as filter_
 from .common import parse as parse
-from .message import direct_message
-from .message import notice_me as notice_me
-from .message import public_message
-from .message import reply_me as reply_me
-from .message import to_me as to_me
+from .message import direct_message, notice_me, public_message, reply_me, to_me
 
-s = filter_
-direct = direct_message
-public = public_message
-private = direct_message
+_SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
+P = ParamSpec("P")
+
+
+def wrapper(func: Callable[P, TTarget]) -> Callable[P, Any]:
+    def _wrapper(*args: P.args, **kwargs: P.kwargs):
+        async def _(res: Result[bool] = Depends(func(*args, **kwargs))):
+            if res.value is False:
+                return STOP
+
+        return _
+
+    return _wrapper
+
+
+class _Filter:
+    user = staticmethod(wrapper(common._user))
+    guild = staticmethod(wrapper(common._guild))
+    channel = staticmethod(wrapper(common._channel))
+    self_ = staticmethod(wrapper(common._account))
+    platform = staticmethod(wrapper(common._platform))
+    direct = staticmethod(direct_message)
+    private = staticmethod(direct_message)
+    direct_message = staticmethod(direct_message)
+    public = staticmethod(public_message)
+    public_message = staticmethod(public_message)
+    notice_me = staticmethod(notice_me)
+    reply_me = staticmethod(reply_me)
+    to_me = staticmethod(to_me)
+
+    def __call__(self, func: _SessionFilter):
+        _func = run_sync(func) if is_coroutinefunction(func) else func
+
+        async def _(session: Session):
+            if not await _func(session):  # type: ignore
+                return STOP
+
+        return _
+
+
+filter_: Final[_Filter] = _Filter()
+F = filter_
 
 
 class Interval(Propagator):

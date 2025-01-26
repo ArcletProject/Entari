@@ -4,7 +4,7 @@ from arclet.entari import (
     MessageCreatedEvent,
     Plugin,
     command,
-    filter,
+    filter_,
     metadata,
     keeping,
     scheduler,
@@ -30,7 +30,7 @@ async def cleanup():
 
 
 @plug.dispatch(MessageCreatedEvent)
-@propagate(filter.public_message)
+@propagate(filter_.public)
 async def _(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...")
@@ -43,13 +43,13 @@ disp_message = plug.dispatch(MessageCreatedEvent)
 
 
 @disp_message.on()
-@propagate(filter.public_message, filter.to_me, filter.s(lambda sess: str(sess.content) == "aaa"), prepend=True)
+@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) == "aaa"), prepend=True)
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
 @disp_message
-@propagate(filter.public, filter.to_me, filter.s(lambda sess: str(sess.content) != "aaa"), prepend=True)
+@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) != "aaa"), prepend=True)
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
@@ -57,6 +57,7 @@ async def _(session: Session):
 @command.on("add {a} {b}")
 def add(a: int, b: int):
     return f"{a + b =}"
+
 
 add.propagate(Interval(2, limit_prompt="太快了"))
 

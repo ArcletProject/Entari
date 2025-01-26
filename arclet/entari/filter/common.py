@@ -1,16 +1,11 @@
-from collections.abc import Awaitable
-from inspect import Parameter, Signature
 from typing import Callable, Union
 from typing_extensions import TypeAlias
 
 from arclet.letoderea import STOP, Contexts, Depends, Propagator, propagate
-from arclet.letoderea.typing import Result, run_sync
+from arclet.letoderea.typing import Result
 from satori import Channel, ChannelType, Guild, User
-from tarina import is_coroutinefunction
 
 from ..session import Session
-
-_SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
 
 
 def _user(*ids: str):
@@ -77,62 +72,37 @@ _op_keys = {
 PATTERNS: TypeAlias = dict[str, Union[list[str], bool, "PATTERNS"]]
 
 
-def filter_(func: _SessionFilter):
-    if is_coroutinefunction(func):
-        _func = func
-    else:
-        _func = run_sync(func)
-
-    async def _(session: Session):
-        if not await _func(session):
-            return STOP
-
-    return _
-
-
 class _Filter(Propagator):
     def __init__(self):
         self.step: dict[int, Callable] = {}
         self.ops = []
 
-    def get_flow(self):
+    def get_flow(self, entry: bool = False):
         if not self.step:
-            return Depends(lambda: None)
+            flow = lambda: True
 
-        steps = [slot[1] for slot in sorted(self.step.items(), key=lambda x: x[0])]
+        else:
+            steps = [slot[1] for slot in sorted(self.step.items(), key=lambda x: x[0])]
 
-        @propagate(*steps, prepend=True)
-        async def flow(ctx: Contexts):
-            if ctx.get("$result", False):
-                return
-            return STOP
+            @propagate(*steps, prepend=True)
+            async def flow(ctx: Contexts):
+                return ctx.get("$result", False)
 
-        return Depends(flow)
-
-    def generate(self):
-        async def check(**kwargs):
-            res = kwargs["res"]
-            for (op, _), res1 in zip(self.ops, list(kwargs.values())[1:]):
-                if op == "and" and (res is None and res1 is None):
-                    continue
-                if op == "or" and (res is None or res1 is None):
-                    res = None
-                    continue
-                if op == "not" and (res is None and res1 is STOP):
-                    continue
-                res = STOP
-            return res
-
-        param = [Parameter("res", Parameter.POSITIONAL_OR_KEYWORD, default=self.get_flow())]
-        for index, slot in enumerate(self.ops):
-            param.append(
-                Parameter(f"res_{index+1}", Parameter.POSITIONAL_OR_KEYWORD, default=Depends(slot[1].generate()))
-            )
-        check.__signature__ = Signature(param)
-        return check
+        other = []
+        for op, f_ in self.ops:
+            if op == "and":
+                other.append(lambda result, res=Depends(f_.get_flow()): Result(result and res))
+            elif op == "or":
+                other.append(lambda result, res=Depends(f_.get_flow()): Result(result or res))
+            else:
+                other.append(lambda result, res=Depends(f_.get_flow()): Result(result and not res))
+        propagate(*other)(flow)
+        if entry:
+            propagate(lambda result: None if result else STOP)(flow)
+        return flow
 
     def compose(self):
-        yield self.generate(), True, 0
+        yield self.get_flow(entry=True), True, 0
 
 
 def parse(patterns: PATTERNS):
