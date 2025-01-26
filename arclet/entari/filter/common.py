@@ -13,26 +13,6 @@ from ..session import Session
 _SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
 
 
-async def _direct_message(channel: Channel):
-    return Result(channel.type == ChannelType.DIRECT)
-
-
-async def _public_message(channel: Channel):
-    return Result(channel.type != ChannelType.DIRECT)
-
-
-async def _reply_me(is_reply_me: bool = False):
-    return Result(is_reply_me)
-
-
-async def _notice_me(is_notice_me: bool = False):
-    return Result(is_notice_me)
-
-
-async def _to_me(is_reply_me: bool = False, is_notice_me: bool = False):
-    return Result(is_reply_me or is_notice_me)
-
-
 def _user(*ids: str):
     async def check_user(user: User):
         return Result(user.id in ids if ids else True)
@@ -77,12 +57,12 @@ _keys = {
 }
 
 _mess_keys = {
-    "direct": (_direct_message, 5),
-    "private": (_direct_message, 5),
-    "public": (_public_message, 6),
-    "reply_me": (_reply_me, 7),
-    "notice_me": (_notice_me, 8),
-    "to_me": (_to_me, 9),
+    "direct": (lambda channel: Result(channel.type == ChannelType.DIRECT), 5),
+    "private": (lambda channel: Result(channel.type == ChannelType.DIRECT), 5),
+    "public": (lambda channel: Result(channel.type != ChannelType.DIRECT), 6),
+    "reply_me": (lambda is_reply_me=False: Result(is_reply_me), 7),
+    "notice_me": (lambda is_notice_me=False: Result(is_notice_me), 8),
+    "to_me": (lambda is_reply_me=False, is_notice_me=False: Result(is_reply_me or is_notice_me), 9),
 }
 
 _op_keys = {
@@ -130,34 +110,25 @@ class _Filter(Propagator):
         return Depends(flow)
 
     def generate(self):
+        async def check(**kwargs):
+            res = kwargs["res"]
+            for (op, _), res1 in zip(self.ops, list(kwargs.values())[1:]):
+                if op == "and" and (res is None and res1 is None):
+                    continue
+                if op == "or" and (res is None or res1 is None):
+                    res = None
+                    continue
+                if op == "not" and (res is None and res1 is STOP):
+                    continue
+                res = STOP
+            return res
 
-        if not self.ops:
-
-            async def check(res=self.get_flow()):  # type: ignore
-                return res
-
-        else:
-
-            async def check(**kwargs):
-                res = kwargs["res"]
-                for (op, _), res1 in zip(self.ops, list(kwargs.values())[1:]):
-                    if op == "and" and (res is None and res1 is None):
-                        continue
-                    if op == "or" and (res is None or res1 is None):
-                        res = None
-                        continue
-                    if op == "not" and (res is None and res1 is STOP):
-                        continue
-                    res = STOP
-                return res
-
-            param = [Parameter("res", Parameter.POSITIONAL_OR_KEYWORD, default=self.get_flow())]
-            for index, slot in enumerate(self.ops):
-                param.append(
-                    Parameter(f"res_{index+1}", Parameter.POSITIONAL_OR_KEYWORD, default=Depends(slot[1].generate()))
-                )
-            check.__signature__ = Signature(param)
-
+        param = [Parameter("res", Parameter.POSITIONAL_OR_KEYWORD, default=self.get_flow())]
+        for index, slot in enumerate(self.ops):
+            param.append(
+                Parameter(f"res_{index+1}", Parameter.POSITIONAL_OR_KEYWORD, default=Depends(slot[1].generate()))
+            )
+        check.__signature__ = Signature(param)
         return check
 
     def compose(self):
