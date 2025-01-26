@@ -1,71 +1,27 @@
-from typing import Optional
-
-from arclet.letoderea import BaseAuxiliary, Interface
+from arclet.letoderea import STOP
 from satori import Channel, ChannelType
 
 
-class DirectMessageJudger(BaseAuxiliary):
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (channel := await interface.query(Channel, "channel", force_return=True)):
-            return False
-        return channel.type == ChannelType.DIRECT
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/direct_message"
+async def direct_message(channel: Channel):
+    if channel.type != ChannelType.DIRECT:
+        return STOP
 
 
-class PublicMessageJudger(BaseAuxiliary):
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (channel := await interface.query(Channel, "channel", force_return=True)):
-            return False
-        return channel.type != ChannelType.DIRECT
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/public_message"
+async def public_message(channel: Channel):
+    if channel.type == ChannelType.DIRECT:
+        return STOP
 
 
-class ReplyMeJudger(BaseAuxiliary):
-
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        return interface.ctx.get("is_reply_me", False)
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/judge_reply_me"
+async def reply_me(is_reply_me: bool = False):
+    if not is_reply_me:
+        return STOP
 
 
-class NoticeMeJudger(BaseAuxiliary):
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        return interface.ctx.get("is_notice_me", False)
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/judge_notice_me"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/judge_reply_me"}
+async def notice_me(is_notice_me: bool = False):
+    if not is_notice_me:
+        return STOP
 
 
-class ToMeJudger(BaseAuxiliary):
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        is_reply_me = interface.ctx.get("is_reply_me", False)
-        is_notice_me = interface.ctx.get("is_notice_me", False)
-        return is_reply_me or is_notice_me
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/judge_to_me"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/judge_reply_me", "entari.filter/judge_notice_me"}
-
-
-public_message = PublicMessageJudger()
-direct_message = DirectMessageJudger()
-reply_me = ReplyMeJudger()
-notice_me = NoticeMeJudger()
-to_me = ToMeJudger()
+async def to_me(is_reply_me: bool = False, is_notice_me: bool = False):
+    if not is_reply_me and not is_notice_me:
+        return STOP

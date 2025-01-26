@@ -86,9 +86,7 @@ class Watcher(Service):
                         logger.error(f"Failed to reload <blue>{pid!r}</blue>")
                         self.fail[change[1]] = pid
                 elif change[1] in self.fail:
-                    logger.info(
-                        f"Detected change in {change[1]!r} which failed to reload, retrying..."
-                    )
+                    logger.info(f"Detected change in {change[1]!r} which failed to reload, retrying...")
                     if plugin := load_plugin(self.fail[change[1]]):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
@@ -154,9 +152,7 @@ class Watcher(Service):
                             if res and res.value:
                                 logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
-                            logger.info(
-                                f"Detected config of <blue>{pid!r}</blue> changed, reloading..."
-                            )
+                            logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
                             unload_plugin(plugin_name)
                             if plugin := load_plugin(plugin_name, new_conf):

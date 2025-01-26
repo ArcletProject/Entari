@@ -36,7 +36,7 @@ class ApiProtocolProvider(Provider[ApiProtocol]):
 
 class SessionProvider(Provider[Session]):
     def validate(self, param: Param):
-        return get_origin(param.annotation) == Session
+        return (get_origin(param.annotation) == Session) or super().validate(param)
 
     async def __call__(self, context: Contexts):
         if "session" in context and isinstance(context["session"], Session):

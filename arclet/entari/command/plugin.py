@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from arclet.alconna import Alconna, command_manager
-from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, es
+from arclet.letoderea import Provider, ProviderFactory, es
 
 from ..event import MessageCreatedEvent
 from ..event.command import CommandExecute
@@ -28,10 +28,10 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
         self.supplier = AlconnaSuppiler(command)
         super().__init__(plugin, MessageCreatedEvent, command.path)
-        self.auxiliaries.append(
+        self.propagators.append(
             MessageJudges(need_reply_me, need_notice_me, use_config_prefix),
         )
-        self.auxiliaries.append(self.supplier)
+        self.propagators.append(self.supplier)
         self.providers.append(AlconnaProviderFactory())
 
         @plugin.collect
@@ -46,24 +46,28 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         value: Any = _seminal,
         or_not: bool = False,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        _auxiliaries = auxiliaries or []
-        _auxiliaries.append(Assign(path, value, or_not))
-        return self.register(priority=priority, auxiliaries=_auxiliaries, providers=providers)
+        assign = Assign(path, value, or_not)
+        try:
+            self.propagators.append(assign)
+            return self.register(priority=priority, providers=providers)
+        finally:
+            self.propagators.remove(assign)
 
     def on_execute(
         self,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
-        _auxiliaries = auxiliaries or []
-        _auxiliaries.append(self.supplier)
-        return self.plugin._scope.register(
-            priority=priority, auxiliaries=_auxiliaries, providers=providers, publisher=exec_pub
-        )
+        wrapper = self.plugin._scope.register(priority=priority, providers=providers, publisher=exec_pub)
+
+        def decorator(func):
+            sub = wrapper(func)
+            sub.propagate(self.supplier)
+            return sub
+
+        return decorator
 
     Match = Match
     Query = Query

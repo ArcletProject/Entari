@@ -94,9 +94,7 @@ def load_plugin(
                     if referent in recursive_guard:
                         continue
                     if referent in plugin_service.plugins:
-                        log.plugin.debug(
-                            f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>"
-                        )
+                        log.plugin.debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
                         unload_plugin(referent)
                         if not load_plugin(referent):
                             plugin_service._referents[mod.__name__].add(referent)
@@ -109,9 +107,7 @@ def load_plugin(
         log.plugin.error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
         es.publish(PluginLoadedFailed(path, e))
     except Exception as e:
-        log.plugin.exception(
-            f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e
-        )
+        log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e)
         es.publish(PluginLoadedFailed(path, e))
 
 

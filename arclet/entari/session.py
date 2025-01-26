@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Generic, NoReturn, TypeVar, cast
 
-from arclet.letoderea import ParsingStop, StepOut, es
+from arclet.letoderea import HandlerStop, StepOut, es
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
@@ -134,11 +134,11 @@ class Session(Generic[TEvent]):
         result = await step.wait(timeout=timeout)
         if not result:
             await self.send(timeout_message)
-            raise ParsingStop()
+            raise HandlerStop()
         return result
 
     def stop(self) -> NoReturn:
-        raise ParsingStop()
+        raise HandlerStop()
 
     @property
     def user(self) -> User:
