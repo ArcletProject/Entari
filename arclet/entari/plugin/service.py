@@ -1,13 +1,12 @@
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
-from arclet.letoderea import Propagator, es
+from arclet.letoderea import es
 from launart import Launart, Service
 from launart.status import Phase
 
 from ..event.lifespan import Cleanup, Ready, Startup
 from ..event.plugin import PluginUnloaded
 from ..logger import log
-from ..session import Session
 
 if TYPE_CHECKING:
     from .model import KeepingVariable, Plugin, RootlessPlugin
@@ -17,7 +16,6 @@ class PluginManagerService(Service):
     id = "entari.plugin.manager"
 
     plugins: dict[str, "Plugin"]
-    filters: dict[str, Callable[[Session], Any]]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     _referents: dict[str, set[str]]
     _unloaded: set[str]
@@ -32,7 +30,6 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
-        self.filters = {}
 
     @property
     def required(self) -> set[str]:
@@ -74,15 +71,3 @@ class PluginManagerService(Service):
 
 
 plugin_service = PluginManagerService()
-
-
-class PluginAccess(Propagator):
-    def __init__(self, plugin_id: str):
-        self.plugin_id = plugin_id
-
-    async def check(self, session: Optional[Session] = None):
-        if session and self.plugin_id in plugin_service.filters:
-            return await plugin_service.filters[self.plugin_id](session)
-
-    def compose(self):
-        yield self.check, True, 0

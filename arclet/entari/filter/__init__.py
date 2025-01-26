@@ -7,6 +7,7 @@ from arclet.letoderea import STOP, Propagator
 from ..message import MessageChain
 from ..session import Session
 from .common import filter_ as filter_
+from .common import parse as parse
 from .message import direct_message
 from .message import notice_me as notice_me
 from .message import public_message
@@ -57,7 +58,7 @@ class Semaphore(Propagator):
                 await session.send(self.limit_prompt)
             return STOP
 
-    async def after(self) -> Optional[bool]:
+    async def after(self):
         self.semaphore.release()
 
     def compose(self):

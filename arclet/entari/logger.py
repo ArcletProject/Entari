@@ -38,7 +38,9 @@ class LoggerManager:
 
     def wrapper(self, name: str, color: str = "blue"):
         patched = logger.patch(
-            lambda r: r.update(name="entari", extra=r["extra"] | {"entari_plugin_name": name, "entari_plugin_color": color})
+            lambda r: r.update(
+                name="entari", extra=r["extra"] | {"entari_plugin_name": name, "entari_plugin_color": color}
+            )
         )
         patched = patched.bind(name=f"plugins.{name}")
         self.loggers[f"plugin.{name}"] = patched

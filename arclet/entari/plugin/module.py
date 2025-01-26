@@ -13,7 +13,7 @@ from arclet.letoderea.context import scope_ctx
 from ..config import EntariConfig
 from ..logger import log
 from .model import Plugin, PluginMetadata, _current_plugin
-from .service import PluginAccess, plugin_service
+from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
@@ -217,11 +217,9 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: Optional[dict[str, str]] = None) -> None:
-        is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             plugin.subplugins.add(module.__name__)
             plugin_service._subplugined[module.__name__] = plugin.id
-            is_sub = True
 
         if self.loaded:
             return
@@ -238,8 +236,6 @@ class PluginLoader(SourceFileLoader):
         # enter plugin context
         token = _current_plugin.set(plugin)
         if not plugin.is_static:
-            if not is_sub:
-                plugin._scope.propagators.append(PluginAccess(plugin.id))
             token1 = scope_ctx.set(plugin._scope)
         try:
             super().exec_module(module)

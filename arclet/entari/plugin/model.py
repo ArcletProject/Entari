@@ -15,7 +15,7 @@ from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
-from ..filter.common import parse
+from ..filter import parse
 from ..logger import log
 from .service import plugin_service
 
@@ -216,20 +216,18 @@ class Plugin:
         self._dispose_callbacks.extend(disposes)
         return self
 
-    def update_filter(self, allow: dict, deny: dict):
-        if not allow and not deny:
-            return
+    def __post_init__(self):
+        self._scope = es.scope(self.id)
+        plugin_service.plugins[self.id] = self
+        allow = self.config.pop("$allow", {})
+        deny = self.config.pop("$deny", {})
         pat = {}
         if allow:
             pat["$and"] = allow
         if deny:
             pat["$not"] = deny
-        plugin_service.filters[self.id] = parse(pat)
-
-    def __post_init__(self):
-        self._scope = es.scope(self.id)
-        plugin_service.plugins[self.id] = self
-        self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
+        if pat:
+            self._scope.propagators.append(parse(pat))
         if "$static" in self.config:
             self.is_static = True
             self.config.pop("$static")
@@ -271,6 +269,7 @@ class Plugin:
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
         self._scope.dispose()
+        self._scope.propagators.clear()
         del plugin_service.plugins[self.id]
         del self.module
 

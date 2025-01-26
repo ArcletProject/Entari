@@ -1,32 +1,88 @@
 from collections.abc import Awaitable
+from inspect import Parameter, Signature
 from typing import Callable, Union
 from typing_extensions import TypeAlias
 
-from arclet.letoderea import STOP
-from arclet.letoderea.handler import run_handler
-from arclet.letoderea.typing import run_sync
+from arclet.letoderea import STOP, Contexts, Depends, Propagator, propagate
+from arclet.letoderea.typing import Result, run_sync
+from satori import Channel, ChannelType, Guild, User
 from tarina import is_coroutinefunction
 
-from ..event.base import MessageEvent
 from ..session import Session
-from .message import direct_message, notice_me, public_message, reply_me, to_me
 
 _SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
-_sess_keys = {
-    "user",
-    "guild",
-    "channel",
-    "self",
-    "platform",
+
+
+async def _direct_message(channel: Channel):
+    return Result(channel.type == ChannelType.DIRECT)
+
+
+async def _public_message(channel: Channel):
+    return Result(channel.type != ChannelType.DIRECT)
+
+
+async def _reply_me(is_reply_me: bool = False):
+    return Result(is_reply_me)
+
+
+async def _notice_me(is_notice_me: bool = False):
+    return Result(is_notice_me)
+
+
+async def _to_me(is_reply_me: bool = False, is_notice_me: bool = False):
+    return Result(is_reply_me or is_notice_me)
+
+
+def _user(*ids: str):
+    async def check_user(user: User):
+        return Result(user.id in ids if ids else True)
+
+    return check_user
+
+
+def _channel(*ids: str):
+    async def check_channel(channel: Channel):
+        return Result(channel.id in ids if ids else True)
+
+    return check_channel
+
+
+def _guild(*ids: str):
+    async def check_guild(guild: Guild):
+        return Result(guild.id in ids if ids else True)
+
+    return check_guild
+
+
+def _account(*ids: str):
+    async def check_account(session: Session):
+        return Result(session.account.self_id in ids)
+
+    return check_account
+
+
+def _platform(*ids: str):
+    async def check_platform(session: Session):
+        return Result(session.account.platform in ids)
+
+    return check_platform
+
+
+_keys = {
+    "user": (_user, 2),
+    "guild": (_guild, 3),
+    "channel": (_channel, 4),
+    "self": (_account, 1),
+    "platform": (_platform, 0),
 }
 
-_message_keys = {
-    "direct": direct_message,
-    "private": direct_message,
-    "public": public_message,
-    "reply_me": reply_me,
-    "notice_me": notice_me,
-    "to_me": to_me,
+_mess_keys = {
+    "direct": (_direct_message, 5),
+    "private": (_direct_message, 5),
+    "public": (_public_message, 6),
+    "reply_me": (_reply_me, 7),
+    "notice_me": (_notice_me, 8),
+    "to_me": (_to_me, 9),
 }
 
 _op_keys = {
@@ -54,46 +110,75 @@ def filter_(func: _SessionFilter):
     return _
 
 
+class _Filter(Propagator):
+    def __init__(self):
+        self.step: dict[int, Callable] = {}
+        self.ops = []
+
+    def get_flow(self):
+        if not self.step:
+            return Depends(lambda: None)
+
+        steps = [slot[1] for slot in sorted(self.step.items(), key=lambda x: x[0])]
+
+        @propagate(*steps, prepend=True)
+        async def flow(ctx: Contexts):
+            if ctx.get("$result", False):
+                return
+            return STOP
+
+        return Depends(flow)
+
+    def generate(self):
+
+        if not self.ops:
+
+            async def check(res=self.get_flow()):  # type: ignore
+                return res
+
+        else:
+
+            async def check(**kwargs):
+                res = kwargs["res"]
+                for (op, _), res1 in zip(self.ops, list(kwargs.values())[1:]):
+                    if op == "and" and (res is None and res1 is None):
+                        continue
+                    if op == "or" and (res is None or res1 is None):
+                        res = None
+                        continue
+                    if op == "not" and (res is None and res1 is STOP):
+                        continue
+                    res = STOP
+                return res
+
+            param = [Parameter("res", Parameter.POSITIONAL_OR_KEYWORD, default=self.get_flow())]
+            for index, slot in enumerate(self.ops):
+                param.append(
+                    Parameter(f"res_{index+1}", Parameter.POSITIONAL_OR_KEYWORD, default=Depends(slot[1].generate()))
+                )
+            check.__signature__ = Signature(param)
+
+        return check
+
+    def compose(self):
+        yield self.generate(), True, 0
+
+
 def parse(patterns: PATTERNS):
-    step: list[Callable[[Session], bool]] = []
-    other = []
-    ops = []
+    f = _Filter()
+
     for key, value in patterns.items():
-        if key in _sess_keys:
-            step.append(lambda session: getattr(session, key) in value)
-        elif key in _message_keys:
-            step.append(lambda session: isinstance(session.event, MessageEvent))
-            other.append(_message_keys[key])
+        if key in _keys:
+            f.step[_keys[key][1]] = _keys[key][0](*value)
+        elif key in _mess_keys:
+            if value is True:
+                f.step[_mess_keys[key][1]] = _mess_keys[key][0]
         elif key in _op_keys:
             op = _op_keys[key]
             if not isinstance(value, dict):
                 raise ValueError(f"Expect a dict for operator {key}")
-            ops.append((op, parse(value)))
+            f.ops.append((op, parse(value)))
         else:
             raise ValueError(f"Unknown key: {key}")
 
-    async def f(session: Session):
-        for i in step:
-            if not i(session):
-                return STOP
-        for i in other:
-            if not await run_handler(i, session.event):
-                return STOP
-
-    if not ops:
-        return f
-
-    async def _(session: Session):
-        res = await f(session)
-
-        for op, f_ in ops:
-            res1 = await f_(session)
-            if op == "and" and (res is None and res1 is None):
-                return
-            if op == "or" and (res is None or res1 is None):
-                return
-            if op == "not" and (res is None and res1 is STOP):
-                return
-            return STOP
-
-    return _
+    return f
