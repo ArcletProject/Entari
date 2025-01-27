@@ -1,14 +1,19 @@
 from importlib.util import find_spec
 from pathlib import Path
 
-from arclet.alconna import Alconna, Args, CommandMeta, Option, Subcommand, command_manager
+from arclet.alconna import Alconna, Args, CommandMeta, MultiVar, Option, Subcommand, command_manager
 from arclet.alconna.tools.formatter import RichConsoleFormatter
 
 from arclet.entari import Entari
 
 alc = Alconna(
     "entari",
-    Subcommand("new", Option("--dev", help_text="是否生成开发用配置文件"), help_text="新建一个 Entari 配置文件"),
+    Subcommand(
+        "new",
+        Option("-d|--dev", help_text="是否生成开发用配置文件"),
+        Option("-P|--plugins", Args["names/", MultiVar(str)], help_text="指定增加哪些插件"),
+        help_text="新建一个 Entari 配置文件",
+    ),
     Subcommand("run", help_text="运行 Entari"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径"),
     meta=CommandMeta(
@@ -33,6 +38,13 @@ JSON_BASIC_TEMPLATE = """\
     "log_level": "info",
     "prefix": ["/"]
   },
+"""
+
+JSON_PLUGIN_BLANK_TEMPLATE = """\
+  "plugins": {{
+{plugins}
+  }}
+}}
 """
 
 JSON_PLUGIN_COMMON_TEMPLATE = """\
@@ -75,6 +87,12 @@ basic:
   prefix: ["/"]
 """
 
+YAML_PLUGIN_BLANK_TEMPLATE = """\
+plugins:
+{plugins}
+"""
+
+
 YAML_PLUGIN_COMMON_TEMPLATE = """\
 plugins:
   .record_message: {}
@@ -98,11 +116,12 @@ plugins:
 
 def main():
     res = alc()
-    if not res.matched or res.non_component:
+    if (not res.matched or res.non_component) and not res.error_info:
         print(alc.get_help())
         return
     if res.find("new"):
         is_dev = res.find("new.dev")
+        names = res.query[tuple[str, ...]]("new.plugins.names", ())
         if (path := res.query[str]("config.path", None)) is None:
             if find_spec("yaml"):
                 _path = Path.cwd() / "entari.yml"
@@ -114,13 +133,27 @@ def main():
             print(f"{_path} already exists")
             return
         if _path.suffix.startswith(".json"):
+            if names:
+                PT = JSON_PLUGIN_BLANK_TEMPLATE.format(plugins=",\n".join(f'    "{name}": {{}}' for name in names))
+            elif is_dev:
+                PT = JSON_PLUGIN_DEV_TEMPLATE
+            else:
+                PT = JSON_PLUGIN_COMMON_TEMPLATE
+
             with _path.open("w", encoding="utf-8") as f:
-                f.write(JSON_BASIC_TEMPLATE + (JSON_PLUGIN_DEV_TEMPLATE if is_dev else JSON_PLUGIN_COMMON_TEMPLATE))
+                f.write(JSON_BASIC_TEMPLATE + PT)
             print(f"Config file created at {_path}")
             return
         if _path.suffix in (".yaml", ".yml"):
+            if names:
+                PT = YAML_PLUGIN_BLANK_TEMPLATE.format(plugins="\n".join(f"  {name}: {{}}" for name in names))
+            elif is_dev:
+                PT = YAML_PLUGIN_DEV_TEMPLATE
+            else:
+                PT = YAML_PLUGIN_COMMON_TEMPLATE
+
             with _path.open("w", encoding="utf-8") as f:
-                f.write(YAML_BASIC_TEMPLATE + (YAML_PLUGIN_DEV_TEMPLATE if is_dev else YAML_PLUGIN_COMMON_TEMPLATE))
+                f.write(YAML_BASIC_TEMPLATE + PT)
             print(f"Config file created at {_path}")
             return
         print(f"Unsupported file extension: {_path.suffix}")
