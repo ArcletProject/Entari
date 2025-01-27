@@ -1,51 +1,38 @@
 import asyncio
 from collections.abc import Awaitable
 from datetime import datetime
-from typing import Any, Callable, Final, Optional, Union
-from typing_extensions import ParamSpec, TypeAlias
+from typing import Callable, Final, Optional, Union
+from typing_extensions import TypeAlias
 
-from arclet.letoderea import STOP, Depends, Propagator
-from arclet.letoderea.typing import Result, TTarget, run_sync
+from arclet.letoderea import STOP, Propagator
+from arclet.letoderea.typing import run_sync
 from tarina import is_coroutinefunction
 
-from . import common
+from . import common, message
 from ..message import MessageChain
 from ..session import Session
 from .common import parse as parse
-from .message import direct_message, notice_me, public_message, reply_me, to_me
 
 _SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
-P = ParamSpec("P")
-
-
-def wrapper(func: Callable[P, TTarget]) -> Callable[P, Any]:
-    def _wrapper(*args: P.args, **kwargs: P.kwargs):
-        async def _(res: Result[bool] = Depends(func(*args, **kwargs))):
-            if res.value is False:
-                return STOP
-
-        return _
-
-    return _wrapper
 
 
 class _Filter:
-    user = staticmethod(wrapper(common._user))
-    guild = staticmethod(wrapper(common._guild))
-    channel = staticmethod(wrapper(common._channel))
-    self_ = staticmethod(wrapper(common._account))
-    platform = staticmethod(wrapper(common._platform))
-    direct = staticmethod(direct_message)
-    private = staticmethod(direct_message)
-    direct_message = staticmethod(direct_message)
-    public = staticmethod(public_message)
-    public_message = staticmethod(public_message)
-    notice_me = staticmethod(notice_me)
-    reply_me = staticmethod(reply_me)
-    to_me = staticmethod(to_me)
+    user = staticmethod(common.user)
+    guild = staticmethod(common.guild)
+    channel = staticmethod(common.channel)
+    self_ = staticmethod(common.account)
+    platform = staticmethod(common.platform)
+    direct = staticmethod(message.direct_message)
+    private = staticmethod(message.direct_message)
+    direct_message = staticmethod(message.direct_message)
+    public = staticmethod(message.public_message)
+    public_message = staticmethod(message.public_message)
+    notice_me = staticmethod(message.notice_me)
+    reply_me = staticmethod(message.reply_me)
+    to_me = staticmethod(message.to_me)
 
     def __call__(self, func: _SessionFilter):
-        _func = run_sync(func) if is_coroutinefunction(func) else func
+        _func = func if is_coroutinefunction(func) else run_sync(func)
 
         async def _(session: Session):
             if not await _func(session):  # type: ignore
@@ -74,10 +61,9 @@ class Interval(Propagator):
                 await session.send(self.limit_prompt)
             return STOP
 
-    async def after(self) -> Optional[bool]:
+    async def after(self):
         if self.success:
             self.last_time = datetime.now()
-            return True
 
     def compose(self):
         yield self.before, True, 15
