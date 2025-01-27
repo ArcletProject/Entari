@@ -9,6 +9,7 @@ from arclet.entari import (
     keeping,
     scheduler,
     local_data,
+    propagate
     # Entari,
 )
 from arclet.entari.filter import Interval
@@ -29,7 +30,7 @@ async def cleanup():
 
 
 @plug.dispatch(MessageCreatedEvent)
-@filter_.public().bind
+@propagate(filter_.public)
 async def _(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...")
@@ -41,20 +42,24 @@ async def _(session: Session):
 disp_message = plug.dispatch(MessageCreatedEvent)
 
 
-@disp_message.on(auxiliaries=[filter_.public().to_me().and_(lambda sess: str(sess.content) == "aaa")])
+@disp_message.on()
+@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) == "aaa"), prepend=True)
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
 @disp_message
-@filter_.public().to_me().not_(lambda sess: str(sess.content) != "aaa")
+@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) != "aaa"), prepend=True)
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
 
-@command.on("add {a} {b}", [Interval(2, limit_prompt="太快了")])
+@command.on("add {a} {b}")
 def add(a: int, b: int):
     return f"{a + b =}"
+
+
+add.propagate(Interval(2, limit_prompt="太快了"))
 
 
 kept_data = keeping("foo", [], lambda x: x.clear())

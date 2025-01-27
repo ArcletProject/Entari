@@ -5,7 +5,7 @@
 groups = ["default", "cron", "dev", "full", "reload", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:0b5b6083d142646d440e0336a267320429384d75253c32037020d8d06fffa871"
+content_hash = "sha256:ddadba99063dcd3feacc48f681d38b2f7cc7f4afb66a46734b816e9c7944338a"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -180,7 +180,7 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.14.9"
+version = "0.15.0"
 requires_python = ">=3.9"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 groups = ["default"]
@@ -188,8 +188,8 @@ dependencies = [
     "tarina>=0.6.7",
 ]
 files = [
-    {file = "arclet_letoderea-0.14.9-py3-none-any.whl", hash = "sha256:0b7bc10dd504bc5ebbe09187367b7328e6f9cfeb11ffc9062653ca215d1a1a2c"},
-    {file = "arclet_letoderea-0.14.9.tar.gz", hash = "sha256:337ef8752031f73ebdfb6c2ac89ae12b27dd90812251d865859bf340224c85f1"},
+    {file = "arclet_letoderea-0.15.0-py3-none-any.whl", hash = "sha256:ce74f602ac0fd6573c0cd686078ae60878e2f4a97e2eda582c351af4ab5b9a4b"},
+    {file = "arclet_letoderea-0.15.0.tar.gz", hash = "sha256:33141d60aa147c700ab20d0b620ae49d22f1a3b06f19e32d4d0f01b4b8851156"},
 ]
 
 [[package]]
@@ -206,13 +206,13 @@ files = [
 
 [[package]]
 name = "attrs"
-version = "24.3.0"
+version = "25.1.0"
 requires_python = ">=3.8"
 summary = "Classes Without Boilerplate"
 groups = ["default"]
 files = [
-    {file = "attrs-24.3.0-py3-none-any.whl", hash = "sha256:ac96cd038792094f438ad1f6ff80837353805ac950cd2aa0e0625ef19850c308"},
-    {file = "attrs-24.3.0.tar.gz", hash = "sha256:8f5c07333d543103541ba7be0e2ce16eeee8130cb0b3f9238ab904ce1e85baff"},
+    {file = "attrs-25.1.0-py3-none-any.whl", hash = "sha256:c75a69e28a550a7e93789579c22aa26b0f5b83b75dc4e08fe092980051e1090a"},
+    {file = "attrs-25.1.0.tar.gz", hash = "sha256:1c97078a80c814273a76b2a298a932eb681c87415c11dee0a6921de7f1b02c3e"},
 ]
 
 [[package]]

@@ -8,14 +8,14 @@ from types import ModuleType
 from typing import Any, Callable, TypeVar, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import BaseAuxiliary, Provider, ProviderFactory, Scope, StepOut, Subscriber, es
+from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, es
 from arclet.letoderea.publisher import Publisher, _publishers
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
-from ..filter import Filter
+from ..filter import parse
 from ..logger import log
 from .service import plugin_service
 
@@ -46,13 +46,12 @@ class PluginDispatcher:
         self.plugin = plugin
         self._event = event
         self.providers: list[Provider[Any] | ProviderFactory] = []
-        self.auxiliaries: list[BaseAuxiliary] = []
+        self.propagators: list[Propagator] = []
 
     def waiter(
         self,
         *events: Any,
         providers: Sequence[Provider | type[Provider]] | None = None,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         priority: int = 15,
         block: bool = False,
     ) -> Callable[[TTarget[R]], StepOut[R]]:
@@ -60,7 +59,7 @@ class PluginDispatcher:
             nonlocal events
             if not events:
                 events = (self._event,)
-            return StepOut(list(events), func, providers, auxiliaries, priority, block)  # type: ignore
+            return StepOut(list(events), func, providers, priority, block)  # type: ignore
 
         return wrapper
 
@@ -70,7 +69,6 @@ class PluginDispatcher:
         func: Callable[..., Any],
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -82,7 +80,6 @@ class PluginDispatcher:
         self,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -94,29 +91,27 @@ class PluginDispatcher:
         func: Callable[..., Any] | None = None,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
         temporary: bool = False,
     ):
-        _auxiliaries = auxiliaries or []
         _providers = providers or []
         wrapper = self.plugin._scope.register(
             priority=priority,
-            auxiliaries=[*self.auxiliaries, *_auxiliaries],
             providers=[*self.providers, *_providers],
             temporary=temporary,
             publisher=self.publisher,
         )
-        if func:
-            self.plugin.validate(func)  # type: ignore
-            return wrapper(func)
 
         def decorator(func1, /):
             self.plugin.validate(func1)
-            return wrapper(func1)
+            sub = wrapper(func1)
+            sub.propagates(*self.propagators)
+            return sub
 
+        if func:
+            return decorator(func)
         return decorator
 
     @overload
@@ -125,7 +120,6 @@ class PluginDispatcher:
         func: Callable[..., Any],
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -136,7 +130,6 @@ class PluginDispatcher:
         self,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -147,14 +140,13 @@ class PluginDispatcher:
         func: Callable[..., Any] | None = None,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
     ):
         if func:
-            return self.register(func, priority=priority, auxiliaries=auxiliaries, providers=providers, temporary=True)
-        return self.register(priority=priority, auxiliaries=auxiliaries, providers=providers, temporary=True)
+            return self.register(func, priority=priority, providers=providers, temporary=True)
+        return self.register(priority=priority, providers=providers, temporary=True)
 
     on = register
     handle = register
@@ -224,21 +216,18 @@ class Plugin:
         self._dispose_callbacks.extend(disposes)
         return self
 
-    def update_filter(self, allow: dict, deny: dict):
-        if not allow and not deny:
-            return
-        fter = Filter()
-        if allow:
-            fter = fter.and_(Filter.parse(allow))
-        if deny:
-            fter = fter.not_(Filter.parse(deny))
-        if fter.steps:
-            plugin_service.filters[self.id] = fter
-
     def __post_init__(self):
         self._scope = es.scope(self.id)
         plugin_service.plugins[self.id] = self
-        self.update_filter(self.config.pop("$allow", {}), self.config.pop("$deny", {}))
+        allow = self.config.pop("$allow", {})
+        deny = self.config.pop("$deny", {})
+        pat = {}
+        if allow:
+            pat["$and"] = allow
+        if deny:
+            pat["$not"] = deny
+        if pat:
+            self._scope.propagators.append(parse(pat))
         if "$static" in self.config:
             self.is_static = True
             self.config.pop("$static")
@@ -280,6 +269,7 @@ class Plugin:
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
         self._scope.dispose()
+        self._scope.propagators.clear()
         del plugin_service.plugins[self.id]
         del self.module
 
@@ -294,7 +284,6 @@ class Plugin:
         pub: Any,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -307,7 +296,6 @@ class Plugin:
         func: Callable[..., Any],
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -319,7 +307,6 @@ class Plugin:
         func: Callable[..., Any] | None = None,
         *,
         priority: int = 16,
-        auxiliaries: list[BaseAuxiliary] | None = None,
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
@@ -336,8 +323,8 @@ class Plugin:
             raise LookupError(f"no publisher found: {pid}")
         disp = PluginDispatcher(self, _publishers[pid].target)
         if func:
-            return disp.register(func=func, priority=priority, auxiliaries=auxiliaries, providers=providers)
-        return disp.register(priority=priority, auxiliaries=auxiliaries, providers=providers)
+            return disp.register(func=func, priority=priority, providers=providers)
+        return disp.register(priority=priority, providers=providers)
 
     def validate(self, func):
         if func.__module__ != self.module.__name__:

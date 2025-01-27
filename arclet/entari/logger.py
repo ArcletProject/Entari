@@ -20,17 +20,17 @@ class LoggerManager:
 
     def fork(self, child_name: str):
         patched = logger.patch(lambda r: r.update(name=child_name))
-        patched = patched.bind(name=child_name).opt(colors=True)
+        patched = patched.bind(name=child_name)
         self.loggers[child_name] = patched
         return patched
 
     @property
     def core(self):
-        return self.loggers["[core]"]
+        return self.loggers["[core]"].opt(colors=True)
 
     @property
     def plugin(self):
-        return self.loggers["[plugin]"]
+        return self.loggers["[plugin]"].opt(colors=True)
 
     @property
     def message(self):
@@ -38,7 +38,9 @@ class LoggerManager:
 
     def wrapper(self, name: str, color: str = "blue"):
         patched = logger.patch(
-            lambda r: r.update(name="entari", extra={"entari_plugin_name": name, "entari_plugin_color": color})
+            lambda r: r.update(
+                name="entari", extra=r["extra"] | {"entari_plugin_name": name, "entari_plugin_color": color}
+            )
         )
         patched = patched.bind(name=f"plugins.{name}")
         self.loggers[f"plugin.{name}"] = patched

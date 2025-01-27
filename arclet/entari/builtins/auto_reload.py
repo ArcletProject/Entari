@@ -40,15 +40,7 @@ def detect_filter_change(old: dict, new: dict):
     added = set(new) - set(old)
     removed = set(old) - set(new)
     changed = {key for key in set(new) & set(old) if new[key] != old[key]}
-    if "$allow" in removed:
-        allow = {}
-    else:
-        allow = new.get("$allow", {})
-    if "$deny" in removed:
-        deny = {}
-    else:
-        deny = new.get("$deny", {})
-    return allow, deny, not ((added | removed | changed) - {"$allow", "$deny"})
+    return "allow" in (added | removed | changed) or "$deny" in (added | removed | changed)
 
 
 class Watcher(Service):
@@ -86,9 +78,7 @@ class Watcher(Service):
                         logger.error(f"Failed to reload <blue>{pid!r}</blue>")
                         self.fail[change[1]] = pid
                 elif change[1] in self.fail:
-                    logger.info(
-                        f"Detected change in {change[1]!r} which failed to reload, retrying..."
-                    )
+                    logger.info(f"Detected change in {change[1]!r} which failed to reload, retrying...")
                     if plugin := load_plugin(self.fail[change[1]]):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
@@ -108,7 +98,6 @@ class Watcher(Service):
                     or Path(change[1]).resolve() in extra
                     or Path(change[1]).resolve().parent in extra
                 ):
-                    print(change)
                     continue
                 logger.info(f"Detected change in {change[1]!r}, reloading config...")
 
@@ -143,22 +132,17 @@ class Watcher(Service):
                         old_conf = old_plugin[plugin_name]
                         new_conf = EntariConfig.instance.plugin[plugin_name]
                         if plugin := find_plugin(pid):
-                            allow, deny, only_filter = detect_filter_change(old_conf, new_conf)
-                            plugin.update_filter(allow, deny)
-                            if only_filter:
-                                logger.debug(f"Plugin <y>{pid!r}</y> config only changed filter.")
-                                continue
-                            res = await es.post(
-                                ConfigReload("plugin", plugin_name, new_conf, old_conf),
-                            )
-                            if res and res.value:
-                                logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
-                                continue
-                            logger.info(
-                                f"Detected config of <blue>{pid!r}</blue> changed, reloading..."
-                            )
+                            filter_changed = detect_filter_change(old_conf, new_conf)
+                            if not filter_changed:
+                                res = await es.post(
+                                    ConfigReload("plugin", plugin_name, new_conf, old_conf),
+                                )
+                                if res and res.value:
+                                    logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
+                                    continue
+                            logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
-                            unload_plugin(plugin_name)
+                            unload_plugin(pid)
                             if plugin := load_plugin(plugin_name, new_conf):
                                 logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin

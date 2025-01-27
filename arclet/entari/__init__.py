@@ -1,4 +1,5 @@
 from arclet.letoderea import bind as bind
+from arclet.letoderea import propagate as propagate
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
@@ -45,7 +46,6 @@ from .config import load_config as load_config
 from .core import Entari as Entari
 from .event import MessageCreatedEvent as MessageCreatedEvent
 from .event import MessageEvent as MessageEvent
-from .filter import Filter as Filter
 from .filter import filter_ as filter_
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin

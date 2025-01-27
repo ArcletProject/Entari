@@ -4,7 +4,7 @@ from typing import Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import BaseAuxiliary, Provider, Scope, Subscriber, es
+from arclet.letoderea import Provider, Scope, Subscriber, es
 from arclet.letoderea.handler import generate_contexts
 from arclet.letoderea.provider import ProviderFactory, get_providers
 from arclet.letoderea.typing import Contexts, TTarget
@@ -28,7 +28,9 @@ TM = TypeVar("TM", bound=Union[str, MessageChain])
 
 
 def get_cmd(target: Subscriber):
-    return next(a for a in target.auxiliaries["prepare"] if isinstance(a, AlconnaSuppiler)).cmd
+    if sub := target.get_propagator(AlconnaSuppiler.supply):
+        return sub.callable_target.__self__.cmd  # type: ignore
+    raise ValueError("Subscriber has no command.")
 
 
 class EntariCommands:
@@ -104,12 +106,11 @@ class EntariCommands:
         self,
         command: str,
         help_text: Optional[str] = None,
-        auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:
-                return self.on(_cmd_self.build(), auxiliaries, providers)(func)
+                return self.on(_cmd_self.build(), providers)(func)
 
         return Command(command, help_text)
 
@@ -117,7 +118,6 @@ class EntariCommands:
     def on(
         self,
         command: Alconna,
-        auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]: ...
 
@@ -125,7 +125,6 @@ class EntariCommands:
     def on(
         self,
         command: str,
-        auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
@@ -135,15 +134,12 @@ class EntariCommands:
     def on(
         self,
         command: Union[Alconna, str],
-        auxiliaries: Optional[list[BaseAuxiliary]] = None,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
     ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]:
-        auxiliaries = auxiliaries or []
-        if plg := _current_plugin.get():
-            auxiliaries.extend(plg._scope.auxiliaries)
+        plg = _current_plugin.get()
         providers = providers or []
 
         def wrapper(func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:
@@ -155,8 +151,10 @@ class EntariCommands:
                 key = _command.name + "".join(
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
-                auxiliaries.append(AlconnaSuppiler(_command))
-                target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
+                target = self.scope.register(func, providers=providers)
+                target.propagate(AlconnaSuppiler(_command))
+                if plg:
+                    target.propagates(*plg._scope.propagators)
                 self.trie[key] = target.id
 
                 def _remove(_):
@@ -175,7 +173,6 @@ class EntariCommands:
             if not isinstance(command.command, str):
                 raise TypeError("Command name must be a string.")
             _command.reset_namespace(self.__namespace__)
-            auxiliaries.insert(0, AlconnaSuppiler(_command))
             keys = []
             if not _command.prefixes:
                 keys.append(_command.command)
@@ -185,7 +182,10 @@ class EntariCommands:
                 for prefix in cast(list[str], _command.prefixes):
                     keys.append(prefix + _command.command)
 
-            target = self.scope.register(func, auxiliaries=auxiliaries, providers=providers)
+            target = self.scope.register(func, providers=providers)
+            target.propagate(AlconnaSuppiler(_command))
+            if plg:
+                target.propagates(*plg._scope.propagators)
 
             for _key in keys:
                 self.trie[_key] = target.id
@@ -234,7 +234,7 @@ def _(plg: RootlessPlugin):
     if "use_config_prefix" in plg.config:
         _commands.judge.use_config_prefix = plg.config["use_config_prefix"]
 
-    plg.dispatch(MessageCreatedEvent).handle(_commands.handle, auxiliaries=[_commands.judge])
+    plg.dispatch(MessageCreatedEvent).handle(_commands.handle).propagate(_commands.judge)
 
     @plg.use(ConfigReload)
     def update(event: ConfigReload):

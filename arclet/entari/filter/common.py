@@ -1,244 +1,145 @@
 from collections.abc import Awaitable
-from typing import Callable, Optional, Union
-from typing_extensions import Self, TypeAlias
+from typing import Any, Callable, Optional, Union
+from typing_extensions import TypeAlias
 
-from arclet.letoderea import BaseAuxiliary, Interface
-from arclet.letoderea import bind as _bind
-from arclet.letoderea.auxiliary import sort_auxiliaries
-from arclet.letoderea.typing import run_sync
-from satori import Channel, Guild, User
-from satori.client import Account
-from tarina import is_async
+from arclet.letoderea import STOP, Propagator
 
-from ..event.base import SatoriEvent
 from ..session import Session
-from .message import DirectMessageJudger, NoticeMeJudger, PublicMessageJudger, ReplyMeJudger, ToMeJudger
-from .op import ExcludeFilter, IntersectFilter, UnionFilter
+from .message import direct_message, notice_me, public_message, reply_me, to_me
 
 
-class PlatformFilter(BaseAuxiliary):
-    def __init__(self, *platforms: str):
-        self.platforms = set(platforms)
+def user(*ids: str):
+    async def check_user(session: Session):
+        return (None if session.user.id in ids else STOP) if ids else None
 
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (account := await interface.query(Account, "account", force_return=True)):
-            return False
-        return account.platform in self.platforms
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/platform"
+    return check_user
 
 
-class SelfFilter(BaseAuxiliary):
-    def __init__(self, *self_ids: str):
-        self.self_ids = set(self_ids)
+def channel(*ids: str):
+    async def check_channel(session: Session):
+        return (None if session.channel.id in ids else STOP) if ids else None
 
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (account := await interface.query(Account, "account", force_return=True)):
-            return False
-        return account.self_id in self.self_ids
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/self"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/platform"}
+    return check_channel
 
 
-class GuildFilter(BaseAuxiliary):
-    def __init__(self, *guild_ids: str):
-        self.guild_ids = set(guild_ids)
+def guild(*ids: str):
+    async def check_guild(session: Session):
+        return (None if session.guild.id in ids else STOP) if ids else None
 
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (guild := await interface.query(Guild, "guild", force_return=True)):
-            return False
-        return guild.id in self.guild_ids if self.guild_ids else True
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/guild"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/platform", "entari.filter/self"}
+    return check_guild
 
 
-class ChannelFilter(BaseAuxiliary):
-    def __init__(self, *channel_ids: str):
-        self.channel_ids = set(channel_ids)
+def account(*ids: str):
+    async def check_account(session: Session):
+        return (None if session.account.self_id in ids else STOP) if ids else None
 
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (channel := await interface.query(Channel, "channel", force_return=True)):
-            return False
-        return channel.id in self.channel_ids if self.channel_ids else True
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/channel"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/platform", "entari.filter/self", "entari.filter/guild"}
+    return check_account
 
 
-class UserFilter(BaseAuxiliary):
-    def __init__(self, *user_ids: str):
-        self.user_ids = set(user_ids)
+def platform(*ids: str):
+    async def check_platform(session: Session):
+        return (None if session.account.platform in ids else STOP) if ids else None
 
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not (user := await interface.query(User, "user", force_return=True)):
-            return False
-        return user.id in self.user_ids if self.user_ids else True
-
-    @property
-    def id(self) -> str:
-        return "entari.filter/user"
-
-    @property
-    def before(self) -> set[str]:
-        return {"entari.filter/platform", "entari.filter/self"}
+    return check_platform
 
 
-_SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
 _keys = {
-    "user",
-    "guild",
-    "channel",
-    "self",
-    "platform",
-    "direct",
-    "private",
-    "public",
-    "reply_me",
-    "notice_me",
-    "to_me",
+    "user": (user, 2),
+    "guild": (guild, 3),
+    "channel": (channel, 4),
+    "self": (account, 1),
+    "platform": (platform, 0),
+    "direct": (lambda: direct_message, 5),
+    "private": (lambda: direct_message, 5),
+    "public": (lambda: public_message, 6),
+}
+
+_mess_keys = {
+    "reply_me": (reply_me, 7),
+    "notice_me": (notice_me, 8),
+    "to_me": (to_me, 9),
+}
+
+_op_keys = {
+    "$and": "and",
+    "$or": "or",
+    "$not": "not",
+    "$intersect": "and",
+    "$union": "or",
+    "$exclude": "not",
 }
 
 PATTERNS: TypeAlias = dict[str, Union[list[str], bool, "PATTERNS"]]
 
 
-class Filter(BaseAuxiliary):
-    def __init__(self, callback: Optional[_SessionFilter] = None):
-        self.steps = []
-        if callback:
-            if is_async(callback):
-                self.callback = callback
+class _Filter(Propagator):
+    def __init__(
+        self,
+        steps: list[Callable[[Session], Awaitable[bool]]],
+        mess: list[Callable[[bool, bool], bool]],
+        ops: list[tuple[str, "_Filter"]],
+    ):
+        self.steps = steps
+        self.mess = mess
+        self.ops = ops
+
+    async def check(self, session: Optional[Session] = None, is_reply_me: bool = False, is_notice_me: bool = False):
+        res = True
+        if session and self.steps:
+            res = all([await step(session) for step in self.steps])
+        if self.mess:
+            res = res and all(mess(is_reply_me, is_notice_me) for mess in self.mess)
+        for op, f_ in self.ops:
+            if op == "and":
+                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is None
+            elif op == "or":
+                res = res or (await f_.check(session, is_reply_me, is_notice_me)) is None
             else:
-                self.callback = run_sync(callback)
+                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is STOP
+        return None if res else STOP
+
+    def compose(self):
+        yield self.check, True, 0
+
+
+def _wrapper(func: Callable[[Session], Any]):
+    async def _(session: Session):
+        return True if await func(session) is None else False
+
+    return _
+
+
+def parse(patterns: PATTERNS):
+    step: dict[int, Callable[[Session], Awaitable[bool]]] = {}
+    mess: dict[int, Callable[[bool, bool], bool]] = {}
+    ops: list[tuple[str, _Filter]] = []
+
+    for key, value in patterns.items():
+        if key in _keys:
+            step[_keys[key][1]] = _wrapper(_keys[key][0](*value) if isinstance(value, list) else _keys[key][0]())
+        elif key in _mess_keys:
+            if key == "reply_me":
+                mess[_mess_keys[key][1]] = lambda is_reply_me, is_notice_me: (
+                    True if _mess_keys[key][0](is_reply_me) is None else False
+                )
+            elif key == "notice_me":
+                mess[_mess_keys[key][1]] = lambda is_reply_me, is_notice_me: (
+                    True if _mess_keys[key][0](is_notice_me) is None else False
+                )
+            else:
+                mess[_mess_keys[key][1]] = lambda is_reply_me, is_notice_me: (
+                    True if _mess_keys[key][0](is_reply_me, is_notice_me) is None else False
+                )
+        elif key in _op_keys:
+            op = _op_keys[key]
+            if not isinstance(value, dict):
+                raise ValueError(f"Expect a dict for operator {key}")
+            ops.append((op, parse(value)))
         else:
-            self.callback = None
+            raise ValueError(f"Unknown key: {key}")
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.steps})"
-
-    async def on_prepare(self, interface: Interface) -> Optional[bool]:
-        if not isinstance(interface.event, SatoriEvent):  # we only care about event from satori
-            return True
-        for step in sort_auxiliaries(self.steps):
-            if not await step.on_prepare(interface):
-                return False
-        if self.callback:
-            session = await interface.query(Session, "session", force_return=True)
-            if not session:
-                return False
-            if not await self.callback(session):  # type: ignore
-                return False
-        return True
-
-    @property
-    def id(self) -> str:
-        return "entari.filter"
-
-    def platform(self, *platforms: str) -> Self:
-        self.steps.append(PlatformFilter(*platforms))
-        return self
-
-    def self(self, *self_ids: str) -> Self:
-        self.steps.append(SelfFilter(*self_ids))
-        return self
-
-    def guild(self, *guild_ids: str) -> Self:
-        self.steps.append(GuildFilter(*guild_ids))
-        return self
-
-    def channel(self, *channel_ids: str) -> Self:
-        self.steps.append(ChannelFilter(*channel_ids))
-        return self
-
-    def user(self, *user_ids: str) -> Self:
-        self.steps.append(UserFilter(*user_ids))
-        return self
-
-    def direct(self) -> Self:
-        self.steps.append(DirectMessageJudger())
-        return self
-
-    private = direct
-
-    def public(self) -> Self:
-        self.steps.append(PublicMessageJudger())
-        return self
-
-    def reply_me(self) -> Self:
-        self.steps.append(ReplyMeJudger())
-        return self
-
-    def notice_me(self) -> Self:
-        self.steps.append(NoticeMeJudger())
-        return self
-
-    def to_me(self) -> Self:
-        self.steps.append(ToMeJudger())
-        return self
-
-    def __call__(self, func):
-        return _bind(self)(func)
-
-    bind = __call__
-
-    def and_(self, other: Union["Filter", _SessionFilter]) -> "Filter":
-        new = Filter()
-        _other = other if isinstance(other, Filter) else Filter(callback=other)
-        new.steps.append(IntersectFilter(self, _other))
-        return new
-
-    intersect = and_
-
-    def or_(self, other: Union["Filter", _SessionFilter]) -> "Filter":
-        new = Filter()
-        _other = other if isinstance(other, Filter) else Filter(callback=other)
-        new.steps.append(UnionFilter(self, _other))
-        return new
-
-    union = or_
-
-    def not_(self, other: Union["Filter", _SessionFilter]) -> "Filter":
-        new = Filter()
-        _other = other if isinstance(other, Filter) else Filter(callback=other)
-        new.steps.append(ExcludeFilter(self, _other))
-        return new
-
-    exclude = not_
-
-    @classmethod
-    def parse(cls, patterns: PATTERNS) -> Self:
-        fter = cls()
-        for key, value in patterns.items():
-            if key in _keys:
-                if isinstance(value, list):
-                    getattr(fter, key)(*value)
-                elif isinstance(value, bool) and value:
-                    getattr(fter, key)()
-            elif key in ("$and", "$or", "$not", "$intersect", "$union", "$exclude"):
-                op = key[1:]
-                if op in ("and", "or", "not"):
-                    op += "_"
-                if not isinstance(value, dict):
-                    raise ValueError(f"Expect a dict for operator {key}")
-                fter = getattr(fter, op)(cls.parse(value))
-            else:
-                raise ValueError(f"Unknown key: {key}")
-        return fter
+    return _Filter(
+        steps=[slot[1] for slot in sorted(step.items(), key=lambda x: x[0])],
+        mess=[slot[1] for slot in sorted(mess.items(), key=lambda x: x[0])],
+        ops=ops,
+    )

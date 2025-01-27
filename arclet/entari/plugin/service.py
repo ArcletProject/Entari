@@ -1,12 +1,11 @@
 from typing import TYPE_CHECKING, Any, Callable
 
-from arclet.letoderea import BaseAuxiliary, es
+from arclet.letoderea import es
 from launart import Launart, Service
 from launart.status import Phase
 
 from ..event.lifespan import Cleanup, Ready, Startup
 from ..event.plugin import PluginUnloaded
-from ..filter import Filter
 from ..logger import log
 
 if TYPE_CHECKING:
@@ -17,7 +16,6 @@ class PluginManagerService(Service):
     id = "entari.plugin.manager"
 
     plugins: dict[str, "Plugin"]
-    filters: dict[str, Filter]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     _referents: dict[str, set[str]]
     _unloaded: set[str]
@@ -32,7 +30,6 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
-        self.filters = {}
 
     @property
     def required(self) -> set[str]:
@@ -74,21 +71,3 @@ class PluginManagerService(Service):
 
 
 plugin_service = PluginManagerService()
-
-
-class AccessAuxiliary(BaseAuxiliary):
-    def __init__(self, plugin_id: str):
-        self.plugin_id = plugin_id
-
-    @property
-    def id(self):
-        return f"entari.plugin.access:{self.plugin_id}"
-
-    async def on_prepare(self, interface):
-        if self.plugin_id in plugin_service.filters:
-            return await plugin_service.filters[self.plugin_id].on_prepare(interface)
-        return True
-
-    @property
-    def after(self) -> set[str]:
-        return {"entari.filter"}
