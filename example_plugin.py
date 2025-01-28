@@ -12,6 +12,7 @@ from arclet.entari import (
     propagate
     # Entari,
 )
+from arclet.entari.event.command import CommandOutput
 from arclet.entari.filter import Interval
 
 metadata(__file__)
@@ -105,6 +106,11 @@ async def loaded_success(event):
 async def unloaded(event):
     print(f">> Plugin {event.name} Unloaded")
 
+
+@plug.use(CommandOutput)
+async def output_hook(event: CommandOutput):
+    content = event.content
+    return f"{event.type.title()}:\n{content}"
 
 # @scheduler.cron("* * * * *")
 # async def broadcast(app: Entari):

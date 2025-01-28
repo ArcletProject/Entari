@@ -67,4 +67,4 @@ from .utils.local_data import local_data as local_data
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.11.2"
+__version__ = "0.12.0"
