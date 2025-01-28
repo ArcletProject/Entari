@@ -70,12 +70,13 @@ class EntariProtocol(ApiProtocol):
         if source:
             sess = Session(self.account, source)
             sess.elements = msg
-        res = await es.post(SendRequest(self.account, channel_id, msg, sess))
-        if res and res.value:
-            value = res.value
-            if value is True:
+        if res := await es.post(SendRequest(self.account, channel_id, msg, sess)):
+            if not res.value:
                 return []
-            msg = value
+            elif res.value is True:
+                pass
+            else:
+                msg = res.value
         send = str(msg)
         res = await self.call_api(
             Api.MESSAGE_CREATE,
@@ -139,6 +140,12 @@ class Session(Generic[TEvent]):
 
     def stop(self) -> NoReturn:
         raise HandlerStop()
+
+    @property
+    def quote(self):
+        if isinstance(self.event, MessageEvent):
+            return self.event.quote
+        return None
 
     @property
     def user(self) -> User:

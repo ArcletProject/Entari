@@ -3,7 +3,8 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
-from arclet.letoderea import STOP, Contexts, Param, Propagator, Provider
+from arclet.alconna.exceptions import SpecialOptionTriggered
+from arclet.letoderea import STOP, Contexts, Param, Propagator, Provider, post
 from arclet.letoderea.exceptions import ProviderUnsatisfied
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
@@ -11,6 +12,8 @@ from satori.element import Text
 from tarina.generic import get_origin
 
 from ..config import EntariConfig
+from ..event.base import Reply
+from ..event.command import CommandOutput, CommandParse, CommandReceive
 from ..message import MessageChain
 from ..session import Session
 from .model import CommandResult, Match, Query
@@ -58,25 +61,55 @@ class AlconnaSuppiler(Propagator):
     def __init__(self, cmd: Alconna):
         self.cmd = cmd
 
-    async def supply(self, message: MessageChain, session: Optional[Session] = None):
+    async def before_supply(
+        self, message: MessageChain, session: Optional[Session] = None, reply: Optional[Reply] = None
+    ):
+        if session and (recv := await post(CommandReceive(session, self.cmd, message, reply))):
+            message = recv.value.copy()
+        return {"_message": message}
+
+    async def supply(self, ctx: Contexts):
+        _message: MessageChain = ctx.pop("_message")
         with output_manager.capture(self.cmd.name) as cap:
             output_manager.set_action(lambda x: x, self.cmd.name)
             try:
-                _res = self.cmd.parse(message)
+                _res = self.cmd.parse(_message)
             except Exception as e:
-                _res = Arparma(self.cmd._hash, message, False, error_info=e)
+                _res = Arparma(self.cmd._hash, _message, False, error_info=e)
             may_help_text: Optional[str] = cap.get("output", None)
-        if _res.matched:
-            return {"alc_result": CommandResult(self.cmd, _res, may_help_text)}
-        if may_help_text:
-            if session:
-                await session.send(MessageChain(may_help_text))
+        return {"_result": CommandResult(self.cmd, _res, may_help_text)}
+
+    async def after_supply(self, ctx: Contexts, session: Optional[Session] = None):
+        alc_result: CommandResult = ctx.pop("_result")
+        _res = alc_result.result
+        if session and (pres := await post(CommandParse(session, self.cmd, _res))):
+            if isinstance(pres.value, Arparma):
+                _res = pres.value
+            elif not pres.value:
                 return STOP
-            return {"alc_result": CommandResult(self.cmd, _res, may_help_text)}
+        if _res.matched:
+            return {"alc_result": CommandResult(self.cmd, _res, alc_result.output)}
+        if alc_result.output:
+            if session:
+                _t = str(_res.error_info) if isinstance(_res.error_info, SpecialOptionTriggered) else "error"
+                if ores := await post(CommandOutput(session, self.cmd, _t, alc_result.output)):
+                    if not ores.value:
+                        return STOP
+                    elif ores.value is True:
+                        msg = MessageChain(alc_result.output)
+                    else:
+                        msg = MessageChain(ores.value)
+                else:
+                    msg = MessageChain(alc_result.output)
+                await session.send(msg)
+                return STOP
+            return {"alc_result": alc_result}
         return STOP
 
     def compose(self):
+        yield self.before_supply, True, 65
         yield self.supply, True, 70
+        yield self.after_supply, True, 75
 
 
 class AlconnaProvider(Provider[Any]):
