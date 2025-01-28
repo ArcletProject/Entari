@@ -7,11 +7,14 @@ from inspect import Signature
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any, Callable, ClassVar, TypedDict, TypeVar, get_args, get_origin
 from typing_extensions import dataclass_transform
 import warnings
 
 _available_dc_attrs = set(Signature.from_callable(dataclass).parameters.keys())
+
+ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}]+)\s?\}\}")
 
 
 class BasicConfig(TypedDict, total=False):
@@ -86,6 +89,13 @@ class EntariConfig:
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:
+        try:
+            import dotenv
+
+            dotenv.load_dotenv()
+        except ImportError:
+            dotenv = None  # noqa
+            pass
         if path is None:
             if "ENTARI_CONFIG_FILE" in os.environ:
                 _path = Path(os.environ["ENTARI_CONFIG_FILE"])
@@ -99,6 +109,7 @@ class EntariConfig:
             return cls(_path, lambda _: None)
         if not _path.is_file():
             raise ValueError(f"{_path} is not a file")
+
         if _path.suffix.startswith(".json"):
 
             def _updater(self: EntariConfig):
@@ -116,11 +127,13 @@ class EntariConfig:
             try:
                 import yaml
             except ImportError:
-                raise RuntimeError("yaml is not installed")
+                raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
 
             def _updater(self: EntariConfig):
                 with self.path.open("r", encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
+                    text = f.read()
+                    text = ENV_CONTEXT_PAT.sub(lambda m: os.environ.get(m["name"], ""), text)
+                    data = yaml.safe_load(text)
                     if "entari" in data:
                         data = data["entari"]
                     self.basic = data.get("basic", {})

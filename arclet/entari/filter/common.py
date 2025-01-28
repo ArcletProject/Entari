@@ -116,7 +116,9 @@ def parse(patterns: PATTERNS):
 
     for key, value in patterns.items():
         if key in _keys:
-            step[_keys[key][1]] = _wrapper(_keys[key][0](*value) if isinstance(value, list) else _keys[key][0]())
+            step[_keys[key][1]] = _wrapper(
+                _keys[key][0](*map(str, value)) if isinstance(value, list) else _keys[key][0]()
+            )
         elif key in _mess_keys:
             if key == "reply_me":
                 mess[_mess_keys[key][1]] = lambda is_reply_me, is_notice_me: (
