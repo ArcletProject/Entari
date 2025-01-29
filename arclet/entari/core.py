@@ -107,6 +107,7 @@ class Entari(App):
             config = EntariConfig.instance
         ignore_self_message = config.basic.get("ignore_self_message", True)
         log_level = config.basic.get("log_level", "INFO")
+        skip_req_missing = config.basic.get("skip_req_missing", False)
         configs = []
         for conf in config.basic.get("network", []):
             if conf["type"] in ("websocket", "websockets", "ws"):
@@ -117,6 +118,7 @@ class Entari(App):
             *configs,
             log_level=log_level,
             ignore_self_message=ignore_self_message,
+            skip_req_missing=skip_req_missing,
         )
 
     def __init__(
@@ -124,9 +126,11 @@ class Entari(App):
         *configs: Config,
         log_level: str | int = "INFO",
         ignore_self_message: bool = True,
+        skip_req_missing: bool = False,
     ):
         from . import __version__
 
+        es.global_skip_req_missing = skip_req_missing
         log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):

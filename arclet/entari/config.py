@@ -20,6 +20,7 @@ ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}]+)\s?\}\}")
 class BasicConfig(TypedDict, total=False):
     network: list[dict[str, Any]]
     ignore_self_message: bool
+    skip_req_missing: bool
     log_level: int | str
     prefix: list[str]
     cmd_count: int

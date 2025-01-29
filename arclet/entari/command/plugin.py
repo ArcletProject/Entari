@@ -49,11 +49,14 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         providers: list[Provider | type[Provider] | ProviderFactory | type[ProviderFactory]] | None = None,
     ):
         assign = Assign(path, value, or_not)
-        try:
-            self.propagators.append(assign)
-            return self.register(priority=priority, providers=providers)
-        finally:
-            self.propagators.remove(assign)
+        wrapper = self.register(priority=priority, providers=providers)
+
+        def decorator(func):
+            sub = wrapper(func)
+            sub.propagate(assign)
+            return sub
+
+        return decorator
 
     def on_execute(
         self,
