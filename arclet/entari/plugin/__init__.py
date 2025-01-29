@@ -72,13 +72,15 @@ def load_plugin(
     path = path.replace("::", "arclet.entari.builtins.")
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
-    if path in plugin_service.plugins:
-        return plugin_service.plugins[path]
     if path in plugin_service._apply:
         return plugin_service._apply[path](conf)
+    if plug := find_plugin(path):
+        return plug
     try:
+        if pref := conf.pop("$prefix", None):
+            path = f"{pref if isinstance(pref, str) else 'entari_plugin'}_{path}"
         mod = import_plugin(path, config=conf)
-        if not mod:
+        if not pref and not mod:
             path1 = f"entari_plugin_{path}"
             mod = import_plugin(path1, config=conf)
         if not mod:

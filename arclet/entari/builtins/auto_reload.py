@@ -44,7 +44,7 @@ def detect_filter_change(old: dict, new: dict):
 
 
 class Watcher(Service):
-    id = "watcher"
+    id = "entari.plugin.auto_reload/watcher"
 
     @property
     def required(self) -> set[str]:
@@ -52,12 +52,12 @@ class Watcher(Service):
 
     @property
     def stages(self) -> set[Phase]:
-        return {"blocking"}
+        return {"blocking", "cleanup"}
 
     def __init__(self, dirs: list[Union[str, Path]], is_watch_config: bool):
         self.dirs = dirs
         self.is_watch_config = is_watch_config
-        self.fail = {}
+        self.fail: dict[str, tuple[str, dict]] = {}
         super().__init__()
 
     async def watch(self):
@@ -69,22 +69,23 @@ class Watcher(Service):
                         continue
                     logger.info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
                     pid = plugin.id
+                    _conf = plugin.config.copy()
                     del plugin
                     unload_plugin(pid)
-                    if plugin := load_plugin(pid):
+                    if plugin := load_plugin(pid, _conf):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
                     else:
                         logger.error(f"Failed to reload <blue>{pid!r}</blue>")
-                        self.fail[change[1]] = pid
+                        self.fail[change[1]] = (pid, _conf)
                 elif change[1] in self.fail:
                     logger.info(f"Detected change in {change[1]!r} which failed to reload, retrying...")
-                    if plugin := load_plugin(self.fail[change[1]]):
+                    if plugin := load_plugin(*self.fail[change[1]]):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
                         del self.fail[change[1]]
                     else:
-                        logger.error(f"Failed to reload <blue>{self.fail[change[1]]!r}</blue>")
+                        logger.error(f"Failed to reload <blue>{self.fail[change[1]][0]!r}</blue>")
 
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
@@ -142,13 +143,14 @@ class Watcher(Service):
                                     continue
                             logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
+                            _conf = plugin.config.copy()
                             unload_plugin(pid)
                             if plugin := load_plugin(plugin_name, new_conf):
                                 logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                                 del plugin
                             else:
                                 logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
-                                self.fail[plugin_file] = pid
+                                self.fail[plugin_file] = (pid, _conf)
                         else:
                             logger.info(f"Detected <blue>{pid!r}</blue> appended, loading...")
                             load_plugin(plugin_name, new_conf)
@@ -173,7 +175,8 @@ class Watcher(Service):
             if sigexit_task in done:
                 watch_task.cancel()
                 watch_config_task.cancel()
-        self.fail.clear()
+        async with self.stage("cleanup"):
+            self.fail.clear()
 
 
 conf = plugin_config(Config)
