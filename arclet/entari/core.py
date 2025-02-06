@@ -138,15 +138,6 @@ class Entari(App):
         alconna_config.command_max_count = EntariConfig.instance.basic.get("cmd_count", 4096)
         log.set_level(log_level)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
-        requires(*EntariConfig.instance.prelude_plugin)
-        for plug in EntariConfig.instance.prelude_plugin:
-            load_plugin(plug, prelude=True)
-        plugins = [
-            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") and not plug.startswith("$")
-        ]
-        requires(*plugins)
-        for plug in plugins:
-            load_plugin(plug)
         self.ignore_self_message = ignore_self_message
         self.register(self.handle_event)
         self.lifecycle(self.account_hook)
@@ -180,6 +171,16 @@ class Entari(App):
     def ensure_manager(self, manager: Launart):
         self.manager = manager
         manager.add_component(plugin_service)
+
+        requires(*EntariConfig.instance.prelude_plugin)
+        for plug in EntariConfig.instance.prelude_plugin:
+            load_plugin(plug, prelude=True)
+        plugins = [
+            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") and not plug.startswith("$")
+        ]
+        requires(*plugins)
+        for plug in plugins:
+            load_plugin(plug)
 
     async def handle_event(self, account: Account, event: Event):
         with suppress(NotImplementedError):

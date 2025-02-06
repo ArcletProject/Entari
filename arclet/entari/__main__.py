@@ -114,6 +114,21 @@ plugins:
 """
 
 
+def check_env(file: Path):
+    env = Path.cwd() / ".env"
+    if env.exists():
+        lines = env.read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("ENTARI_CONFIG_FILE"):
+                lines[i] = f"ENTARI_CONFIG_FILE='{file.resolve().as_posix()}'"
+                with env.open("w", encoding="utf-8") as f:
+                    f.write("\n".join(lines))
+                break
+    else:
+        with env.open("w+", encoding="utf-8") as f:
+            f.write(f"\nENTARI_CONFIG_FILE='{file.resolve().as_posix()}'")
+
+
 def main():
     res = alc()
     if (not res.matched or res.non_component) and not res.error_info:
@@ -142,6 +157,7 @@ def main():
 
             with _path.open("w", encoding="utf-8") as f:
                 f.write(JSON_BASIC_TEMPLATE + PT)
+            check_env(_path)
             print(f"Config file created at {_path}")
             return
         if _path.suffix in (".yaml", ".yml"):
@@ -154,6 +170,7 @@ def main():
 
             with _path.open("w", encoding="utf-8") as f:
                 f.write(YAML_BASIC_TEMPLATE + PT)
+            check_env(_path)
             print(f"Config file created at {_path}")
             return
         print(f"Unsupported file extension: {_path.suffix}")

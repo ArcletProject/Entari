@@ -17,6 +17,7 @@ class LoggerManager:
         self.fork("[core]")
         self.fork("[plugin]")
         self.fork("[message]")
+        self.log_level = "INFO"
 
     def fork(self, child_name: str):
         patched = logger.patch(lambda r: r.update(name=child_name))
@@ -43,19 +44,19 @@ class LoggerManager:
             )
         )
         patched = patched.bind(name=f"plugins.{name}")
-        self.loggers[f"plugin.{name}"] = patched
+        self.loggers[name] = patched
         return patched
 
-    @staticmethod
-    def set_level(level: str | int):
+    def set_level(self, level: str | int):
         if isinstance(level, str):
             level = level.upper()
         logging.basicConfig(
             handlers=[LoguruHandler()],
             level=level,
             format="%(asctime)s | %(name)s[%(levelname)s]: %(message)s",
+            force=True,
         )
-        logger.configure(extra={"entari_log_level": level}, patcher=_hidden_upsteam)
+        self.log_level = level
 
 
 class LoguruHandler(logging.Handler):  # pragma: no cover
@@ -79,14 +80,16 @@ logging.basicConfig(
     handlers=[LoguruHandler()],
     level="INFO",
     format="%(asctime)s | %(name)s[%(levelname)s]: %(message)s",
+    force=True,
 )
+
+log = LoggerManager()
 
 
 def default_filter(record):
     if record["name"].startswith("launart"):
         return record["level"].no >= logger.level("SUCCESS").no
-    log_level = record["extra"].get("entari_log_level", "INFO")
-    levelno = logger.level(log_level).no if isinstance(log_level, str) else log_level
+    levelno = logger.level(log.log_level).no if isinstance(log.log_level, str) else log.log_level
     return record["level"].no >= levelno
 
 
@@ -123,10 +126,15 @@ def _hidden_upsteam(record: Record):
         record["name"] = "satori"
     if record["name"].startswith("launart"):  # type: ignore
         record["name"] = "launart"
+    if record["name"].startswith("uvicorn"):  # type: ignore
+        record["name"] = "uvicorn"
+    if record["name"].startswith("starlette"):  # type: ignore
+        record["name"] = "starlette"
+    if record["name"].startswith("graia.amnesia"):  # type: ignore
+        record["name"] = "graia.amnesia"
 
 
 logger.configure(patcher=_hidden_upsteam)
-log = LoggerManager()
 
 
 __all__ = ["log"]
