@@ -24,6 +24,7 @@ class BasicConfig(TypedDict, total=False):
     log_level: int | str
     prefix: list[str]
     cmd_count: int
+    external_dirs: list[str]
 
 
 @dataclass

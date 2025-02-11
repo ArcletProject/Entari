@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from contextlib import suppress
 import os
+from pathlib import Path
+import sys
 
 from arclet.alconna import config as alconna_config
 from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, es, global_providers
@@ -73,9 +76,12 @@ global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvid
 @RootlessPlugin.apply("record_message")
 def record(plg: RootlessPlugin):
     cfg = plugin_config()
+    to_me_only = cfg.get("to_me_only", False)
 
     @plg.dispatch(MessageCreatedEvent).on(priority=0)
-    async def log_msg(event: MessageCreatedEvent):
+    async def log_msg(event: MessageCreatedEvent, to_me: bool):
+        if to_me_only and not to_me:
+            return
         log.message.info(
             f"[{event.channel.name or event.channel.id}] "
             f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
@@ -108,6 +114,7 @@ class Entari(App):
         ignore_self_message = config.basic.get("ignore_self_message", True)
         log_level = config.basic.get("log_level", "INFO")
         skip_req_missing = config.basic.get("skip_req_missing", False)
+        external_dirs = config.basic.get("external_dirs", [])
         configs = []
         for conf in config.basic.get("network", []):
             if conf["type"] in ("websocket", "websockets", "ws"):
@@ -119,6 +126,7 @@ class Entari(App):
             log_level=log_level,
             ignore_self_message=ignore_self_message,
             skip_req_missing=skip_req_missing,
+            external_dirs=external_dirs,
         )
 
     def __init__(
@@ -127,6 +135,7 @@ class Entari(App):
         log_level: str | int = "INFO",
         ignore_self_message: bool = True,
         skip_req_missing: bool = False,
+        external_dirs: Sequence[str | os.PathLike[str]] | None = None,
     ):
         from . import __version__
 
@@ -144,6 +153,13 @@ class Entari(App):
         self._ref_tasks = set()
 
         es.on(ConfigReload, self.reset_self)
+
+        self._path_scale = ()
+        _external = [str(Path(d).resolve()) for d in external_dirs or []]
+        if _external:
+            sys.path.extend(_external)
+            self._path_scale = (len(sys.path) - len(_external), len(sys.path))
+            log.core.debug(f"Added external dirs: {_external}")
 
     def reset_self(self, scope, key, value):
         if scope != "basic":
@@ -164,6 +180,10 @@ class Entari(App):
                     self.apply(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
             for conn in self.connections:
                 it(Launart).add_component(conn)
+        elif key == "cmd_count":
+            alconna_config.command_max_count = value
+        elif key == "external_dirs":
+            log.core.warning("External dirs cannot be changed at runtime, ignored.")
 
     def on_message(self, priority: int = 16):
         return es.on(MessageCreatedEvent, priority=priority)
@@ -194,6 +214,11 @@ class Entari(App):
 
     async def account_hook(self, account: Account, state: LoginStatus):
         es.publish(AccountUpdate(account, state))
+
+    async def launch(self, manager: Launart):
+        await super().launch(manager)
+        if self._path_scale:
+            del sys.path[self._path_scale[0] : self._path_scale[1]]
 
     @classmethod
     def current(cls):

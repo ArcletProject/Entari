@@ -5,6 +5,7 @@ from typing import Union
 from arclet.letoderea import es
 from launart import Launart, Service, any_completed
 from launart.status import Phase
+from loguru import logger as loguru_logger
 
 try:
     from watchfiles import PythonFilter, awatch
@@ -18,6 +19,7 @@ from arclet.entari.logger import log
 from arclet.entari.plugin import find_plugin, find_plugin_by_file
 
 declare_static()
+loguru_logger.disable("watchfiles.main")
 
 
 class Config(BasicConfModel):
