@@ -41,6 +41,9 @@ full = [
 dotenv = [
     "python-dotenv>=1.0.1",
 ]
+pydantic = [
+    "pydantic>=2.10.6",
+]
 
 [project.scripts]
 entari = "arclet.entari.__main__:main"
