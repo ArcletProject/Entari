@@ -59,17 +59,6 @@ class AccountProvider(Provider[Account]):
             return context["account"]
 
 
-#
-# class PluginProvider(Provider[Plugin]):
-#     async def __call__(self, context: Contexts):
-#         subscriber: Subscriber = context["$subscriber"]
-#         func = subscriber.callable_target
-#         if hasattr(func, "__globals__") and "__plugin__" in func.__globals__:  # type: ignore
-#             return func.__globals__["__plugin__"]
-#         if hasattr(func, "__module__"):
-#             return plugin_service.plugins.get(func.__module__)
-
-
 global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
 
 
@@ -79,8 +68,8 @@ def record(plg: RootlessPlugin):
     to_me_only = cfg.get("to_me_only", False)
 
     @plg.dispatch(MessageCreatedEvent).on(priority=0)
-    async def log_msg(event: MessageCreatedEvent, to_me: bool):
-        if to_me_only and not to_me:
+    async def log_msg(event: MessageCreatedEvent, is_notice_me: bool = False, is_reply_me: bool = False):
+        if to_me_only and not is_notice_me and not is_reply_me:
             return
         log.message.info(
             f"[{event.channel.name or event.channel.id}] "

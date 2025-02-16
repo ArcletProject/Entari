@@ -23,11 +23,9 @@ from .module import requires as requires
 from .service import plugin_service
 
 
-def get_plugin(depth: int | None = None) -> Plugin:
+def get_plugin(depth: int = 0) -> Plugin:
     if plugin := _current_plugin.get(None):
         return plugin
-    if depth is None:
-        raise LookupError("no plugin context found")
     current_frame = inspect.currentframe()
     if current_frame is None:
         raise ValueError("Depth out of range")
@@ -38,13 +36,17 @@ def get_plugin(depth: int | None = None) -> Plugin:
         if frame is None:
             raise ValueError("Depth out of range")
         d -= 1
-    if (mod := inspect.getmodule(frame)) and "__plugin__" in mod.__dict__:
-        return mod.__plugin__
+    locals_ = frame.f_locals
+    if "__plugin__" in locals_:
+        return locals_["__plugin__"]
+    globals_ = frame.f_globals
+    if "__plugin__" in globals_:
+        return globals_["__plugin__"]
     raise LookupError("no plugin context found")
 
 
 def dispatch(event: type[TE], name: str | None = None):
-    return get_plugin().dispatch(event, name=name)
+    return get_plugin(1).dispatch(event, name=name)
 
 
 def load_plugin(
@@ -124,7 +126,7 @@ def load_plugins(dir_: str | PathLike | Path):
 
 @init_spec(PluginMetadata)
 def metadata(data: PluginMetadata):
-    get_plugin()._metadata = data  # type: ignore
+    get_plugin(1)._metadata = data  # type: ignore
 
 
 @overload
@@ -137,7 +139,7 @@ def plugin_config(model_type: type[C]) -> C: ...
 
 def plugin_config(model_type: type[C] | None = None):
     """获取当前插件的配置"""
-    plugin = get_plugin()
+    plugin = get_plugin(1)
     if model_type:
         return config_model_validate(model_type, plugin.config)
     return plugin.config
@@ -148,18 +150,24 @@ get_config = plugin_config
 
 def declare_static():
     """声明当前插件为静态插件"""
-    plugin = get_plugin()
+    plugin = get_plugin(1)
     plugin.is_static = True
     if plugin._scope.subscribers:
         raise StaticPluginDispatchError("static plugin cannot dispatch events")
 
 
 def add_service(serv: TS | type[TS]) -> TS:
-    return get_plugin().service(serv)
+    return get_plugin(1).service(serv)
 
 
 def collect_disposes(*disposes: Callable[[], None]):
-    return get_plugin().collect(*disposes)
+    """收集副作用回收函数"""
+    return get_plugin(1).collect(*disposes)
+
+
+def restore():
+    """回收该插件收集的所有副作用"""
+    return get_plugin(1).restore()
 
 
 def find_plugin(name: str) -> Plugin | None:

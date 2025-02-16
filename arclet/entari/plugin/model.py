@@ -213,8 +213,15 @@ class Plugin:
         return self
 
     def collect(self, *disposes: Callable[[], None]):
+        """收集副作用回收函数"""
         self._dispose_callbacks.extend(disposes)
         return self
+
+    def restore(self):
+        """回收所有副作用"""
+        for callback in self._dispose_callbacks:
+            callback()
+        self._dispose_callbacks.clear()
 
     def __post_init__(self):
         self._scope = es.scope(self.id)
@@ -251,9 +258,7 @@ class Plugin:
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
-        for callback in self._dispose_callbacks:
-            callback()
-        self._dispose_callbacks.clear()
+        self.restore()
         delattr(self.module, "__plugin__")
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
@@ -386,6 +391,7 @@ class RootlessPlugin(Plugin):
         setattr(self.module, "__plugin__", self)
         setattr(self.module, "__file__", func.__code__.co_filename)
         self.func = func
+        setattr(self.func, "__plugin__", self)
         token = _current_plugin.set(self)
         try:
             func(self)
