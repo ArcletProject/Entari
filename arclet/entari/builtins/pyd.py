@@ -1,8 +1,9 @@
 from typing import Any, TypeVar
 
-from arclet.entari.config import config_validator_register
-from arclet.entari.plugin import metadata, declare_static
 from pydantic import BaseModel, TypeAdapter
+
+from arclet.entari.config import config_validator_register
+from arclet.entari.plugin import declare_static, metadata
 
 declare_static()
 metadata(

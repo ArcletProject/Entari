@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Generic, NoReturn, TypeVar, cast
+from typing import Generic, TypeVar, cast
 
-from arclet.letoderea import HandlerStop, StepOut, es
+from arclet.letoderea import StepOut, es
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
@@ -106,7 +106,7 @@ class Session(Generic[TEvent]):
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
         keep_sender: bool = True,
-    ) -> MessageChain:
+    ) -> MessageChain | None:
         """发送提示消息, 并等待回复
 
         Args:
@@ -114,6 +114,9 @@ class Session(Generic[TEvent]):
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
             keep_sender: 是否只允许原发送者回复
+
+        Returns:
+            MessageChain | None: 回复的消息，若超时则返回 None
         """
         await self.send(message)
 
@@ -135,11 +138,8 @@ class Session(Generic[TEvent]):
         result = await step.wait(timeout=timeout)
         if not result:
             await self.send(timeout_message)
-            raise HandlerStop()
+            return
         return result
-
-    def stop(self) -> NoReturn:
-        raise HandlerStop()
 
     @property
     def quote(self):

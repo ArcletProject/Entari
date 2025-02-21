@@ -4,7 +4,7 @@ from typing import Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import Provider, Scope, Subscriber, es
+from arclet.letoderea import ExitState, Provider, Scope, Subscriber, es
 from arclet.letoderea.handler import generate_contexts
 from arclet.letoderea.provider import ProviderFactory, get_providers
 from arclet.letoderea.typing import Contexts, TTarget
@@ -28,8 +28,8 @@ TM = TypeVar("TM", bound=Union[str, MessageChain])
 
 
 def get_cmd(target: Subscriber):
-    if sub := target.get_propagator(AlconnaSuppiler.supply):
-        return sub.callable_target.__self__.cmd  # type: ignore
+    if sup := target.get_propagator(AlconnaSuppiler):
+        return sup.cmd
     raise ValueError("Subscriber has no command.")
 
 
@@ -63,6 +63,10 @@ class EntariCommands:
             subs = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
             results = await asyncio.gather(*(sub.handle(ctx.copy()) for sub in subs))
             for result in results:
+                if result is ExitState.stop:
+                    continue
+                if result is ExitState.block:
+                    return
                 if result is not None:
                     await session.send(result)
             return
@@ -77,6 +81,10 @@ class EntariCommands:
             except ValueError:
                 continue
             result = await sub.handle(ctx.copy())
+            if result is ExitState.stop:
+                continue
+            if result is ExitState.block:
+                return
             if result is not None:
                 await session.send(result)
 

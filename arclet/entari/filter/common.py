@@ -91,11 +91,11 @@ class _Filter(Propagator):
             res = res and all(mess(is_reply_me, is_notice_me) for mess in self.mess)
         for op, f_ in self.ops:
             if op == "and":
-                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is None
+                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is None  # type: ignore
             elif op == "or":
-                res = res or (await f_.check(session, is_reply_me, is_notice_me)) is None
+                res = res or (await f_.check(session, is_reply_me, is_notice_me)) is None  # type: ignore
             else:
-                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is STOP
+                res = res and (await f_.check(session, is_reply_me, is_notice_me)) is STOP  # type: ignore
         return None if res else STOP
 
     def compose(self):
