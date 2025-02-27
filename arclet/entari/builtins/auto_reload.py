@@ -123,9 +123,12 @@ class Watcher(Service):
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if plugin_name not in EntariConfig.instance.plugin:
                         if plugin := find_plugin(pid):
-                            del plugin
-                            unload_plugin(pid)
-                            logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
+                            if plugin.is_static:
+                                logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
+                            else:
+                                del plugin
+                                unload_plugin(pid)
+                                logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
                     if old_plugin[plugin_name] != EntariConfig.instance.plugin[plugin_name]:
                         logger.debug(
@@ -143,6 +146,9 @@ class Watcher(Service):
                                 if res and res.value:
                                     logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                     continue
+                            if plugin.is_static:
+                                logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
+                                continue
                             logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
                             _conf = plugin.config.copy()

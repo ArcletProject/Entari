@@ -102,10 +102,13 @@ def _custom_format(record: Record):
         )
     else:
         plugin = ""
-    return (
+    res = (
         f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level}}</lvl> | <m><u>{{name}}</u></m>"
         f"{plugin} <lvl>{{message}}</lvl>\n"
     )
+    if record["exception"]:
+        res += "{exception}\n"
+    return res
 
 
 logger.remove()

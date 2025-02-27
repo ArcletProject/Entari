@@ -24,6 +24,10 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.urls]
+homepage = "https://arclet.top"
+repository = "https://github.com/ArcletProject/Entari"
+
 [project.optional-dependencies]
 yaml = ["pyyaml>=6.0.2"]
 cron = [
