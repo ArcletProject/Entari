@@ -30,16 +30,23 @@ def _auto_create_dir(func: Callable[P, Path]) -> Callable[P, Path]:
 
 class LocalData:
     def __init__(self):
-        self.root: Optional[Path] = None
-        self.app_name = "Entari"
-        self._temp_dir = TemporaryDirectory()
+        self.global_path: bool = False
+        self.app_name = "entari"
+        self.base_dir = None
+        self._temp_dir = TemporaryDirectory(prefix=f"{self.app_name}_")
         finalize(self, lambda obj: obj._temp_dir.cleanup(), self)
 
     def _get_base_cache_dir(self) -> Path:
-        return user_cache_dir(self.app_name).resolve() if self.root is None else self.root
+        if self.global_path:
+            return user_cache_dir(self.app_name.title()).resolve()
+        name = self.base_dir or self.app_name.lstrip(".")
+        return Path.cwd() / f".{name}" / "cache"
 
     def _get_base_data_dir(self) -> Path:
-        return user_data_dir(self.app_name).resolve() if self.root is None else self.root
+        if self.global_path:
+            return user_data_dir(self.app_name.title()).resolve()
+        name = self.base_dir or self.app_name.lstrip(".")
+        return Path.cwd() / f".{name}" / "data"
 
     @_auto_create_dir
     def get_cache_dir(self, name: Optional[str]) -> Path:
@@ -59,7 +66,7 @@ class LocalData:
 
     @_auto_create_dir
     def get_temp_dir(self) -> Path:
-        return Path(self._temp_dir.name) / self.app_name
+        return Path(self._temp_dir.name)
 
     def get_temp_file(self, filename: str) -> Path:
         return self.get_temp_dir() / filename
@@ -71,12 +78,14 @@ local_data = LocalData()
 @RootlessPlugin.apply("localdata")
 def localdata_apply(plg: RootlessPlugin):
     conf = plg.config
-    if "root" in conf:
-        local_data.root = Path(conf["root"])
+    if "use_global" in conf:
+        local_data.global_path = conf["use_global"]
     if "app_name" in conf:
-        local_data.app_name = conf["app_name"]
+        local_data.app_name = conf["app_name"].lower()
         local_data._temp_dir.cleanup()
-        local_data._temp_dir = TemporaryDirectory()
+        local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
+    if "base_dir" in conf:
+        local_data.base_dir = conf["base_dir"]
 
     @plg.use(ConfigReload)
     def reload_config(event: ConfigReload):
@@ -85,9 +94,11 @@ def localdata_apply(plg: RootlessPlugin):
         if event.key != ".localdata":
             return
         conf = event.value
-        if "root" in conf:
-            local_data.root = Path(conf["root"])
+        if "use_global" in conf:
+            local_data.global_path = conf["use_global"]
         if "app_name" in conf:
-            local_data.app_name = conf["app_name"]
+            local_data.app_name = conf["app_name"].lower()
             local_data._temp_dir.cleanup()
-            local_data._temp_dir = TemporaryDirectory()
+            local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
+        if "base_dir" in conf:
+            local_data.base_dir = conf["base_dir"]
