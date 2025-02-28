@@ -62,8 +62,7 @@ class Interval(Propagator):
             return STOP
 
     async def after(self):
-        if self.success:
-            self.last_time = datetime.now()
+        self.last_time = datetime.now()
 
     def compose(self):
         yield self.before, True, 15

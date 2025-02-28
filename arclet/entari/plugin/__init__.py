@@ -3,12 +3,12 @@ from __future__ import annotations
 import inspect
 from os import PathLike
 from pathlib import Path
-from typing import Any, Callable, overload
+from typing import Any, Callable, TypeVar, overload
 
 from arclet.letoderea import es
 from tarina import init_spec
 
-from ..config import C, EntariConfig, config_model_validate
+from ..config import EntariConfig, config_model_validate
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
@@ -63,10 +63,7 @@ def load_plugin(
     """
     if config is None:
         config = EntariConfig.instance.plugin.get(path)
-    conf = config or {}
-    if "$static" in conf:
-        del conf["$static"]
-    conf = conf.copy()
+    conf = (config or {}).copy()
     if prelude:
         conf["$static"] = True
     if recursive_guard is None:
@@ -129,15 +126,18 @@ def metadata(data: PluginMetadata):
     get_plugin(1)._metadata = data  # type: ignore
 
 
+_C = TypeVar("_C")
+
+
 @overload
 def plugin_config() -> dict[str, Any]: ...
 
 
 @overload
-def plugin_config(model_type: type[C]) -> C: ...
+def plugin_config(model_type: type[_C]) -> _C: ...
 
 
-def plugin_config(model_type: type[C] | None = None):
+def plugin_config(model_type: type[_C] | None = None):
     """获取当前插件的配置"""
     plugin = get_plugin(1)
     if model_type:
