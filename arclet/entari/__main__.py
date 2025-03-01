@@ -138,7 +138,7 @@ def main():
         is_dev = res.find("new.dev")
         names = res.query[tuple[str, ...]]("new.plugins.names", ())
         if (path := res.query[str]("config.path", None)) is None:
-            if find_spec("yaml"):
+            if find_spec("ruamel.yaml"):
                 _path = Path.cwd() / "entari.yml"
             else:
                 _path = Path.cwd() / ".entari.json"

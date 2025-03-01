@@ -29,7 +29,9 @@ homepage = "https://arclet.top"
 repository = "https://github.com/ArcletProject/Entari"
 
 [project.optional-dependencies]
-yaml = ["pyyaml>=6.0.2"]
+yaml = [
+    "ruamel-yaml>=0.18.10",
+]
 cron = [
     "croniter>=5.0.1",
 ]
@@ -37,10 +39,10 @@ reload = [
     "watchfiles>=1.0.3",
 ]
 full = [
-    "pyyaml>=6.0.2",
     "croniter>=5.0.1",
     "watchfiles>=1.0.3",
     "python-dotenv>=1.0.1",
+    "ruamel-yaml>=0.18.10",
 ]
 dotenv = [
     "python-dotenv>=1.0.1",
@@ -67,8 +69,8 @@ dev = [
     "ruff>=0.4.2",
     "fix-future-annotations>=0.5.0",
     "watchfiles>=0.24.0",
-    "pyyaml>=6.0.2",
     "python-dotenv>=1.0.1",
+    "ruamel-yaml>=0.18.10",
 ]
 [tool.black]
 line-length = 120

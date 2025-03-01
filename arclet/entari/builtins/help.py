@@ -22,9 +22,13 @@ from arclet.entari import BasicConfModel, Session, command, metadata, plugin_con
 
 class Config(BasicConfModel):
     help_command: str = "help"
+    """帮助指令的指令名"""
     help_alias: list[str] = field(default_factory=lambda: ["帮助", "命令帮助"])
+    """帮助指令的别名"""
     help_all_alias: list[str] = field(default_factory=lambda: ["所有帮助", "所有命令帮助"])
+    """帮助指令的'所有帮助'别名"""
     page_size: Optional[int] = None
+    """帮助结果每页显示的命令数量"""
 
 
 config = plugin_config(Config)

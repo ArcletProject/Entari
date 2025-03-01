@@ -8,7 +8,9 @@ import re
 from typing import Any, Callable, ClassVar, TypedDict
 import warnings
 
-ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}]+)\s?\}\}")
+from .util import nest_dict_update
+
+ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}")
 
 
 class BasicConfig(TypedDict, total=False):
@@ -28,7 +30,7 @@ class EntariConfig:
     plugin: dict[str, dict] = field(default_factory=dict, init=False)
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
-    updater: Callable[[EntariConfig], None]
+    loader: Callable[[EntariConfig], dict[str, Any]]
 
     instance: ClassVar[EntariConfig]
 
@@ -43,16 +45,23 @@ class EntariConfig:
                 return json.load(f)
         if path.suffix in (".yaml", ".yml"):
             try:
-                import yaml
+                from ruamel.yaml import YAML
             except ImportError:
                 raise RuntimeError("yaml is not installed")
 
+            yaml = YAML(typ="safe")
+            yaml.indent(mapping=2, sequence=4, offset=2)
+
             with path.open("r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
+                return yaml.load(f)
         raise NotImplementedError(f"unsupported plugin config file format: {path!s}")
 
     def reload(self):
-        self.updater(self)
+        data = self.loader(self)
+        if "entari" in data:
+            data = data["entari"]
+        self.basic = data.get("basic", {})
+        self.plugin = data.get("plugins", {})
         self.plugin_extra_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
         for file in self.plugin_extra_files:
             path = Path(file)
@@ -101,28 +110,30 @@ class EntariConfig:
             plugins = {"$files": self.plugin_extra_files, **plugins}
         return {"basic": self.basic, "plugins": plugins}
 
-    def save_json(self):
-        with self.path.open("r", encoding="utf-8") as f:
-            origin = json.load(f)
+    def save_json(self, path: str | os.PathLike[str], indent: int = 2):
+        origin = self.loader(self)
         if "entari" in origin:
             origin["entari"] = self.dump()
         else:
             origin = self.dump()
-        with self.path.open("w", encoding="utf-8") as f1:
-            json.dump(origin, f1, indent=2, ensure_ascii=False)
+        with Path(path).open("w+", encoding="utf-8") as f1:
+            json.dump(origin, f1, indent=indent, ensure_ascii=False)
 
-    def save_yaml(self):
-        try:
-            import yaml
-        except ImportError:
-            raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
-        with self.path.open("r", encoding="utf-8") as f:
-            origin = yaml.safe_load(f)
+    def save_yaml(self, path: str | os.PathLike[str], indent: int = 2):
+        origin = self.loader(self)
         if "entari" in origin:
-            origin["entari"] = self.dump()
+            nest_dict_update(origin["entari"], self.dump())
         else:
-            origin = self.dump()
-        with self.path.open("w", encoding="utf-8") as f1:
+            nest_dict_update(origin, self.dump())
+
+        try:
+            from ruamel.yaml import YAML
+        except ImportError:
+            raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]")
+
+        yaml = YAML()
+        yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
+        with Path(path).open("w+", encoding="utf-8") as f1:
             yaml.dump(origin, f1)
 
     @classmethod
@@ -144,40 +155,35 @@ class EntariConfig:
         else:
             _path = Path(path)
         if not _path.exists():
-            return cls(_path, lambda _: None)
+            return cls(_path, lambda _: {})
         if not _path.is_file():
             raise ValueError(f"{_path} is not a file")
 
         if _path.suffix.startswith(".json"):
 
-            def _updater(self: EntariConfig):
+            def _json_loader(self: EntariConfig):
                 with self.path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if "entari" in data:
-                        data = data["entari"]
-                    self.basic = data.get("basic", {})
-                    self.plugin = data.get("plugins", {})
+                    return json.load(f)
 
-            obj = cls(_path, _updater)
+            obj = cls(_path, _json_loader)
             cls.instance = obj
             return obj
         if _path.suffix in (".yaml", ".yml"):
             try:
-                import yaml
+                from ruamel.yaml import YAML
             except ImportError:
                 raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
 
-            def _updater(self: EntariConfig):
+            def _yaml_loader(self: EntariConfig):
+                yaml = YAML()
+                yaml.indent(mapping=2, sequence=4, offset=2)
+
                 with self.path.open("r", encoding="utf-8") as f:
                     text = f.read()
                     text = ENV_CONTEXT_PAT.sub(lambda m: os.environ.get(m["name"], ""), text)
-                    data = yaml.safe_load(text)
-                    if "entari" in data:
-                        data = data["entari"]
-                    self.basic = data.get("basic", {})
-                    self.plugin = data.get("plugins", {})
+                    return yaml.load(text)
 
-            return cls(_path, _updater)
+            return cls(_path, _yaml_loader)
         raise NotImplementedError(f"unsupported config file format: {_path!s}")
 
 
