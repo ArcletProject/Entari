@@ -1,32 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Callable, ClassVar, TypedDict
+from typing import Any, Callable, ClassVar
 import warnings
 
+from .model import BasicConfModel, config_model_validate
 from .util import nest_dict_update
 
 ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}")
 
 
-class BasicConfig(TypedDict, total=False):
-    network: list[dict[str, Any]]
-    ignore_self_message: bool
-    skip_req_missing: bool
-    log_level: int | str
-    prefix: list[str]
-    cmd_count: int
-    external_dirs: list[str]
+class BasicConfig(BasicConfModel):
+    network: list[dict[str, Any]] = field(default_factory=list)
+    ignore_self_message: bool = True
+    skip_req_missing: bool = False
+    log_level: int | str = "INFO"
+    prefix: list[str] = field(default_factory=list)
+    cmd_count: int = 4096
+    external_dirs: list[str] = field(default_factory=list)
 
 
 @dataclass
 class EntariConfig:
     path: Path
-    basic: BasicConfig = field(default_factory=dict, init=False)  # type: ignore
+    basic: BasicConfig = field(default_factory=BasicConfig, init=False)
     plugin: dict[str, dict] = field(default_factory=dict, init=False)
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
@@ -60,7 +61,7 @@ class EntariConfig:
         data = self.loader(self)
         if "entari" in data:
             data = data["entari"]
-        self.basic = data.get("basic", {})
+        self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
         self.plugin = data.get("plugins", {})
         self.plugin_extra_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
         for file in self.plugin_extra_files:
@@ -108,7 +109,7 @@ class EntariConfig:
                         if _path.is_file():
                             plugins.pop(_path.stem)
             plugins = {"$files": self.plugin_extra_files, **plugins}
-        return {"basic": self.basic, "plugins": plugins}
+        return {"basic": asdict(self.basic), "plugins": plugins}
 
     def save_json(self, path: str | os.PathLike[str], indent: int = 2):
         origin = self.loader(self)

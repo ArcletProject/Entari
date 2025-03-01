@@ -100,12 +100,12 @@ class Entari(App):
     def from_config(cls, config: EntariConfig | None = None):
         if not config:
             config = EntariConfig.instance
-        ignore_self_message = config.basic.get("ignore_self_message", True)
-        log_level = config.basic.get("log_level", "INFO")
-        skip_req_missing = config.basic.get("skip_req_missing", False)
-        external_dirs = config.basic.get("external_dirs", [])
+        ignore_self_message = config.basic.ignore_self_message
+        log_level = config.basic.log_level
+        skip_req_missing = config.basic.skip_req_missing
+        external_dirs = config.basic.external_dirs
         configs = []
-        for conf in config.basic.get("network", []):
+        for conf in config.basic.network:
             if conf["type"] in ("websocket", "websockets", "ws"):
                 configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
             elif conf["type"] in ("webhook", "wh", "http"):
@@ -133,7 +133,7 @@ class Entari(App):
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
-        alconna_config.command_max_count = EntariConfig.instance.basic.get("cmd_count", 4096)
+        alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
         self.ignore_self_message = ignore_self_message

@@ -20,7 +20,7 @@ from .model import CommandResult, Match, Query
 
 
 def _remove_config_prefix(message: MessageChain):
-    if not (command_prefix := EntariConfig.instance.basic.get("prefix", [])):
+    if not (command_prefix := EntariConfig.instance.basic.prefix):
         return message
     if message and isinstance(message[0], Text):
         text = message[0].text  # type: ignore

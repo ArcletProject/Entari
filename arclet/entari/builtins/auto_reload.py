@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 from pathlib import Path
 from typing import Union
 
@@ -104,19 +105,20 @@ class Watcher(Service):
                     continue
                 logger.info(f"Detected change in {change[1]!r}, reloading config...")
 
-                old_basic = EntariConfig.instance.basic.copy()
+                old_basic = asdict(EntariConfig.instance.basic)  # noqa
                 old_plugin = EntariConfig.instance.plugin.copy()
                 EntariConfig.instance.reload()
+                new_basic = asdict(EntariConfig.instance.basic)  # noqa
                 for key in old_basic:
-                    if key in EntariConfig.instance.basic and old_basic[key] != EntariConfig.instance.basic[key]:
+                    if key in new_basic and old_basic[key] != new_basic[key]:
                         logger.debug(
                             f"Basic config <y>{key!r}</y> changed from <r>{old_basic[key]!r}</r> "
-                            f"to <g>{EntariConfig.instance.basic[key]!r}</g>",
+                            f"to <g>{new_basic[key]!r}</g>",
                         )
-                        await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key], old_basic[key]))
-                for key in set(EntariConfig.instance.basic) - set(old_basic):
+                        await es.publish(ConfigReload("basic", key, new_basic[key], old_basic[key]))
+                for key in set(new_basic) - set(old_basic):
                     logger.debug(f"Basic config <y>{key!r}</y> appended")
-                    await es.publish(ConfigReload("basic", key, EntariConfig.instance.basic[key]))
+                    await es.publish(ConfigReload("basic", key, new_basic[key]))
                 for plugin_name in old_plugin:
                     if plugin_name.startswith("$") or plugin_name.startswith("~"):
                         continue
