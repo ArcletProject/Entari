@@ -312,7 +312,10 @@ class MessageEvent(SatoriEvent):
         await super().gather(context)
         reply = None
         if self.quote and self.quote.id:
-            mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
+            if self.quote.children:
+                mo = MessageObject.from_elements(self.quote.id, self.quote.children)
+            else:
+                mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
             reply = context["$message_reply"] = Reply(self.quote, mo)
         if not reply:
             is_reply_me = False

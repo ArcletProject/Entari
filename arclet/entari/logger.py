@@ -52,7 +52,7 @@ class LoggerManager:
             level = level.upper()
         logging.basicConfig(
             handlers=[LoguruHandler()],
-            level=level,
+            level="NOTSET" if level == "TRACE" else level,
             format="%(asctime)s | %(name)s[%(levelname)s]: %(message)s",
             force=True,
         )
@@ -87,9 +87,14 @@ log = LoggerManager()
 
 
 def default_filter(record):
-    if record["name"].startswith("launart"):
-        return record["level"].no >= logger.level("SUCCESS").no
     levelno = logger.level(log.log_level).no if isinstance(log.log_level, str) else log.log_level
+    if record["name"].startswith("launart"):
+        if levelno <= logger.level("TRACE").no:
+            return record["level"].no >= logger.level("TRACE").no
+        elif levelno <= logger.level("DEBUG").no:
+            return record["level"].no >= logger.level("SUCCESS").no
+        else:
+            return record["level"].no > logger.level("SUCCESS").no
     return record["level"].no >= levelno
 
 
@@ -103,7 +108,7 @@ def _custom_format(record: Record):
     else:
         plugin = ""
     res = (
-        f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level}}</lvl> | <m><u>{{name}}</u></m>"
+        f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level:<7}}</lvl> | <m><u>{{name}}</u></m>"
         f"{plugin} <lvl>{{message}}</lvl>\n"
     )
     if record["exception"]:

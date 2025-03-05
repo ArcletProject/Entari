@@ -263,7 +263,7 @@ class Plugin:
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
-            log.plugin.debug(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
+            log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
                     continue

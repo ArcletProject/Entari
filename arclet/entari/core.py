@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from contextlib import suppress
 import os
 from pathlib import Path
+import signal
 import sys
 
 from arclet.alconna import config as alconna_config
@@ -204,10 +205,17 @@ class Entari(App):
     async def account_hook(self, account: Account, state: LoginStatus):
         es.publish(AccountUpdate(account, state))
 
-    async def launch(self, manager: Launart):
-        await super().launch(manager)
+    def run(
+        self,
+        manager: Launart | None = None,
+        *,
+        loop: asyncio.AbstractEventLoop | None = None,
+        stop_signal: Iterable[signal.Signals] = (signal.SIGINT,),
+    ):
+        super().run(manager, loop=loop, stop_signal=stop_signal)
         if self._path_scale:
             del sys.path[self._path_scale[0] : self._path_scale[1]]
+        log.core.info("Entari Shutdown.")
 
     @classmethod
     def current(cls):
