@@ -197,9 +197,9 @@ add_service(serv := Watcher(conf.watch_dirs, conf.watch_config))
 @es.on(ConfigReload)
 def handle_config_reload(event: ConfigReload):
     if event.scope != "plugin":
-        return
+        return None
     if event.key not in ("::auto_reload", "arclet.entari.builtins.auto_reload"):
-        return
+        return None
     new_conf = event.plugin_config(Config)
     serv.dirs = new_conf.watch_dirs
     serv.is_watch_config = new_conf.watch_config

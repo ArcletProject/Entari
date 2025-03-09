@@ -4,7 +4,10 @@ from importlib import _bootstrap, _bootstrap_external, import_module  # type: ig
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
+from io import BytesIO
+import re
 import sys
+import tokenize
 from types import ModuleType
 from typing import Optional
 
@@ -88,6 +91,9 @@ def getattr_or_import(module, name, ensure_plugin: bool = False):
         return __entari_import__(f".{name}", module.__name__, ensure_plugin)
 
 
+_REQUIRES_PAT = re.compile(r"^requires\s*=\s*\[([^\]]+)\]", re.M)
+
+
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
         self.loaded = False
@@ -114,6 +120,16 @@ class PluginLoader(SourceFileLoader):
         The 'data' argument can be any object type that compile() supports.
         """
         name = self.name
+        comments = "".join(
+            [
+                tok.string.lstrip("#").strip()
+                for tok in tokenize.tokenize(BytesIO(data).readline)
+                if tok.type == tokenize.COMMENT
+            ]
+        )
+        if mat := _REQUIRES_PAT.search(comments):
+            requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
+
         try:
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:
@@ -389,7 +405,7 @@ def find_spec(name, package=None):
     return module_spec
 
 
-def import_plugin(name, package=None, config: Optional[dict[str, str]] = None):
+def import_plugin(name, package=None, config: Optional[dict] = None):
     spec = find_spec(name, package)
     if spec:
         mod = module_from_spec(spec)
