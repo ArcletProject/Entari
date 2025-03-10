@@ -120,14 +120,15 @@ class PluginLoader(SourceFileLoader):
         The 'data' argument can be any object type that compile() supports.
         """
         name = self.name
-        comments = "".join(
-            [
-                tok.string.lstrip("#").strip()
-                for tok in tokenize.tokenize(BytesIO(data).readline)
-                if tok.type == tokenize.COMMENT
-            ]
-        )
-        if mat := _REQUIRES_PAT.search(comments):
+        comments = []
+        for tok in tokenize.tokenize(BytesIO(data).readline):
+            if tok.type == tokenize.COMMENT:
+                comments.append(tok.string.lstrip("#").strip())
+            elif tok.type == tokenize.NL:
+                continue
+            elif comments:
+                break
+        if mat := _REQUIRES_PAT.search("".join(comments)):
             requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
 
         try:
@@ -136,6 +137,8 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=_optimize
             )
+        if (docstring := ast.get_docstring(nodes)) and (mat := _REQUIRES_PAT.search(docstring)):
+            requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
         bodys = []
         for body in nodes.body:
             if isinstance(body, ast.ImportFrom):
