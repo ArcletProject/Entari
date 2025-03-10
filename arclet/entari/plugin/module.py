@@ -223,6 +223,32 @@ class PluginLoader(SourceFileLoader):
                     node.end_lineno = body.end_lineno  # type: ignore
                 bodys.append(new.body[0])
             else:
+                if (
+                    isinstance(body, ast.Expr)
+                    and isinstance(body.value, ast.Call)
+                    and isinstance(body.value.func, ast.Name)
+                    and body.value.func.id == "metadata"
+                    and (
+                        plugin_requires_node := next(
+                            (kw for kw in body.value.keywords if kw.arg == "plugin_requires"), None
+                        )
+                    )
+                ):
+                    requires(*ast.literal_eval(plugin_requires_node.value))
+                elif (
+                    isinstance(body, ast.Assign)
+                    and isinstance(body.targets[0], ast.Name)
+                    and body.targets[0].id == "__plugin_metadata__"
+                    and isinstance(body.value, ast.Call)
+                    and isinstance(body.value.func, ast.Name)
+                    and body.value.func.id == "PluginMetadata"
+                    and (
+                        plugin_requires_node := next(
+                            (kw for kw in body.value.keywords if kw.arg == "plugin_requires"), None
+                        )
+                    )
+                ):
+                    requires(*ast.literal_eval(plugin_requires_node.value))
                 bodys.append(body)
         nodes.body = bodys
         return _bootstrap._call_with_frames_removed(  # type: ignore

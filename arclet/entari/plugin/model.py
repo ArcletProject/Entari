@@ -158,17 +158,27 @@ class PluginDispatcher:
 @dataclass
 class PluginMetadata:
     name: str
+    """插件名称"""
     author: list[str] = field(default_factory=list)
+    """插件作者"""
     version: str | None = None
+    """插件版本"""
     license: str | None = None
+    """插件许可证"""
     urls: dict[str, str] | None = None
+    """插件链接"""
     description: str | None = None
+    """插件描述"""
     icon: str | None = None
+    """插件图标 URL"""
     classifier: list[str] = field(default_factory=list)
+    """插件分类"""
     requirements: list[str] = field(default_factory=list)
-    dependencies: list[str] = field(default_factory=list)
+    """插件依赖"""
     config: Any | None = None
-
+    """插件配置模型"""
+    plugin_requires: list[str] = field(default_factory=list)
+    """特殊声明该插件依赖的其他插件"""
     # standards: list[str] = field(default_factory=list)
     # frameworks: list[str] = field(default_factory=list)
     # component_endpoints: list[str] = field(default_factory=list)
@@ -203,14 +213,6 @@ class Plugin:
     @property
     def metadata(self) -> PluginMetadata | None:
         return self._metadata
-
-    def inject(self, *requires: str):
-        plugin = self
-        while plugin.id in plugin_service._subplugined:
-            plugin = plugin_service.plugins[plugin_service._subplugined[plugin.id]]
-        if plugin._metadata:
-            plugin._metadata.requirements.extend(requires)
-        return self
 
     def collect(self, *disposes: Callable[[], None]):
         """收集副作用回收函数"""
@@ -336,10 +338,17 @@ class Plugin:
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
             raise RegisterNotInPluginError(
-                f"Handler `{func.__qualname__}` should define "
-                f"in the same module as the plugin: {self.module.__name__}. "
-                f"Please use the `load_plugin({func.__module__!r})` or `requires({func.__module__!r})`"
-                f"or `package({func.__module__!r})` before import it."
+                f"\nHandler `{func.__qualname__}` from {func.__module__!r} should define "
+                f"in the same module as the plugin: {self.module.__name__!r}. "
+                "\n\nPlease choose one of the following solutions before import it: "
+                f"\n * append `load_plugin({func.__module__!r})` before the import statement."
+                f"\n * call `requires({func.__module__!r})` before the import statement."
+                f"\n * call `package({func.__module__!r})` to let it marked as a sub-plugin of `{self.id}`."
+                "\n * fill in the parameters `plugin_requires` in your PluginMetadata: "
+                f"\n  - `metadata(plugin_requires={func.__module__!r})`"
+                f"\n  - or `__plugin_metadata__ = PluginMetadata(plugin_requires={func.__module__!r})`)"
+                f"\n * write the comment or docstring on top of the file: `requires = [{func.__module__!r}]`"
+                f"\n * add {func.__module__!r} to your config file."
             )
 
     def proxy(self):
