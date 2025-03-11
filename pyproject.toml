@@ -38,17 +38,20 @@ cron = [
 reload = [
     "watchfiles>=1.0.3",
 ]
+dotenv = [
+    "python-dotenv>=1.0.1",
+]
 full = [
     "croniter>=5.0.1",
     "watchfiles>=1.0.3",
     "python-dotenv>=1.0.1",
     "ruamel-yaml>=0.18.10",
 ]
-dotenv = [
-    "python-dotenv>=1.0.1",
-]
 pydantic = [
     "pydantic>=2.10.6",
+]
+msgspec = [
+    "msgspec>=0.19.0",
 ]
 
 [project.scripts]
@@ -71,6 +74,8 @@ dev = [
     "watchfiles>=0.24.0",
     "python-dotenv>=1.0.1",
     "ruamel-yaml>=0.18.10",
+    "msgspec>=0.19.0",
+    "pydantic>=2.10.6",
 ]
 [tool.black]
 line-length = 120

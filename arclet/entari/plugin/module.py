@@ -114,11 +114,15 @@ class PluginLoader(SourceFileLoader):
         code_object = self.source_to_code(source_bytes, source_path)
         return code_object
 
-    def source_to_code(self, data, path, *, _optimize=-1):  # type: ignore
+    def source_to_code(self, data, path="<string>"):
         """Return the code object compiled from source.
 
         The 'data' argument can be any object type that compile() supports.
         """
+        if not isinstance(data, bytes):
+            return _bootstrap._call_with_frames_removed(  # type: ignore
+                compile, data, path, "exec", dont_inherit=True, optimize=-1
+            )
         name = self.name
         comments = []
         for tok in tokenize.tokenize(BytesIO(data).readline):
@@ -135,7 +139,7 @@ class PluginLoader(SourceFileLoader):
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:
             return _bootstrap._call_with_frames_removed(  # type: ignore
-                compile, data, path, "exec", dont_inherit=True, optimize=_optimize
+                compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
         if (docstring := ast.get_docstring(nodes)) and (mat := _REQUIRES_PAT.search(docstring)):
             requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
@@ -252,7 +256,7 @@ class PluginLoader(SourceFileLoader):
                 bodys.append(body)
         nodes.body = bodys
         return _bootstrap._call_with_frames_removed(  # type: ignore
-            compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize
+            compile, nodes, path, "exec", dont_inherit=True, optimize=-1
         )
 
     def create_module(self, spec) -> Optional[ModuleType]:
