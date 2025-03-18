@@ -341,14 +341,14 @@ class Plugin:
                 f"\nHandler `{func.__qualname__}` from {func.__module__!r} should define "
                 f"in the same module as the plugin: {self.module.__name__!r}. "
                 "\n\nPlease choose one of the following solutions before import it: "
-                f"\n * append `load_plugin({func.__module__!r})` before the import statement."
-                f"\n * call `requires({func.__module__!r})` before the import statement."
-                f"\n * call `package({func.__module__!r})` to let it marked as a sub-plugin of `{self.id}`."
+                f"\n * add {func.__module__!r} to your config file."
+                f"\n * write the comment after the import statement line: `# entari: plugin`"
                 "\n * fill in the parameters `plugin_requires` in your PluginMetadata: "
                 f"\n  - `metadata(plugin_requires={func.__module__!r})`"
                 f"\n  - or `__plugin_metadata__ = PluginMetadata(plugin_requires={func.__module__!r})`)"
-                f"\n * write the comment or docstring on top of the file: `requires = [{func.__module__!r}]`"
-                f"\n * add {func.__module__!r} to your config file."
+                f"\n * append `load_plugin({func.__module__!r})` before the import statement."
+                f"\n * call `requires({func.__module__!r})` before the import statement."
+                f"\n * call `package({func.__module__!r})` to let it marked as a sub-plugin of `{self.id}`."
             )
 
     def proxy(self):

@@ -47,7 +47,7 @@ def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
                 plugin_service._referents[mod.__plugin__.id].add(plugin_name)
             return mod.__plugin__.subproxy(name)
         return __import__(name, fromlist=["__path__"])
-    if name in _ENSURE_IS_PLUGIN:
+    if name in _ENSURE_IS_PLUGIN or name.startswith("arclet.entari.builtins.") or name.startswith("entari_plugin"):
         mod = import_plugin(name)
         if mod:
             log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
@@ -91,9 +91,6 @@ def getattr_or_import(module, name, ensure_plugin: bool = False):
         return __entari_import__(f".{name}", module.__name__, ensure_plugin)
 
 
-_REQUIRES_PAT = re.compile(r"^requires\s*=\s*\[([^\]]+)\]", re.M)
-
-
 class PluginLoader(SourceFileLoader):
     def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
         self.loaded = False
@@ -124,16 +121,10 @@ class PluginLoader(SourceFileLoader):
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
         name = self.name
-        comments = []
-        for tok in tokenize.tokenize(BytesIO(data).readline):
-            if tok.type == tokenize.COMMENT:
-                comments.append(tok.string.lstrip("#").strip())
-            elif tok.type == tokenize.NL:
-                continue
-            elif comments:
-                break
-        if mat := _REQUIRES_PAT.search("".join(comments)):
-            requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
+        signed_plugin_lineno = []
+        for token in tokenize.tokenize(BytesIO(data).readline):
+            if token.type == tokenize.COMMENT and "entari: plugin" in token.string:
+                signed_plugin_lineno.append(token.start[0])
 
         try:
             nodes = ast.parse(data, type_comments=True)
@@ -141,8 +132,6 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
-        if (docstring := ast.get_docstring(nodes)) and (mat := _REQUIRES_PAT.search(docstring)):
-            requires(*[name.strip().strip("'\"") for name in mat.group(1).split(",")])
         bodys = []
         for body in nodes.body:
             if isinstance(body, ast.ImportFrom):
@@ -150,6 +139,8 @@ class PluginLoader(SourceFileLoader):
                     if body.module == "__future__":
                         bodys.append(body)
                         continue
+                    if body.module and body.lineno in signed_plugin_lineno:
+                        _ENSURE_IS_PLUGIN.add(body.module)
                     if len(body.names) == 1 and body.names[0].name == "*":
                         new = ast.parse(
                             f"__mod = __entari_import__({body.module!r}, {name!r});"
@@ -216,6 +207,8 @@ class PluginLoader(SourceFileLoader):
                         node.end_lineno = body.end_lineno  # type: ignore
                     bodys.extend(new.body)
             elif isinstance(body, ast.Import):
+                if body.lineno in signed_plugin_lineno:
+                    _ENSURE_IS_PLUGIN.update(alias.name for alias in body.names)
                 aliases = [alias.asname or alias.name for alias in body.names]
                 new = ast.parse(
                     ",".join(aliases)
