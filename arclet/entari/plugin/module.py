@@ -1,11 +1,10 @@
 import ast
 from collections.abc import Sequence
-from importlib import _bootstrap, _bootstrap_external, import_module  # type: ignore
+from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
-import re
 import sys
 import tokenize
 from types import ModuleType
@@ -13,7 +12,6 @@ from typing import Optional
 
 from arclet.letoderea.context import scope_ctx
 
-from ..config import EntariConfig
 from ..logger import log
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
@@ -34,61 +32,13 @@ def requires(*names: str):
     _ENSURE_IS_PLUGIN.update(name.replace("::", "arclet.entari.builtins.") for name in names)
 
 
-def __entari_import__(name: str, plugin_name: str, ensure_plugin: bool = False):
-    if name in plugin_service.plugins:
-        plug = plugin_service.plugins[name]
-        if plugin_name != plug.id:
-            plugin_service._referents[plug.id].add(plugin_name)
-        return plug.proxy()
-    if name in _SUBMODULE_WAITLIST.get(plugin_name, ()):
-        mod = import_plugin(name)
-        if mod:
-            if plugin_name != mod.__plugin__.id:
-                plugin_service._referents[mod.__plugin__.id].add(plugin_name)
-            return mod.__plugin__.subproxy(name)
-        return __import__(name, fromlist=["__path__"])
-    if name in _ENSURE_IS_PLUGIN or name.startswith("arclet.entari.builtins.") or name.startswith("entari_plugin"):
-        mod = import_plugin(name)
-        if mod:
-            log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
-            if plugin_name != mod.__plugin__.id:
-                plugin_service._referents[mod.__plugin__.id].add(plugin_name)
-            return mod.__plugin__.proxy()
-        return __import__(name, fromlist=["__path__"])
-    if name in EntariConfig.instance.plugin:
-        config = EntariConfig.instance.plugin[name]
-        if "$static" in config:
-            del config["$static"]
-        mod = import_plugin(name, config=config)
-        if mod:
-            log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
-            if plugin_name != mod.__plugin__.id:
-                plugin_service._referents[mod.__plugin__.id].add(plugin_name)
-            return mod.__plugin__.proxy()
-        return __import__(name, fromlist=["__path__"])
-    if ensure_plugin and (module := import_plugin(name, plugin_name)):
-        if hasattr(module, "__plugin__"):
-            if plugin_name != module.__plugin__.id:
-                plugin_service._referents[module.__plugin__.id].add(plugin_name)
-            return module.__plugin__.subproxy(f"{plugin_name}{name}")
-        log.plugin.success(f"loaded plugin <blue>{name!r}</blue>")
-        return module
-    # if name not in sys.modules and name not in sys.builtin_module_names:
-    #     mod = import_plugin(name, plugin_name)
-    #     if mod:
-    #         if plugin_name != mod.__plugin__.id:
-    #             plugin_service._referents[mod.__plugin__.id].add(plugin_name)
-    #         return mod.__plugin__.proxy()
-    if not name.startswith("."):
-        return __import__(name, fromlist=["__path__"])
-    return import_module(name, plugin_name)
-
-
-def getattr_or_import(module, name, ensure_plugin: bool = False):
-    try:
-        return getattr(module, name)
-    except AttributeError:
-        return __entari_import__(f".{name}", module.__name__, ensure_plugin)
+def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
+    for name in names:
+        if sub:
+            _SUBMODULE_WAITLIST.setdefault(current, set()).add(f"{prefix}{name}")
+        else:
+            _ENSURE_IS_PLUGIN.add(f"{prefix}{name}")
+        plugin_service._referents.setdefault(f"{prefix}{name}", set()).add(current)
 
 
 class PluginLoader(SourceFileLoader):
@@ -122,9 +72,13 @@ class PluginLoader(SourceFileLoader):
             )
         name = self.name
         signed_plugin_lineno = []
+        signed_subplugin_lineno = []
         for token in tokenize.tokenize(BytesIO(data).readline):
-            if token.type == tokenize.COMMENT and "entari: plugin" in token.string:
-                signed_plugin_lineno.append(token.start[0])
+            if token.type == tokenize.COMMENT:
+                if "entari: plugin" in token.string:
+                    signed_plugin_lineno.append(token.start[0])
+                elif "entari: package" in token.string or "entari: subplugin" in token.string:
+                    signed_subplugin_lineno.append(token.start[0])
 
         try:
             nodes = ast.parse(data, type_comments=True)
@@ -132,122 +86,25 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
-        bodys = []
-        for body in nodes.body:
+        for body in ast.walk(nodes):
             if isinstance(body, ast.ImportFrom):
-                if body.level == 0:
-                    if body.module == "__future__":
-                        bodys.append(body)
-                        continue
-                    if body.module and body.lineno in signed_plugin_lineno:
-                        _ENSURE_IS_PLUGIN.add(body.module)
-                    if len(body.names) == 1 and body.names[0].name == "*":
-                        new = ast.parse(
-                            f"__mod = __entari_import__({body.module!r}, {name!r});"
-                            f"__mod_all = getattr(__mod, '__all__', dir(__mod));"
-                            "globals().update("
-                            "{name: getattr(__mod, name) for name in __mod_all if not name.startswith('__')}"
-                            ");"
-                            "del __mod, __mod_all"
-                        )
-                    else:
-                        new = ast.parse(
-                            f"__mod = __entari_import__({body.module!r}, {name!r});"
-                            + ";".join(
-                                f"{alias.asname or alias.name} = "
-                                f"__getattr_or_import__(__mod, {alias.name!r}, "
-                                f"__mod.__name__ in __plugin_service__.plugins)"
-                                for alias in body.names
-                            )
-                            + ";del __mod"
-                        )
-                    for node in ast.walk(new):
-                        node.lineno = body.lineno  # type: ignore
-                        node.end_lineno = body.end_lineno  # type: ignore
-                    bodys.extend(new.body)
-                elif body.module is None:
-                    relative = "." * body.level
-                    if len(body.names) == 1 and body.names[0].name == "*":
-                        bodys.append(body)
-                    else:
-                        new = ast.parse(
-                            f"__mod = __entari_import__('{relative}', {name!r}, {body.level == 1});"
-                            + ";".join(
-                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r}, True)"
-                                for alias in body.names
-                            )
-                            + ";del __mod"
-                        )
-                        for node in ast.walk(new):
-                            node.lineno = body.lineno  # type: ignore
-                            node.end_lineno = body.end_lineno  # type: ignore
-                        bodys.extend(new.body)
-                else:
-                    relative = "." * body.level
-                    if len(body.names) == 1 and body.names[0].name == "*":
-                        new = ast.parse(
-                            f"__mod = __entari_import__('{relative}{body.module}', {name!r}, {body.level == 1});"
-                            f"__mod_all = getattr(__mod, '__all__', dir(__mod));"
-                            "globals().update("
-                            "{name: getattr(__mod, name) for name in __mod_all if not name.startswith('__')}"
-                            ");"
-                            "del __mod, __mod_all"
-                        )
-                    else:
-                        new = ast.parse(
-                            f"__mod = __entari_import__('{relative}{body.module}', {name!r}, {body.level == 1});"
-                            + ";".join(
-                                f"{alias.asname or alias.name} = __getattr_or_import__(__mod, {alias.name!r}, True)"
-                                for alias in body.names
-                            )
-                            + ";del __mod"
-                        )
-                    for node in ast.walk(new):
-                        node.lineno = body.lineno  # type: ignore
-                        node.end_lineno = body.end_lineno  # type: ignore
-                    bodys.extend(new.body)
+                if body.module is None:  # from . import xxx
+                    _ensure_plugin(
+                        [alias.name for alias in body.names], body.lineno not in signed_plugin_lineno, name, f"{name}."
+                    )
+                elif body.level == 0 and body.module not in sys.builtin_module_names:  # from xxx import xxx
+                    if body.lineno in signed_plugin_lineno:
+                        _ensure_plugin([body.module], False, name)
+                    if body.lineno in signed_subplugin_lineno:
+                        _ensure_plugin([body.module], True, name)
+                elif body.level == 1:  # from .xxx import xxx
+                    _ensure_plugin([body.module], body.lineno not in signed_plugin_lineno, name, f"{name}.")
             elif isinstance(body, ast.Import):
                 if body.lineno in signed_plugin_lineno:
-                    _ENSURE_IS_PLUGIN.update(alias.name for alias in body.names)
-                aliases = [alias.asname or alias.name for alias in body.names]
-                new = ast.parse(
-                    ",".join(aliases)
-                    + "="
-                    + ",".join(f"__entari_import__({alias.name!r}, {name!r})" for alias in body.names)
-                )
-                for node in ast.walk(new):
-                    node.lineno = body.lineno  # type: ignore
-                    node.end_lineno = body.end_lineno  # type: ignore
-                bodys.append(new.body[0])
-            else:
-                if (
-                    isinstance(body, ast.Expr)
-                    and isinstance(body.value, ast.Call)
-                    and isinstance(body.value.func, ast.Name)
-                    and body.value.func.id == "metadata"
-                    and (
-                        plugin_requires_node := next(
-                            (kw for kw in body.value.keywords if kw.arg == "plugin_requires"), None
-                        )
-                    )
-                ):
-                    requires(*ast.literal_eval(plugin_requires_node.value))
-                elif (
-                    isinstance(body, ast.Assign)
-                    and isinstance(body.targets[0], ast.Name)
-                    and body.targets[0].id == "__plugin_metadata__"
-                    and isinstance(body.value, ast.Call)
-                    and isinstance(body.value.func, ast.Name)
-                    and body.value.func.id == "PluginMetadata"
-                    and (
-                        plugin_requires_node := next(
-                            (kw for kw in body.value.keywords if kw.arg == "plugin_requires"), None
-                        )
-                    )
-                ):
-                    requires(*ast.literal_eval(plugin_requires_node.value))
-                bodys.append(body)
-        nodes.body = bodys
+                    _ensure_plugin([alias.name for alias in body.names], False, name)
+                if body.lineno in signed_subplugin_lineno:
+                    _ensure_plugin([alias.name for alias in body.names], True, name)
+
         return _bootstrap._call_with_frames_removed(  # type: ignore
             compile, nodes, path, "exec", dont_inherit=True, optimize=-1
         )
@@ -259,9 +116,11 @@ class PluginLoader(SourceFileLoader):
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: Optional[dict[str, str]] = None) -> None:
+        is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             plugin.subplugins.add(module.__name__)
             plugin_service._subplugined[module.__name__] = plugin.id
+            is_sub = True
 
         if self.loaded:
             return
@@ -271,9 +130,6 @@ class PluginLoader(SourceFileLoader):
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)
-        setattr(module, "__entari_import__", __entari_import__)
-        setattr(module, "__getattr_or_import__", getattr_or_import)
-        setattr(module, "__plugin_service__", plugin_service)
 
         # enter plugin context
         token = _current_plugin.set(plugin)
@@ -287,8 +143,6 @@ class PluginLoader(SourceFileLoader):
         finally:
             # leave plugin context
             delattr(module, "__cached__")
-            delattr(module, "__plugin_service__")
-            sys.modules.pop(module.__name__, None)
             if not plugin.is_static:
                 scope_ctx.reset(token1)  # type: ignore
             _current_plugin.reset(token)
@@ -297,6 +151,10 @@ class PluginLoader(SourceFileLoader):
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
         if metadata and not plugin.metadata:
             plugin._metadata = metadata
+        if not is_sub:
+            log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
+        else:
+            log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
         return
 
 
@@ -356,10 +214,22 @@ class _PluginFinder(MetaPathFinder):
                 return module_spec
             elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
                 module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                plugin_service._referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
+                return module_spec
+            if (
+                module_spec.name in _ENSURE_IS_PLUGIN
+                or module_spec.name.startswith("arclet.entari.builtins.")
+                or module_spec.name.startswith("entari_plugin")
+            ):
+                module_spec.loader = PluginLoader(fullname, module_origin)
+                plugin_service._referents.setdefault(module_spec.name, set()).add(plug.id)
                 return module_spec
 
         if module_spec.name in plugin_service.plugins:
+            module_spec.loader = PluginLoader(fullname, module_origin)
+            return module_spec
+        if module_spec.name in _ENSURE_IS_PLUGIN:
             module_spec.loader = PluginLoader(fullname, module_origin)
             return module_spec
         if module_spec.name in plugin_service._subplugined:

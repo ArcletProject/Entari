@@ -86,7 +86,6 @@ def load_plugin(
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             es.publish(PluginLoadedFailed(path))
             return
-        log.plugin.success(f"loaded plugin <blue>{mod.__name__!r}</blue>")
         if mod.__name__ in plugin_service._unloaded:
             if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
                 referents = plugin_service._referents[mod.__name__].copy()
