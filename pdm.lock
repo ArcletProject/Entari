@@ -5,7 +5,7 @@
 groups = ["default", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:10f77c7fd3935c38033cf4076a92885c658f6bbe3aede80d7d2e227e54d0d374"
+content_hash = "sha256:163172e0d363c3611f0d64f57fe7c3673108b485ec38593e60ed1d3fdc1ba88b"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -194,7 +194,7 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.16.2"
+version = "0.17.0"
 requires_python = ">=3.9"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 groups = ["default"]
@@ -202,8 +202,8 @@ dependencies = [
     "tarina>=0.6.7",
 ]
 files = [
-    {file = "arclet_letoderea-0.16.2-py3-none-any.whl", hash = "sha256:51d20c553a6ff375aeacf807fbc5fefb21dc979c5787701679ad0ef6feaa647d"},
-    {file = "arclet_letoderea-0.16.2.tar.gz", hash = "sha256:7a0c8447050d08274de2db4336dacf74caff8beb0362fab278096b048efb9b1e"},
+    {file = "arclet_letoderea-0.17.0-py3-none-any.whl", hash = "sha256:7be94e5d45fdf9f4793e7a4d2d1e1c7e1e23d04bc4371ae7ffc91c4a99985f67"},
+    {file = "arclet_letoderea-0.17.0.tar.gz", hash = "sha256:cfa464f137cb80deef16f1259f37343f8f3529f8cf1e8c3f0c4cf78ac1b0dcf3"},
 ]
 
 [[package]]

@@ -9,7 +9,9 @@ import signal
 import sys
 
 from arclet.alconna import config as alconna_config
-from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, es, global_providers
+import arclet.letoderea as le
+from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, global_providers
+from arclet.letoderea.scope import configure
 from creart import it
 from launart import Launart, Service
 from satori import LoginStatus
@@ -129,7 +131,7 @@ class Entari(App):
     ):
         from . import __version__
 
-        es.global_skip_req_missing = skip_req_missing
+        configure(skip_req_missing=skip_req_missing)
         log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
@@ -142,7 +144,7 @@ class Entari(App):
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
 
-        es.on(ConfigReload, self.reset_self)
+        le.on(ConfigReload, self.reset_self)
 
         self._path_scale = ()
         _external = [str(Path(d).resolve()) for d in external_dirs or []]
@@ -176,7 +178,7 @@ class Entari(App):
             log.core.warning("External dirs cannot be changed at runtime, ignored.")
 
     def on_message(self, priority: int = 16):
-        return es.on(MessageCreatedEvent, priority=priority)
+        return le.on(MessageCreatedEvent, priority=priority)
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager
@@ -197,13 +199,13 @@ class Entari(App):
             ev = event_parse(account, event)
             if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
                 return
-            es.publish(ev)
+            le.publish(ev)
             return
 
         log.core.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
-        es.publish(AccountUpdate(account, state))
+        le.publish(AccountUpdate(account, state))
 
     def run(
         self,
@@ -258,5 +260,4 @@ class ServiceProviderFactory(ProviderFactory):
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore
-
-es.loop = it(asyncio.AbstractEventLoop)
+le.es.set_event_loop(it(asyncio.AbstractEventLoop))

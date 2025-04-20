@@ -4,10 +4,10 @@ from typing import Callable, Optional, TypeVar, Union, cast, overload
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import ExitState, Provider, Scope, Subscriber, es
-from arclet.letoderea.handler import generate_contexts
+import arclet.letoderea as le
+from arclet.letoderea import ExitState, Provider, Scope, Subscriber
 from arclet.letoderea.provider import ProviderFactory, get_providers
-from arclet.letoderea.typing import Contexts, TTarget
+from arclet.letoderea.typing import Contexts, TTarget, generate_contexts
 from nepattern import DirectPattern
 from satori.element import Text
 from tarina.string import split
@@ -46,7 +46,7 @@ class EntariCommands:
             to_text=lambda x: x.text if x.__class__ is Text else None,
             converter=lambda x: MessageChain(x),
         )
-        es.on(CommandExecute, self.execute)
+        le.on(CommandExecute, self.execute)
 
     @property
     def all_helps(self) -> str:
@@ -228,7 +228,7 @@ on = _commands.on
 
 
 async def execute(message: Union[str, MessageChain]):
-    res = await es.post(CommandExecute(message))
+    res = await le.post(CommandExecute(message))
     if res:
         return res.value
 

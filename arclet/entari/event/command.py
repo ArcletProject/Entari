@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Optional, Union
 
 from arclet.alconna import Alconna, Arparma
@@ -9,7 +8,6 @@ from ..session import Session
 from .base import Reply
 
 
-@dataclass
 @make_event(name="entari.event/command/execute")
 class CommandExecute:
     command: Union[str, MessageChain]
@@ -27,7 +25,6 @@ class CommandExecute:
     __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
 
 
-@dataclass
 @make_event(name="entari.event/command/output")
 class CommandOutput:
     """依据输出信息的类型，将字符串转换为消息对象以便发送。"""
@@ -40,7 +37,6 @@ class CommandOutput:
     __result_type__: "type[bool | str | MessageChain]" = Union[bool, str, MessageChain]
 
 
-@dataclass
 @make_event(name="entari.event/command/before_parse")
 class CommandReceive:
     """尝试解析命令时调用"""
@@ -53,7 +49,6 @@ class CommandReceive:
     __result_type__: "type[MessageChain]" = MessageChain
 
 
-@dataclass
 @make_event(name="entari.event/command/after_parse")
 class CommandParse:
     """解析完命令后调用"""

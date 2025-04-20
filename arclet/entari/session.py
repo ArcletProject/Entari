@@ -84,7 +84,7 @@ class EntariProtocol(ApiProtocol):
         )
         res = cast("list[dict]", res)
         resp = [MessageReceipt.parse(i) for i in res]
-        await es.publish(SendResponse(self.account, channel_id, msg, resp, sess), SendResponse.__publisher__)
+        await es.publish(SendResponse(self.account, channel_id, msg, resp, sess))
         return resp
 
 

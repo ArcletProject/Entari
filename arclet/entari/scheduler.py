@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from traceback import print_exc
 from typing import Callable, Literal
 
-from arclet.letoderea import es
+from arclet.letoderea import Scope, define
 from arclet.letoderea.typing import Contexts
 from launart import Launart, Service, any_completed
 from launart.status import Phase
@@ -13,12 +13,11 @@ from .plugin import RootlessPlugin, _current_plugin
 
 
 class _ScheduleEvent:
-    async def gather(self, context: Contexts):
-        pass
+    pass
 
 
-pub = es.define(_ScheduleEvent, "entari.event/schedule")
-scope = es.scope("entari.scheduler")
+pub = define(_ScheduleEvent, name="entari.event/schedule")
+scope = Scope.of("entari.scheduler")
 contexts: Contexts = {"$event": _ScheduleEvent()}  # type: ignore
 
 
@@ -67,7 +66,7 @@ class Scheduler(Service):
     def schedule(self, timer: Callable[[], timedelta], once: bool = False):
 
         def wrapper(func: Callable):
-            sub = scope.register(func, temporary=once, publisher=pub)
+            sub = scope.register(func, once=once, publisher=pub)
             if plugin := _current_plugin.get():
                 plugin.collect(sub.dispose)
             self.timers[sub.id] = TimerTask(timer, sub.id)

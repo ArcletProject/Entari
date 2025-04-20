@@ -10,7 +10,7 @@ import tokenize
 from types import ModuleType
 from typing import Optional
 
-from arclet.letoderea.context import scope_ctx
+from arclet.letoderea.scope import scope_ctx
 
 from ..logger import log
 from .model import Plugin, PluginMetadata, _current_plugin
@@ -18,6 +18,7 @@ from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
+_IMPORTING = set()
 
 
 def package(*names: str):
@@ -39,6 +40,7 @@ def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
         else:
             _ENSURE_IS_PLUGIN.add(f"{prefix}{name}")
         plugin_service._referents.setdefault(f"{prefix}{name}", set()).add(current)
+        _IMPORTING.add(f"{prefix}{name}")
 
 
 class PluginLoader(SourceFileLoader):
@@ -308,6 +310,10 @@ def import_plugin(name, package=None, config: Optional[dict] = None):
         if spec.loader:
             if isinstance(spec.loader, PluginLoader):
                 spec.loader.exec_module(mod, config=config)
+                sys.modules.pop(mod.__name__)
+                for _imported in _IMPORTING:
+                    sys.modules.pop(_imported, None)
+                _IMPORTING.clear()
             else:
                 spec.loader.exec_module(mod)
         return mod

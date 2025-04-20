@@ -8,7 +8,7 @@ from types import ModuleType
 from typing import Any, Callable, TypeVar, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, es
+from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define
 from arclet.letoderea.publisher import Publisher, _publishers
 from arclet.letoderea.typing import TTarget
 from creart import it
@@ -42,7 +42,7 @@ class PluginDispatcher:
         event: type[TE],
         name: str | None = None,
     ):
-        self.publisher = es.define(event, name)
+        self.publisher = define(event, name=name)
         self.plugin = plugin
         self._event = event
         self.providers: list[Provider[Any] | ProviderFactory] = []
@@ -72,7 +72,7 @@ class PluginDispatcher:
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
-        temporary: bool = False,
+        once: bool = False,
     ) -> Subscriber: ...
 
     @overload
@@ -83,7 +83,7 @@ class PluginDispatcher:
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
-        temporary: bool = False,
+        once: bool = False,
     ) -> Callable[[Callable[..., Any]], Subscriber]: ...
 
     def register(
@@ -94,13 +94,13 @@ class PluginDispatcher:
         providers: (
             Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
         ) = None,
-        temporary: bool = False,
+        once: bool = False,
     ):
         _providers = providers or []
         wrapper = self.plugin._scope.register(
             priority=priority,
             providers=[*self.providers, *_providers],
-            temporary=temporary,
+            once=once,
             publisher=self.publisher,
         )
 
@@ -145,8 +145,8 @@ class PluginDispatcher:
         ) = None,
     ):
         if func:
-            return self.register(func, priority=priority, providers=providers, temporary=True)
-        return self.register(priority=priority, providers=providers, temporary=True)
+            return self.register(func, priority=priority, providers=providers, once=True)
+        return self.register(priority=priority, providers=providers, once=True)
 
     on = register
     handle = register
@@ -224,7 +224,7 @@ class Plugin:
         self._dispose_callbacks.clear()
 
     def __post_init__(self):
-        self._scope = es.scope(self.id)
+        self._scope = Scope.of(self.id)
         plugin_service.plugins[self.id] = self
         allow = self.config.pop("$allow", {})
         deny = self.config.pop("$deny", {})

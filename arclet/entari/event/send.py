@@ -18,19 +18,20 @@ class SendRequest:
     message: MessageChain
     session: Union["Session", None] = None
 
-    async def gather(self, context: Contexts):
-        context["account"] = self.account
-        context["channel"] = self.channel
-        context["message"] = self.message
-        if self.session:
-            context["session"] = self.session
-
-    __publisher__ = "entari.event/before_send"
     __result_type__: "type[bool | MessageChain]" = Union[bool, MessageChain]
 
 
-before_send_pub = es.define(SendRequest)
+before_send_pub = es.define(SendRequest, name="entari.event/before_send")
 before_send_pub.bind(provide(MessageChain, target="message"))
+
+
+@before_send_pub.gather
+async def req_gather(req: SendRequest, context: Contexts):
+    context["account"] = req.account
+    context["channel"] = req.channel
+    context["message"] = req.message
+    if req.session:
+        context["session"] = req.session
 
 
 @dataclass
@@ -41,17 +42,17 @@ class SendResponse:
     result: list[MessageReceipt]
     session: Union["Session", None] = None
 
-    async def gather(self, context: Contexts):
-        context["account"] = self.account
-        context["channel"] = self.channel
-        context["message"] = self.message
-        context["result"] = self.result
-        if self.session:
-            context["session"] = self.session
 
-    __publisher__ = "entari.event/send"
-
-
-send_pub = es.define(SendResponse)
+send_pub = es.define(SendResponse, name="entari.event/after_send")
 send_pub.bind(provide(MessageChain, target="message"))
 send_pub.bind(provide(list, target="result"))
+
+
+@send_pub.gather
+async def resp_gather(resp: SendResponse, context: Contexts):
+    context["account"] = resp.account
+    context["channel"] = resp.channel
+    context["message"] = resp.message
+    context["result"] = resp.result
+    if resp.session:
+        context["session"] = resp.session

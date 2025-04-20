@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any, Optional, TypeVar, overload
 
 from arclet.letoderea import make_event
@@ -8,7 +7,6 @@ from ..config import config_model_validate
 _C = TypeVar("_C")
 
 
-@dataclass
 @make_event(name="entari.event/config/reload")
 class ConfigReload:
     scope: str

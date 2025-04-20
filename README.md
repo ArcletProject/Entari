@@ -133,6 +133,18 @@ load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
 app.run()
 ```
 
+导入插件:
+
+```python
+from arclet.entari import command, MessageChain, Image
+from entari_plugin_browser import md2img  # entari: plugin
+
+
+@command.on("md2img {content}")
+async def _(content: str):
+    return MessageChain(Image.of(raw=await md2img(content)))
+```
+
 
 ## 配置文件
 
