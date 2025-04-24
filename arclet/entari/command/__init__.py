@@ -151,7 +151,10 @@ class EntariCommands:
         providers = providers or []
 
         def wrapper(func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:
+            nonlocal meta
             if isinstance(command, str):
+                if not meta and func.__doc__:
+                    meta = CommandMeta(func.__doc__)
                 mapping = {arg.name: arg.value for arg in Args.from_callable(func)[0]}
                 mapping.update(args or {})  # type: ignore
                 _command = alconna_from_format(command, mapping, meta, union=False)
