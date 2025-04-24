@@ -1,6 +1,6 @@
 from typing import Any
 
-from arclet.entari.config import config_validator_register
+from arclet.entari.config import ConfigModelAction
 from arclet.entari.plugin import declare_static, metadata
 
 declare_static()
@@ -14,19 +14,33 @@ metadata(
 try:
     from pydantic import BaseModel, TypeAdapter
 
-    @config_validator_register(BaseModel)
-    def _pydantic_validate(data: dict[str, Any], base: type):
-        return TypeAdapter(base).validate_python(data)
+    class PydanticConfigAction(ConfigModelAction[BaseModel]):
+        """Pydantic Config Model Action"""
+
+        @classmethod
+        def load(cls, data: dict[str, Any], t: type):
+            return TypeAdapter(t).validate_python(data)
+
+        @classmethod
+        def dump(cls, obj):
+            return obj.model_dump()
 
 except ImportError:
     BaseModel = None
 
 try:
-    from msgspec import Struct, convert
+    from msgspec import Struct, convert, structs
 
-    @config_validator_register(Struct)
-    def _msgspec_validate(data: dict[str, Any], base: type):
-        return convert(data, base)
+    class MsgspecConfigAction(ConfigModelAction[Struct]):
+        """Msgspec Config Model Action"""
+
+        @classmethod
+        def load(cls, data: dict[str, Any], t: type):
+            return convert(data, t)
+
+        @classmethod
+        def dump(cls, obj):
+            return structs.asdict(obj)
 
 except ImportError:
     Struct = None

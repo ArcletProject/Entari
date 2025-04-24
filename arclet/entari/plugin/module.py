@@ -5,6 +5,7 @@ from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
+import re
 import sys
 import tokenize
 from types import ModuleType
@@ -19,6 +20,9 @@ from .service import plugin_service
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
 _IMPORTING = set()
+
+PLUGIN_PAT = re.compile(r"entari:\s*plugin")
+SUBPLUGIN_PAT = re.compile(r"entari:\s*(?:package|subplugin)")
 
 
 def package(*names: str):
@@ -77,9 +81,9 @@ class PluginLoader(SourceFileLoader):
         signed_subplugin_lineno = []
         for token in tokenize.tokenize(BytesIO(data).readline):
             if token.type == tokenize.COMMENT:
-                if "entari: plugin" in token.string:
+                if PLUGIN_PAT.search(token.string):
                     signed_plugin_lineno.append(token.start[0])
-                elif "entari: package" in token.string or "entari: subplugin" in token.string:
+                elif SUBPLUGIN_PAT.search(token.string):
                     signed_subplugin_lineno.append(token.start[0])
 
         try:
