@@ -103,6 +103,9 @@ class Watcher(Service):
                     or Path(change[1]).resolve().parent in extra
                 ):
                     continue
+                if EntariConfig.instance.save_flag:
+                    EntariConfig.instance.save_flag = False
+                    continue
                 logger.info(f"Detected change in {change[1]!r}, reloading config...")
 
                 old_basic = asdict(EntariConfig.instance.basic)  # noqa

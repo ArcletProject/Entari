@@ -1,4 +1,4 @@
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, Literal, Optional, TypeVar, overload
 
 from arclet.letoderea import make_event
 
@@ -9,7 +9,7 @@ _C = TypeVar("_C")
 
 @make_event(name="entari.event/config/reload")
 class ConfigReload:
-    scope: str
+    scope: Literal["basic", "plugin"]
     key: str
     value: Any
     old: Optional[Any] = None

@@ -194,6 +194,7 @@ class Plugin:
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
     _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
+    _config_key: str = field(init=False)
     _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
 
@@ -226,6 +227,7 @@ class Plugin:
     def __post_init__(self):
         self._scope = Scope.of(self.id)
         plugin_service.plugins[self.id] = self
+        self._config_key = self.config.pop("$path", self.id)
         allow = self.config.pop("$allow", {})
         deny = self.config.pop("$deny", {})
         pat = {}

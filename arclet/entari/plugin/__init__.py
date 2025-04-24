@@ -64,6 +64,7 @@ def load_plugin(
     if config is None:
         config = EntariConfig.instance.plugin.get(path)
     conf = (config or {}).copy()
+    conf["$path"] = path
     if prelude:
         conf["$static"] = True
     if recursive_guard is None:
@@ -133,14 +134,22 @@ def plugin_config() -> dict[str, Any]: ...
 
 
 @overload
-def plugin_config(model_type: type[_C]) -> _C: ...
+def plugin_config(model_type: type[_C], bind: bool = False) -> _C: ...
 
 
-def plugin_config(model_type: type[_C] | None = None):
-    """获取当前插件的配置"""
+def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
+    """获取当前插件的配置
+
+    Args:
+        model_type (type[_C], optional): 配置模型类型. Defaults to None.
+        bind (bool, optional): 是否将配置模型与配置绑定，绑定后配置模型的修改会影响配置. Defaults to False.
+    """
     plugin = get_plugin(1)
     if model_type:
-        return config_model_validate(model_type, plugin.config)
+        obj = config_model_validate(model_type, plugin.config)
+        if bind:
+            return EntariConfig.instance.bind(plugin._config_key, obj)
+        return obj
     return plugin.config
 
 

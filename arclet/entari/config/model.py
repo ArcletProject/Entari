@@ -38,60 +38,69 @@ class ConfigModelAction(Generic[C], metaclass=ABCMeta):
 
 
 class Proxy:
-    def __init__(self, source):
-        self.__source = source
+    def __init__(self, origin, updater):
+        self.__origin = origin
+        self.__updater = updater
 
     def __getattr__(self, item):
-        res = getattr(self.__source, item)
-        if isinstance(res, (list, tuple, set, dict, self.__source.__class__)):
-            return Proxy(res)
+        res = getattr(self.__origin, item)
+        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):
+            return Proxy(res, self.__updater)
         return res
 
     def __getitem__(self, item):
-        res = self.__source[item]
-        if isinstance(res, (list, tuple, set, dict, self.__source.__class__)):
-            return Proxy(res)
+        res = self.__origin[item]
+        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):
+            return Proxy(res, self.__updater)
         return res
 
     def __setattr__(self, key, value):
-        if key in {"_Proxy__source"}:
+        if key in {"_Proxy__origin", "_Proxy__updater"}:
             super().__setattr__(key, value)
         else:
-            setattr(self.__source, key, value)
+            setattr(self.__origin, key, value)
+            self.__updater()
 
     def __setitem__(self, key, value):
-        self.__source[key] = value
+        self.__origin[key] = value
+        self.__updater()
 
     def __repr__(self):
-        return self.__source.__repr__()
+        return self.__origin.__repr__()
 
     def __str__(self):
-        return self.__source.__str__()
+        return self.__origin.__str__()
 
     def __len__(self):
-        return len(self.__source)
+        return len(self.__origin)
 
     def __contains__(self, item):
-        return item in self.__source
+        return item in self.__origin
 
     def __iter__(self):
-        return self.__source.__iter__()
+        return self.__origin.__iter__()
 
     def __eq__(self, other):
         if isinstance(other, Proxy):
-            return self.__source == other._Proxy__source
-        return self.__source == other
+            return self.__origin == other._Proxy__origin
+        return self.__origin == other
 
     def __bool__(self):
-        return bool(self.__source)
+        return bool(self.__origin)
 
 
 def config_model_validate(base: type[C], data: dict[str, Any]) -> C:
     for b in base.__mro__[-2::-1]:
         if b in _config_model_actions:
-            ans = _config_model_actions[b].load(data, base)
-            return Proxy(ans)  # type: ignore
-    return Proxy(base(**data))  # type: ignore
+            return _config_model_actions[b].load(data, base)
+    return base(**data)  # type: ignore
+
+
+def config_model_dump(obj: Any) -> dict[str, Any]:
+    for b in obj.__class__.__mro__[-2::-1]:
+        if b in _config_model_actions:
+            return _config_model_actions[b].dump(obj)
+    return asdict(obj)  # type: ignore
 
 
 @dataclass_transform(kw_only_default=True)

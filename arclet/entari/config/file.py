@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Callable, ClassVar
+from typing import Any, Callable, ClassVar, TypeVar
 import warnings
 
-from .model import BasicConfModel, config_model_validate
+from .model import BasicConfModel, Proxy, config_model_dump, config_model_validate
 from .util import nest_dict_update
 
 ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}")
+T = TypeVar("T")
 
 
 class BasicConfig(BasicConfModel):
@@ -32,6 +33,9 @@ class EntariConfig:
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     loader: Callable[[EntariConfig], dict[str, Any]]
+    dumper: Callable[[EntariConfig, Path, int], None]
+    save_flag: bool = field(default=False)
+    _basic_data: dict[str, Any] = field(default_factory=dict, init=False)
 
     instance: ClassVar[EntariConfig]
 
@@ -62,6 +66,7 @@ class EntariConfig:
         if "entari" in data:
             data = data["entari"]
         self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
+        self._basic_data = data.get("basic", {})
         self.plugin = data.get("plugins", {})
         self.plugin_extra_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
         for file in self.plugin_extra_files:
@@ -109,33 +114,11 @@ class EntariConfig:
                         if _path.is_file():
                             plugins.pop(_path.stem)
             plugins = {"$files": self.plugin_extra_files, **plugins}
-        return {"basic": asdict(self.basic), "plugins": plugins}
+        return {"basic": self._basic_data, "plugins": plugins}
 
-    def save_json(self, path: str | os.PathLike[str], indent: int = 2):
-        origin = self.loader(self)
-        if "entari" in origin:
-            origin["entari"] = self.dump()
-        else:
-            origin = self.dump()
-        with Path(path).open("w+", encoding="utf-8") as f1:
-            json.dump(origin, f1, indent=indent, ensure_ascii=False)
-
-    def save_yaml(self, path: str | os.PathLike[str], indent: int = 2):
-        origin = self.loader(self)
-        if "entari" in origin:
-            nest_dict_update(origin["entari"], self.dump())
-        else:
-            nest_dict_update(origin, self.dump())
-
-        try:
-            from ruamel.yaml import YAML
-        except ImportError:
-            raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]")
-
-        yaml = YAML()
-        yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
-        with Path(path).open("w+", encoding="utf-8") as f1:
-            yaml.dump(origin, f1)
+    def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):
+        self.save_flag = True
+        self.dumper(self, Path(path or self.path), indent)
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:
@@ -156,7 +139,7 @@ class EntariConfig:
         else:
             _path = Path(path)
         if not _path.exists():
-            return cls(_path, lambda _: {})
+            return cls(_path, lambda _: {}, lambda _, __, ___: None)
         if not _path.is_file():
             raise ValueError(f"{_path} is not a file")
 
@@ -166,9 +149,16 @@ class EntariConfig:
                 with self.path.open("r", encoding="utf-8") as f:
                     return json.load(f)
 
-            obj = cls(_path, _json_loader)
-            cls.instance = obj
-            return obj
+            def _json_dumper(self: EntariConfig, pth: Path, indent: int):
+                origin = self.loader(self)
+                if "entari" in origin:
+                    origin["entari"] = self.dump()
+                else:
+                    origin = self.dump()
+                with pth.open("w+", encoding="utf-8") as f1:
+                    json.dump(origin, f1, indent=indent, ensure_ascii=False)
+
+            return cls(_path, _json_loader, _json_dumper)
         if _path.suffix in (".yaml", ".yml"):
             try:
                 from ruamel.yaml import YAML
@@ -184,8 +174,34 @@ class EntariConfig:
                     text = ENV_CONTEXT_PAT.sub(lambda m: os.environ.get(m["name"], ""), text)
                     return yaml.load(text)
 
-            return cls(_path, _yaml_loader)
+            def _yaml_dumper(self: EntariConfig, pth: Path, indent: int):
+                origin = self.loader(self)
+                if "entari" in origin:
+                    nest_dict_update(origin["entari"], self.dump())
+                else:
+                    nest_dict_update(origin, self.dump())
+
+                yaml = YAML()
+                yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
+                with pth.open("w+", encoding="utf-8") as f1:
+                    yaml.dump(origin, f1)
+
+            return cls(_path, _yaml_loader, _yaml_dumper)
         raise NotImplementedError(f"unsupported config file format: {_path!s}")
+
+    def bind(self, plugin: str, obj: T) -> T:
+        """
+        Bind the plugin object to the config, allowing the config to be updated when the object changes.
+        """
+        if plugin not in self.plugin:
+            raise KeyError(f"Plugin Config {plugin} not found in config")
+
+        def updater(target):
+            nest_dict_update(self.plugin[plugin], config_model_dump(target))
+            self.save()
+
+        ans = Proxy(obj, lambda target=obj: updater(target))
+        return ans  # type: ignore
 
 
 load_config = EntariConfig.load
