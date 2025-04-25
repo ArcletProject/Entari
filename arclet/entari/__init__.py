@@ -44,8 +44,8 @@ from . import scheduler as scheduler
 from .config import BasicConfModel as BasicConfModel
 from .config import load_config as load_config
 from .core import Entari as Entari
-from .event import MessageCreatedEvent as MessageCreatedEvent
-from .event import MessageEvent as MessageEvent
+from .event.base import MessageCreatedEvent as MessageCreatedEvent
+from .event.base import MessageEvent as MessageEvent
 from .filter import filter_ as filter_
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin

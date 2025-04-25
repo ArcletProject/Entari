@@ -5,7 +5,7 @@ from typing import Any
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import Provider, ProviderFactory, es
 
-from ..event import MessageCreatedEvent
+from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..plugin.model import Plugin, PluginDispatcher
 from .model import Match, Query

@@ -5,10 +5,12 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Callable, TypeVar, overload
 
-from arclet.letoderea import es
+from arclet.letoderea import on, publish
 from tarina import init_spec
 
-from ..config import EntariConfig, config_model_validate
+from ..config import EntariConfig, config_model_keys, config_model_validate
+from ..config.util import nest_obj_update
+from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
@@ -85,7 +87,7 @@ def load_plugin(
             mod = import_plugin(path1, config=conf)
         if not mod:
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
-            es.publish(PluginLoadedFailed(path))
+            publish(PluginLoadedFailed(path))
             return
         if mod.__name__ in plugin_service._unloaded:
             if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
@@ -102,14 +104,14 @@ def load_plugin(
                         else:
                             recursive_guard.add(referent)
             plugin_service._unloaded.discard(mod.__name__)
-        es.publish(PluginLoadedSuccess(mod.__name__))
+        publish(PluginLoadedSuccess(mod.__name__))
         return mod.__plugin__
     except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
         log.plugin.error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
-        es.publish(PluginLoadedFailed(path, e))
+        publish(PluginLoadedFailed(path, e))
     except Exception as e:
         log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e)
-        es.publish(PluginLoadedFailed(path, e))
+        publish(PluginLoadedFailed(path, e))
 
 
 def load_plugins(dir_: str | PathLike | Path):
@@ -142,12 +144,23 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
 
     Args:
         model_type (type[_C], optional): 配置模型类型. Defaults to None.
-        bind (bool, optional): 是否将配置模型与配置绑定，绑定后配置模型的修改会影响配置. Defaults to False.
+        bind (bool, optional): 是否将配置模型与配置绑定，绑定后配置模型的修改会更新配置文件,
+            而配置文件的修改则直接作用在配置模型上，不再重载整个插件. Defaults to False.
     """
     plugin = get_plugin(1)
     if model_type:
         obj = config_model_validate(model_type, plugin.config)
         if bind:
+
+            @plugin._scope.register(event=ConfigReload)
+            def _reload(event: ConfigReload):
+                if event.scope != "plugin":
+                    return
+                if event.key != plugin._config_key:
+                    return
+                new = config_model_validate(model_type, event.value)
+                nest_obj_update(obj, new, config_model_keys(new))
+
             return EntariConfig.instance.bind(plugin._config_key, obj)
         return obj
     return plugin.config
@@ -205,9 +218,9 @@ def unload_plugin(plugin: str):
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
-    es.publish(PluginUnloaded(_plugin.id))
+    publish(PluginUnloaded(_plugin.id))
     _plugin.dispose()
     return True
 
 
-listen = es.on
+listen = on

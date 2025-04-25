@@ -25,6 +25,10 @@ try:
         def dump(cls, obj):
             return obj.model_dump()
 
+        @classmethod
+        def keys(cls, obj) -> list[str]:
+            return list(obj.model_fields.keys())
+
 except ImportError:
     BaseModel = None
 
@@ -41,6 +45,10 @@ try:
         @classmethod
         def dump(cls, obj):
             return structs.asdict(obj)
+
+        @classmethod
+        def keys(cls, obj) -> list[str]:
+            return [field.name for field in structs.fields(obj)]
 
 except ImportError:
     Struct = None

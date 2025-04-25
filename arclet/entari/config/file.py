@@ -76,6 +76,9 @@ class EntariConfig:
         self.reload()
 
     def reload(self):
+        if self.save_flag:
+            self.save_flag = False
+            return False
         data = self.loader(self.path)
         if "entari" in data:
             data = data["entari"]
@@ -111,6 +114,7 @@ class EntariConfig:
             warnings.warn(
                 f"`False` usage in plugin '{k}' config is deprecated, use `~` prefix instead", DeprecationWarning
             )
+        return True
 
     def dump(self, indent: int = 2):
         plugins = self.plugin.copy()

@@ -28,6 +28,14 @@ class ConfigModelAction(Generic[C], metaclass=ABCMeta):
         """
         pass
 
+    @classmethod
+    @abstractmethod
+    def keys(cls, obj: C) -> list[str]:
+        """
+        Get the keys of the configuration model.
+        """
+        pass
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__()
         if cls.__orig_bases__[0].__args__[0] is C:  # type: ignore
@@ -103,6 +111,13 @@ def config_model_dump(obj: Any) -> dict[str, Any]:
     return asdict(obj)  # type: ignore
 
 
+def config_model_keys(obj: Any) -> list[str]:
+    for b in obj.__class__.__mro__[-2::-1]:
+        if b in _config_model_actions:
+            return _config_model_actions[b].keys(obj)
+    return [field_.name for field_ in fields(obj)]  # type: ignore
+
+
 @dataclass_transform(kw_only_default=True)
 class BasicConfModel:
     def __init__(self, **kwargs):
@@ -151,3 +166,7 @@ class BasicConfModelAction(ConfigModelAction[BasicConfModel]):
     @classmethod
     def dump(cls, obj: BasicConfModel) -> dict[str, Any]:
         return asdict(obj)  # type: ignore
+
+    @classmethod
+    def keys(cls, obj: BasicConfModel) -> list[str]:
+        return [field_.name for field_ in fields(obj)]  # type: ignore
