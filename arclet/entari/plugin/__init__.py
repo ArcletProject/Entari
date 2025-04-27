@@ -151,17 +151,20 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
     if model_type:
         obj = config_model_validate(model_type, plugin.config)
         if bind:
+            plugin_key = plugin._config_key
 
-            @plugin._scope.register(event=ConfigReload)
             def _reload(event: ConfigReload):
                 if event.scope != "plugin":
                     return
-                if event.key != plugin._config_key:
+                if event.key != plugin_key:
                     return
                 new = config_model_validate(model_type, event.value)
                 nest_obj_update(obj, new, config_model_keys(new))
 
-            return EntariConfig.instance.bind(plugin._config_key, obj)
+            sub = plugin._scope.register(_reload, event=ConfigReload)
+            proxy = EntariConfig.instance.bind(plugin_key, obj)
+            plugin.collect(lambda: delattr(proxy, "_Proxy__origin"), sub.dispose)
+            return proxy
         return obj
     return plugin.config
 

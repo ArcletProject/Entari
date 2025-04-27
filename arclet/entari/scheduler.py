@@ -41,7 +41,7 @@ class Scheduler(Service):
     def __init__(self):
         super().__init__()
         self.queue: asyncio.Queue[TimerTask] = asyncio.Queue()
-        self.timers: dict[str, TimerTask] = {}
+        self.tasks: dict[str, TimerTask] = {}
 
     @property
     def required(self) -> set[str]:
@@ -53,33 +53,40 @@ class Scheduler(Service):
 
     async def fetch(self):
         while True:
-            timer = await self.queue.get()
-            if timer.sub_id not in scope.subscribers:
-                del self.timers[timer.sub_id]
+            task = await self.queue.get()
+            if task.sub_id not in scope.subscribers:
+                del self.tasks[task.sub_id]
                 continue
-            timer.start(self.queue)
+            task.start(self.queue)
             try:
-                await scope.subscribers[timer.sub_id][0].handle(contexts.copy())
+                await scope.subscribers[task.sub_id][0].handle(contexts.copy())
             except Exception:
                 print_exc()
 
-    def schedule(self, timer: Callable[[], timedelta], once: bool = False):
+    def schedule(self, time_fn: Callable[[], timedelta], once: bool = False):
+        """
+        设置一个定时任务
+
+        Args:
+            time_fn: 用于提供定时间隔的函数
+            once: 是否只执行一次
+        """
 
         def wrapper(func: Callable):
             sub = scope.register(func, once=once, publisher=pub)
             if plugin := _current_plugin.get():
                 plugin.collect(sub.dispose)
-            self.timers[sub.id] = TimerTask(timer, sub.id)
+            self.tasks[sub.id] = TimerTask(time_fn, sub.id)
             if _get_running_loop():
-                self.timers[sub.id].start(self.queue)
+                self.tasks[sub.id].start(self.queue)
             return sub
 
         return wrapper
 
     async def launch(self, manager: Launart):
         async with self.stage("preparing"):
-            for timer in self.timers.values():
-                timer.start(self.queue)
+            for task in self.tasks.values():
+                task.start(self.queue)
 
         async with self.stage("blocking"):
             sigexit_task = asyncio.create_task(manager.status.wait_for_sigexit())
@@ -89,13 +96,14 @@ class Scheduler(Service):
                 fetch_task.cancel()
 
         async with self.stage("cleanup"):
-            for timer in self.timers.values():
-                timer.cancel()
+            for task in self.tasks.values():
+                task.cancel()
 
     id = "entari.scheduler"
 
 
 scheduler = service = Scheduler()
+schedule = scheduler.schedule
 
 
 @RootlessPlugin.apply("scheduler")
@@ -103,118 +111,124 @@ def _(plg: RootlessPlugin):
     plg.service(service)
 
 
-def every_second():
-    """每秒执行一次"""
-    return lambda: timedelta(seconds=1)
+class timer:
+    @staticmethod
+    def every_second():
+        """每秒执行一次"""
+        return lambda: timedelta(seconds=1)
 
+    @staticmethod
+    def every_seconds(seconds: int):
+        """每 seconds 秒执行一次
 
-def every_seconds(seconds: int):
-    """每 seconds 秒执行一次
+        Args:
+            seconds (int): 距离下一次执行的时间间隔, 单位为秒
+        """
+        if seconds > 59 or seconds < 1:
+            raise ValueError
+        return lambda: timedelta(seconds=seconds)
 
-    Args:
-        seconds (int): 距离下一次执行的时间间隔, 单位为秒
-    """
-    if seconds > 59 or seconds < 1:
-        raise ValueError
-    return lambda: timedelta(seconds=seconds)
+    @staticmethod
+    def every_minute():
+        """每分钟执行一次"""
+        return lambda: timedelta(minutes=1)
 
+    @staticmethod
+    def every_minutes(minutes: int):
+        """每 minutes 分钟执行一次
 
-def every_minute():
-    """每分钟执行一次"""
-    return lambda: timedelta(minutes=1)
+        Args:
+            minutes (int): 距离下一次执行的时间间隔, 单位为分
+        """
+        if minutes > 59 or minutes < 1:
+            raise ValueError
+        return lambda: timedelta(minutes=minutes)
 
+    @staticmethod
+    def every_hour():
+        """每小时执行一次"""
+        return lambda: timedelta(hours=1)
 
-def every_minutes(minutes: int):
-    """每 minutes 分钟执行一次
+    @staticmethod
+    def every_hours(hours: int):
+        """每 hours 小时执行一次
 
-    Args:
-        minutes (int): 距离下一次执行的时间间隔, 单位为分
-    """
-    if minutes > 59 or minutes < 1:
-        raise ValueError
-    return lambda: timedelta(minutes=minutes)
+        Args:
+            hours (int): 距离下一次执行的时间间隔, 单位为小时
+        """
+        if hours > 23 or hours < 1:
+            raise ValueError
+        return lambda: timedelta(hours=hours)
 
+    @staticmethod
+    def every_week():
+        """每隔一周执行一次"""
+        return lambda: timedelta(weeks=1)
 
-def every_hour():
-    """每小时执行一次"""
-    return lambda: timedelta(hours=1)
+    @staticmethod
+    def every_weeks(weeks: int):
+        """每 weeks 周执行一次
 
+        Args:
+            weeks (int): 距离下一次执行的时间间隔, 单位为周
+        """
+        if weeks > 52 or weeks < 1:
+            raise ValueError
+        return lambda: timedelta(weeks=weeks)
 
-def every_hours(hours: int):
-    """每 hours 小时执行一次
+    @staticmethod
+    def every_day():
+        """每隔一天执行一次"""
+        return lambda: timedelta(days=1)
 
-    Args:
-        hours (int): 距离下一次执行的时间间隔, 单位为小时
-    """
-    if hours > 23 or hours < 1:
-        raise ValueError
-    return lambda: timedelta(hours=hours)
+    @staticmethod
+    def every_days(days: int):
+        """每 days 天执行一次
 
+        Args:
+            days (int): 距离下一次执行的时间间隔, 单位为天
+        """
+        if days > 31 or days < 1:
+            raise ValueError
+        return lambda: timedelta(days=days)
 
-def every_week():
-    """每隔一周执行一次"""
-    return lambda: timedelta(weeks=1)
+    @staticmethod
+    def crontab(cron_str: str):
+        """根据 cron 表达式执行
 
+        Args:
+            cron_str (str): cron 表达式
+        """
+        try:
+            from croniter import croniter
+        except ModuleNotFoundError:
+            raise ImportError(
+                "Please install `croniter` first. Install with `pip install arclet-entari[cron]`"
+            ) from None
 
-def every_weeks(weeks: int):
-    """每 weeks 周执行一次
+        it = croniter(cron_str, datetime.now())
 
-    Args:
-        weeks (int): 距离下一次执行的时间间隔, 单位为周
-    """
-    if weeks > 52 or weeks < 1:
-        raise ValueError
-    return lambda: timedelta(weeks=weeks)
-
-
-def every_day():
-    """每隔一天执行一次"""
-    return lambda: timedelta(days=1)
-
-
-def every_days(days: int):
-    """每 days 天执行一次
-
-    Args:
-        days (int): 距离下一次执行的时间间隔, 单位为天
-    """
-    if days > 31 or days < 1:
-        raise ValueError
-    return lambda: timedelta(days=days)
-
-
-def crontab(cron_str: str):
-    """根据 cron 表达式执行
-
-    Args:
-        cron_str (str): cron 表达式
-    """
-    try:
-        from croniter import croniter
-    except ModuleNotFoundError:
-        raise ImportError("Please install `croniter` first. Install with `pip install arclet-entari[cron]`") from None
-
-    it = croniter(cron_str, datetime.now())
-
-    return lambda iter=it: iter.get_next(datetime) - datetime.now()
+        return lambda iter=it: iter.get_next(datetime) - datetime.now()
 
 
 def cron(pattern: str):
-    return service.schedule(crontab(pattern))
+    """使用 cron 表达式设置一个定时任务"""
+    return service.schedule(timer.crontab(pattern))
 
 
-def every(
-    value: int = 1,
-    mode: Literal["second", "minute", "hour"] = "second",
-):
+def every(value: int = 1, mode: Literal["second", "minute", "hour"] = "second"):
+    """依据 mode 设置一个定时任务"""
     _TIMER_MAPPING = {
-        "second": every_seconds,
-        "minute": every_minutes,
-        "hour": every_hours,
+        "second": timer.every_seconds,
+        "minute": timer.every_minutes,
+        "hour": timer.every_hours,
     }
     return service.schedule(_TIMER_MAPPING[mode](value))
 
 
 def invoke(delay: float):
-    """延迟执行"""
+    """延迟 delay 秒执行"""
     return service.schedule(lambda: timedelta(seconds=delay), once=True)
+
+
+__all__ = ["scheduler", "schedule", "timer", "cron", "every", "invoke"]
