@@ -28,7 +28,7 @@
 使用命令行:
 ```shell
 # 生成配置文件
-$ entari new
+$ entari config new
 ```
 ```shell
 # 运行
