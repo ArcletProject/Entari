@@ -247,7 +247,7 @@ def _(plg: RootlessPlugin):
 
     plg.dispatch(MessageCreatedEvent).handle(_commands.handle).propagate(_commands.judge)
 
-    @plg.use(ConfigReload)
+    @plg.dispatch(ConfigReload)
     def update(event: ConfigReload):
         if event.scope != "plugin":
             return

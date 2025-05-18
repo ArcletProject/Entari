@@ -107,7 +107,7 @@ async def unloaded(event):
     print(f">> Plugin {event.name} Unloaded")
 
 
-@plug.use(CommandOutput)
+@plug.dispatch(CommandOutput)
 async def output_hook(event: CommandOutput):
     content = event.content
     return f"{event.type.title()}:\n{content}"

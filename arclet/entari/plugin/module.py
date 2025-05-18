@@ -98,7 +98,10 @@ class PluginLoader(SourceFileLoader):
                     _ensure_plugin(
                         [alias.name for alias in body.names], body.lineno not in signed_plugin_lineno, name, f"{name}."
                     )
-                elif body.level == 0 and body.module not in sys.builtin_module_names:  # from xxx import xxx
+                elif body.level == 0 and body.module not in (
+                    *sys.builtin_module_names,
+                    *getattr(sys, "stdlib_module_names", []),
+                ):  # from xxx import xxx
                     if body.lineno in signed_plugin_lineno:
                         _ensure_plugin([body.module], False, name)
                     if body.lineno in signed_subplugin_lineno:

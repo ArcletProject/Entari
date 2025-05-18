@@ -288,7 +288,7 @@ class Plugin:
     @overload
     def use(
         self,
-        pub: Any,
+        pub: str | Publisher,
         *,
         priority: int = 16,
         providers: (
@@ -299,7 +299,7 @@ class Plugin:
     @overload
     def use(
         self,
-        pub: Any,
+        pub: str | Publisher,
         func: Callable[..., Any],
         *,
         priority: int = 16,
@@ -310,7 +310,7 @@ class Plugin:
 
     def use(
         self,
-        pub: Any,
+        pub: str | Publisher,
         func: Callable[..., Any] | None = None,
         *,
         priority: int = 16,
@@ -325,7 +325,7 @@ class Plugin:
         elif isinstance(pub, Publisher):
             pid = pub.id
         else:
-            pid = getattr(pub, "__publisher__")
+            raise TypeError(f"invalid publisher type: {type(pub)}")
         if pid not in _publishers:
             raise LookupError(f"no publisher found: {pid}")
         disp = PluginDispatcher(self, _publishers[pid].target)

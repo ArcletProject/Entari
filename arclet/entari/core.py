@@ -82,7 +82,7 @@ def record(plg: RootlessPlugin):
 
     if cfg.get("record_send", False):
 
-        @plg.use(SendResponse)
+        @plg.dispatch(SendResponse)
         async def log_send(event: SendResponse):
             if event.session:
                 log.message.info(

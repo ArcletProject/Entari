@@ -87,7 +87,7 @@ def localdata_apply(plg: RootlessPlugin):
     if "base_dir" in conf:
         local_data.base_dir = conf["base_dir"]
 
-    @plg.use(ConfigReload)
+    @plg.dispatch(ConfigReload)
     def reload_config(event: ConfigReload):
         if event.scope != "plugin":
             return
