@@ -69,7 +69,10 @@ class AlconnaSuppiler(Propagator):
         return {"_message": message}
 
     async def supply(self, ctx: Contexts):
-        _message: MessageChain = ctx.pop("_message")
+        try:
+            _message: MessageChain = ctx.pop("_message")
+        except KeyError:
+            raise ProviderUnsatisfied("_message") from None
         with output_manager.capture(self.cmd.name) as cap:
             output_manager.set_action(lambda x: x, self.cmd.name)
             try:
@@ -80,7 +83,10 @@ class AlconnaSuppiler(Propagator):
         return {"_result": CommandResult(self.cmd, _res, may_help_text)}
 
     async def after_supply(self, ctx: Contexts, session: Optional[Session] = None):
-        alc_result: CommandResult = ctx.pop("_result")
+        try:
+            alc_result: CommandResult = ctx.pop("_result")
+        except KeyError:
+            raise ProviderUnsatisfied("_result") from None
         _res = alc_result.result
         if session and (pres := await post(CommandParse(session, self.cmd, _res))):
             if isinstance(pres.value, Arparma):

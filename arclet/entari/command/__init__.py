@@ -39,7 +39,7 @@ class EntariCommands:
     def __init__(self, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
         self.trie: CharTrie[str] = CharTrie()
         self.scope = Scope("entari.command")
-        self.scope.bind(*get_providers(MessageCreatedEvent), AlconnaProviderFactory())
+        self.scope.bind(*get_providers(MessageCreatedEvent), *get_providers(CommandExecute), AlconnaProviderFactory())
         self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
         config.namespaces["Entari"] = Namespace(
             self.__namespace__,
