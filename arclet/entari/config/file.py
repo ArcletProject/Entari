@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from importlib import import_module
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -16,7 +18,7 @@ try:
 except ImportError:
     YAML = None
 
-ENV_CONTEXT_PAT = re.compile(r"\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}")
+ENV_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}['\"]?")
 T = TypeVar("T")
 
 
@@ -30,7 +32,7 @@ class BasicConfig(BasicConfModel):
     external_dirs: list[str] = field(default_factory=list)
 
 
-_loaders: dict[str, Callable[[Path], dict]] = {}
+_loaders: dict[str, Callable[[str], dict]] = {}
 _dumpers: dict[str, Callable[[Path, dict, int], None]] = {}
 
 
@@ -52,7 +54,10 @@ class EntariConfig:
             return {}
         end = path.suffix.split(".")[-1]
         if end in _loaders:
-            return _loaders[end](path)
+            with path.open("r", encoding="utf-8") as f:
+                text = f.read()
+                text = ENV_CONTEXT_PAT.sub(lambda m: os.environ.get(m["name"], ""), text)
+                return _loaders[end](text)
 
         raise ValueError(f"Unsupported file format: {path.suffix}")
 
@@ -80,6 +85,7 @@ class EntariConfig:
             self.save_flag = False
             return False
         data = self.loader(self.path)
+        print(data)
         if "entari" in data:
             data = data["entari"]
         self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
@@ -156,6 +162,16 @@ class EntariConfig:
                 _path = Path.cwd() / "entari.yml"
         else:
             _path = Path(path)
+        if "ENTARI_CONFIG_EXTENSION" in os.environ:
+            ext_mods = os.environ["ENTARI_CONFIG_EXTENSION"].split(";")
+            for ext_mod in ext_mods:
+                if not ext_mod:
+                    continue
+                ext_mod = ext_mod.replace("::", "arclet.entari.builtins.config.")
+                try:
+                    import_module(ext_mod)
+                except ImportError as e:
+                    warnings.warn(f"Failed to load config extension '{ext_mod}': {e}", ImportWarning)
         if not _path.exists():
             return cls(_path)
         if not _path.is_file():
@@ -183,7 +199,7 @@ load_config = EntariConfig.load
 def register_loader(*ext: str):
     """Register a loader for a specific file extension."""
 
-    def decorator(func: Callable[[Path], dict]):
+    def decorator(func: Callable[[str], dict]):
         for e in ext:
             _loaders[e] = func
         return func
@@ -203,9 +219,8 @@ def register_dumper(*ext: str):
 
 
 @register_loader("json")
-def json_loader(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+def json_loader(text: str) -> dict:
+    return json.loads(text)
 
 
 @register_dumper("json")
@@ -215,13 +230,12 @@ def json_dumper(save_path: Path, origin: dict, indent: int):
 
 
 @register_loader("yaml", "yml")
-def yaml_loader(path: Path) -> dict:
+def yaml_loader(text: str) -> dict:
     if YAML is None:
         raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
     yaml = YAML()
     yaml.indent(mapping=2, sequence=4, offset=2)
-    with path.open("r", encoding="utf-8") as f:
-        return yaml.load(f)
+    return yaml.load(StringIO(text))
 
 
 @register_dumper("yaml", "yml")
