@@ -90,19 +90,19 @@ def load_plugin(
             publish(PluginLoadedFailed(path))
             return
         if mod.__name__ in plugin_service._unloaded:
-            if mod.__name__ in plugin_service._referents and plugin_service._referents[mod.__name__]:
-                referents = plugin_service._referents[mod.__name__].copy()
-                plugin_service._referents[mod.__name__].clear()
+            if mod.__name__ in plugin_service.referents and plugin_service.referents[mod.__name__]:
+                referents = plugin_service.referents[mod.__name__].copy()
+                plugin_service.referents[mod.__name__].clear()
                 for referent in referents:
                     if referent in recursive_guard:
                         continue
                     if referent in plugin_service.plugins:
                         log.plugin.debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
                         unload_plugin(referent)
-                        if not load_plugin(referent):
-                            plugin_service._referents[mod.__name__].add(referent)
-                        else:
-                            recursive_guard.add(referent)
+                    if not load_plugin(referent):
+                        plugin_service.referents[mod.__name__].add(referent)
+                    else:
+                        recursive_guard.add(referent)
             plugin_service._unloaded.discard(mod.__name__)
         publish(PluginLoadedSuccess(mod.__name__))
         return mod.__plugin__

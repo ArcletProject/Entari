@@ -43,7 +43,8 @@ def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
             _SUBMODULE_WAITLIST.setdefault(current, set()).add(f"{prefix}{name}")
         else:
             _ENSURE_IS_PLUGIN.add(f"{prefix}{name}")
-        plugin_service._referents.setdefault(f"{prefix}{name}", set()).add(current)
+        plugin_service.referents.setdefault(f"{prefix}{name}", set()).add(current)
+        plugin_service.references.setdefault(current, set()).add(f"{prefix}{name}")
         _IMPORTING.add(f"{prefix}{name}")
 
 
@@ -223,7 +224,7 @@ class _PluginFinder(MetaPathFinder):
                 return module_spec
             elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
                 module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                plugin_service._referents.setdefault(module_spec.name, set()).add(plug.id)
+                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec
             if (
@@ -232,7 +233,7 @@ class _PluginFinder(MetaPathFinder):
                 or module_spec.name.startswith("entari_plugin")
             ):
                 module_spec.loader = PluginLoader(fullname, module_origin)
-                plugin_service._referents.setdefault(module_spec.name, set()).add(plug.id)
+                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 return module_spec
 
         if module_spec.name in plugin_service.plugins:

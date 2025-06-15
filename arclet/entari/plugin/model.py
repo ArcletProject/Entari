@@ -8,13 +8,14 @@ from types import ModuleType
 from typing import Any, Callable, TypeVar, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define
+from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define, publish
 from arclet.letoderea.publisher import Publisher, _publishers
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
+from ..event.plugin import PluginUnloaded
 from ..filter import parse
 from ..logger import log
 from .service import plugin_service
@@ -242,14 +243,18 @@ class Plugin:
             self.config.pop("$static")
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
-        if self.id not in plugin_service._referents:
-            plugin_service._referents[self.id] = set()
+        if self.id not in plugin_service.referents:
+            plugin_service.referents[self.id] = set()
+        if self.id not in plugin_service.references:
+            plugin_service.references[self.id] = set()
         finalize(self, self.dispose)
 
-    def dispose(self):
+    def dispose(self, *, is_cleanup: bool = False):
         plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return
+        if not self.id.startswith("."):
+            log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
         for serv in self._services.values():
             try:
@@ -275,6 +280,34 @@ class Plugin:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
+        if not is_cleanup:
+            publish(PluginUnloaded(self.id))
+            for ref in plugin_service.references.pop(self.id):
+                if ref not in plugin_service.plugins:
+                    continue
+                if ref not in plugin_service.referents:
+                    continue
+                if ref in plugin_service._unloaded:
+                    continue
+                if self.id not in plugin_service.referents[ref]:
+                    continue
+                plugin_service.referents[ref].remove(self.id)
+                if not plugin_service.referents[ref]:  # if no more referents, remove it
+                    try:
+                        plugin_service.plugins[ref].dispose()
+                    except Exception as e:
+                        log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
+                        plugin_service.plugins.pop(ref, None)
+            for ret in plugin_service.referents[self.id].copy():
+                if ret not in plugin_service.plugins:
+                    continue
+                if ret in plugin_service._unloaded:
+                    continue
+                try:
+                    plugin_service.plugins[ret].dispose()
+                except Exception as e:
+                    log.plugin.error(f"failed to dispose referent plugin <r>{ret}</r> caused by {e!r}")
+                    plugin_service.plugins.pop(ret, None)
         self._scope.dispose()
         self._scope.propagators.clear()
         del plugin_service.plugins[self.id]
@@ -375,7 +408,7 @@ class RootlessPlugin(Plugin):
     def apply(cls, id: str, func: Callable[[RootlessPlugin], Any]) -> Callable[[], None]: ...
 
     @classmethod
-    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any] | None = None) -> Any:
+    def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None) -> Any:
         if not id.startswith("."):
             id = f".{id}"
 

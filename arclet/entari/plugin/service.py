@@ -17,7 +17,8 @@ class PluginManagerService(Service):
 
     plugins: dict[str, "Plugin"]
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
-    _referents: dict[str, set[str]]
+    referents: dict[str, set[str]]
+    references: dict[str, set[str]]
     _unloaded: set[str]
     _subplugined: dict[str, str]
     _apply: dict[str, Callable[[dict[str, Any]], "RootlessPlugin"]]
@@ -26,7 +27,8 @@ class PluginManagerService(Service):
         super().__init__()
         self.plugins = {}
         self._keep_values = {}
-        self._referents = {}
+        self.referents = {}
+        self.references = {}
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
@@ -55,11 +57,9 @@ class PluginManagerService(Service):
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
             for plug_id in reversed(ids):
                 plug = self.plugins[plug_id]
-                if not plug.id.startswith("."):
-                    log.plugin.debug(f"disposing plugin <y>{plug.id}</y>")
                 try:
                     await es.publish(PluginUnloaded(plug.id))
-                    plug.dispose()
+                    plug.dispose(is_cleanup=True)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")
                     self.plugins.pop(plug_id, None)
