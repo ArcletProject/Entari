@@ -19,6 +19,7 @@ class PluginManagerService(Service):
     _keep_values: dict[str, dict[str, "KeepingVariable"]]
     referents: dict[str, set[str]]
     references: dict[str, set[str]]
+    _direct_plugins: set[str]
     _unloaded: set[str]
     _subplugined: dict[str, str]
     _apply: dict[str, Callable[[dict[str, Any]], "RootlessPlugin"]]
@@ -26,6 +27,7 @@ class PluginManagerService(Service):
     def __init__(self):
         super().__init__()
         self.plugins = {}
+        self._direct_plugins = set()
         self._keep_values = {}
         self.referents = {}
         self.references = {}

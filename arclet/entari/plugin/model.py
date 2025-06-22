@@ -247,7 +247,8 @@ class Plugin:
             plugin_service.referents[self.id] = set()
         if self.id not in plugin_service.references:
             plugin_service.references[self.id] = set()
-        finalize(self, self.dispose)
+        plugin_service._unloaded.discard(self.id)
+        finalize(self, self.dispose, is_cleanup=True)
 
     def dispose(self, *, is_cleanup: bool = False):
         plugin_service._unloaded.add(self.id)
@@ -292,7 +293,9 @@ class Plugin:
                 if self.id not in plugin_service.referents[ref]:
                     continue
                 plugin_service.referents[ref].remove(self.id)
-                if not plugin_service.referents[ref]:  # if no more referents, remove it
+                if (
+                    not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins
+                ):  # if no more referents, remove it
                     try:
                         plugin_service.plugins[ref].dispose()
                     except Exception as e:

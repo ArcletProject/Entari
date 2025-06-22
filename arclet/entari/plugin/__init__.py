@@ -11,6 +11,7 @@ from tarina import init_spec
 from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..config.util import nest_obj_update
 from ..event.config import ConfigReload
+from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
@@ -77,6 +78,7 @@ def load_plugin(
     if path in plugin_service._apply:
         return plugin_service._apply[path](conf)
     if plug := find_plugin(path):
+        plugin_service._direct_plugins.add(plug.id)
         return plug
     try:
         if pref := conf.pop("$prefix", None):
@@ -89,21 +91,23 @@ def load_plugin(
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             publish(PluginLoadedFailed(path))
             return
-        if mod.__name__ in plugin_service._unloaded:
-            if mod.__name__ in plugin_service.referents and plugin_service.referents[mod.__name__]:
-                referents = plugin_service.referents[mod.__name__].copy()
-                plugin_service.referents[mod.__name__].clear()
-                for referent in referents:
-                    if referent in recursive_guard:
-                        continue
-                    if referent in plugin_service.plugins:
-                        log.plugin.debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
-                        unload_plugin(referent)
-                    if not load_plugin(referent):
-                        plugin_service.referents[mod.__name__].add(referent)
-                    else:
-                        recursive_guard.add(referent)
-            plugin_service._unloaded.discard(mod.__name__)
+        plugin_service._direct_plugins.add(mod.__name__)
+        if mod.__name__ in plugin_service.referents and plugin_service.referents[mod.__name__]:
+            referents = plugin_service.referents[mod.__name__].copy()
+            plugin_service.referents[mod.__name__].clear()
+            for referent in referents:
+                if referent in recursive_guard:
+                    continue
+                if referent in plugin_service.plugins:
+                    log.plugin.debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
+                    unload_plugin(referent)
+                if not (plug := load_plugin(referent)):
+                    plugin_service.referents[mod.__name__].add(referent)
+                else:
+                    publish(Ready(), plug._scope)
+                    recursive_guard.add(referent)
+        if plugin_service.status.blocking:
+            publish(Ready(), mod.__plugin__._scope)
         publish(PluginLoadedSuccess(mod.__name__))
         return mod.__plugin__
     except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
