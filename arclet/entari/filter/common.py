@@ -1,44 +1,45 @@
 from collections.abc import Awaitable
-from typing import Any, Callable, Optional, Union
+from typing import Callable, Optional, Union
 from typing_extensions import TypeAlias
 
 from arclet.letoderea import STOP, Propagator
+from arclet.letoderea.typing import run_sync
 
 from ..session import Session
 from .message import direct_message, notice_me, public_message, reply_me, to_me
 
 
 def user(*ids: str):
-    async def check_user(session: Session):
-        return (None if session.user.id in ids else STOP) if ids else None
+    def check_user(session: Session):
+        return (session.user.id in ids) if ids else True
 
     return check_user
 
 
 def channel(*ids: str):
-    async def check_channel(session: Session):
-        return (None if session.channel.id in ids else STOP) if ids else None
+    def check_channel(session: Session):
+        return (session.channel.id in ids) if ids else True
 
     return check_channel
 
 
 def guild(*ids: str):
-    async def check_guild(session: Session):
-        return (None if session.guild.id in ids else STOP) if ids else None
+    def check_guild(session: Session):
+        return (session.guild.id in ids) if ids else True
 
     return check_guild
 
 
 def account(*ids: str):
-    async def check_account(session: Session):
-        return (None if session.account.self_id in ids else STOP) if ids else None
+    def check_account(session: Session):
+        return (session.account.self_id in ids) if ids else True
 
     return check_account
 
 
 def platform(*ids: str):
-    async def check_platform(session: Session):
-        return (None if session.account.platform in ids else STOP) if ids else None
+    def check_platform(session: Session):
+        return (session.account.platform in ids) if ids else True
 
     return check_platform
 
@@ -102,13 +103,6 @@ class _Filter(Propagator):
         yield self.check, True, 0
 
 
-def _wrapper(func: Callable[[Session], Any]):
-    async def _(session: Session):
-        return True if await func(session) is None else False
-
-    return _
-
-
 def parse(patterns: PATTERNS):
     step: dict[int, Callable[[Session], Awaitable[bool]]] = {}
     mess: dict[int, Callable[[bool, bool], bool]] = {}
@@ -116,7 +110,7 @@ def parse(patterns: PATTERNS):
 
     for key, value in patterns.items():
         if key in _keys:
-            step[_keys[key][1]] = _wrapper(
+            step[_keys[key][1]] = run_sync(
                 _keys[key][0](*map(str, value)) if isinstance(value, list) else _keys[key][0]()
             )
         elif key in _mess_keys:

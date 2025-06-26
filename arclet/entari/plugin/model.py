@@ -62,7 +62,7 @@ class PluginDispatcher:
                 events = (self._event,)
             return StepOut(list(events), func, providers, priority, block)  # type: ignore
 
-        return wrapper
+        return wrapper  # type: ignore
 
     @overload
     def register(
@@ -213,6 +213,12 @@ class Plugin:
     @property
     def metadata(self) -> PluginMetadata | None:
         return self._metadata
+
+    def enable(self):
+        self._scope.available = True
+
+    def disable(self):
+        self._scope.available = False
 
     def collect(self, *disposes: Callable[[], None]):
         """收集副作用回收函数"""

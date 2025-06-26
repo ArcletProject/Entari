@@ -206,7 +206,7 @@ class timer:
                 "Please install `croniter` first. Install with `pip install arclet-entari[cron]`"
             ) from None
 
-        it = croniter(cron_str, datetime.now())
+        it = croniter(cron_str, datetime.now(), datetime)
 
         return lambda iter=it: iter.get_next(datetime) - datetime.now()
 

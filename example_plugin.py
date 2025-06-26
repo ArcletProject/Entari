@@ -9,7 +9,6 @@ from arclet.entari import (
     keeping,
     scheduler,
     local_data,
-    propagate
     # Entari,
 )
 from arclet.entari.event.command import CommandOutput
@@ -31,7 +30,7 @@ async def cleanup():
 
 
 @plug.dispatch(MessageCreatedEvent)
-@propagate(filter_.public)
+@filter_.public
 async def _(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...")
@@ -44,13 +43,13 @@ disp_message = plug.dispatch(MessageCreatedEvent)
 
 
 @disp_message.on()
-@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) == "aaa"), prepend=True)
+@filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) == "aaa")
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
 @disp_message
-@propagate(filter_.public, filter_.to_me, filter_(lambda sess: str(sess.content) != "aaa"), prepend=True)
+@filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) != "aaa")
 async def _(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
