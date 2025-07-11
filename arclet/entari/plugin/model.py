@@ -260,7 +260,7 @@ class Plugin:
         plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return
-        if not self.id.startswith("."):
+        if not self.id.startswith(".") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
         for serv in self._services.values():
@@ -282,7 +282,7 @@ class Plugin:
                 if subplug not in plugin_service.plugins:
                     continue
                 try:
-                    plugin_service.plugins[subplug].dispose()
+                    plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
@@ -303,7 +303,7 @@ class Plugin:
                     not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins
                 ):  # if no more referents, remove it
                     try:
-                        plugin_service.plugins[ref].dispose()
+                        plugin_service.plugins[ref].dispose(is_cleanup=is_cleanup)
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
@@ -313,7 +313,7 @@ class Plugin:
                 if ret in plugin_service._unloaded:
                     continue
                 try:
-                    plugin_service.plugins[ret].dispose()
+                    plugin_service.plugins[ret].dispose(is_cleanup=is_cleanup)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose referent plugin <r>{ret}</r> caused by {e!r}")
                     plugin_service.plugins.pop(ret, None)

@@ -145,4 +145,4 @@ def _hidden_upsteam(record: Record):
 logger.configure(patcher=_hidden_upsteam)
 
 
-__all__ = ["log"]
+__all__ = ["log", "logger_id"]

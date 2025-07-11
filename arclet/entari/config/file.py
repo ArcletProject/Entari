@@ -80,12 +80,15 @@ class EntariConfig:
         self.__class__.instance = self
         self.reload()
 
+    @property
+    def data(self) -> dict[str, Any]:
+        return self.loader(self.path)
+
     def reload(self):
         if self.save_flag:
             self.save_flag = False
             return False
         data = self.loader(self.path)
-        print(data)
         if "entari" in data:
             data = data["entari"]
         self.basic = config_model_validate(BasicConfig, data.get("basic", {}))

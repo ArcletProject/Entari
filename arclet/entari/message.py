@@ -618,5 +618,5 @@ class MessageChain(list[TE]):
         )
 
     @staticmethod
-    def of(text: str):
+    def of(text: str) -> MessageChain:
         return MessageChain(transform(parse(text)))

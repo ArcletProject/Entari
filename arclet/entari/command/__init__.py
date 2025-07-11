@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union, cast, overload
 
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
@@ -7,7 +8,7 @@ from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
 from arclet.letoderea import ExitState, Provider, Scope, Subscriber
 from arclet.letoderea.provider import ProviderFactory, get_providers
-from arclet.letoderea.typing import Contexts, TTarget, generate_contexts
+from arclet.letoderea.typing import Contexts, generate_contexts
 from nepattern import DirectPattern
 from satori.element import Text
 from tarina.string import split
@@ -24,7 +25,7 @@ from .model import CommandResult, Match, Query
 from .plugin import mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges
 
-TM = TypeVar("TM", bound=Union[str, MessageChain])
+TM = TypeVar("TM", bound=Union[str, MessageChain, None, Awaitable[Union[str, MessageChain, None]]])
 
 
 def get_cmd(target: Subscriber):
@@ -117,7 +118,7 @@ class EntariCommands:
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
     ):
         class Command(AlconnaString):
-            def __call__(_cmd_self, func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:
+            def __call__(_cmd_self, func: Callable[..., TM]) -> Subscriber[TM]:
                 return self.on(_cmd_self.build(), providers)(func)
 
         return Command(command, help_text)
@@ -127,7 +128,7 @@ class EntariCommands:
         self,
         command: Alconna,
         providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-    ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]: ...
+    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...
 
     @overload
     def on(
@@ -137,7 +138,7 @@ class EntariCommands:
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
-    ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]: ...
+    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...
 
     def on(
         self,
@@ -146,11 +147,11 @@ class EntariCommands:
         *,
         args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
         meta: Optional[CommandMeta] = None,
-    ) -> Callable[[TTarget[Optional[TM]]], Subscriber[Optional[TM]]]:
+    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]:
         plg = _current_plugin.get()
         providers = providers or []
 
-        def wrapper(func: TTarget[Optional[TM]]) -> Subscriber[Optional[TM]]:
+        def wrapper(func: Callable[..., TM]) -> Subscriber[TM]:
             nonlocal meta
             if isinstance(command, str):
                 if not meta and func.__doc__:

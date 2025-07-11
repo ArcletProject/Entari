@@ -139,7 +139,7 @@ class Entari(App):
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
-        log.core.debug(f"Config loaded from <m>{EntariConfig.instance.path}</m>")
+        log.core.debug(f"Config loaded from <m>{EntariConfig.instance.path}</m>: <w>{EntariConfig.instance.data}</w>")
         self.ignore_self_message = ignore_self_message
         self.register(self.handle_event)
         self.lifecycle(self.account_hook)
