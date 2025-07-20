@@ -93,7 +93,6 @@ async def send_hook(message: MessageChain):
 @plug.use("::config/reload")
 async def config_reload():
     print(">> Config Reloaded")
-    return True
 
 
 @plug.use("::plugin/loaded_success")
