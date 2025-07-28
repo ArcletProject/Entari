@@ -257,6 +257,8 @@ class Plugin:
         finalize(self, self.dispose, is_cleanup=True)
 
     def dispose(self, *, is_cleanup: bool = False):
+        if not is_cleanup and self.is_static:
+            return  # static plugin can only be disposed in cleanup phase
         plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return

@@ -2,10 +2,10 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "yaml"]
+groups = ["default", "cron", "database", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:333437fa6735554edd56fda07d5c3633b4a7eb8d72a8cdc55b2d9d6dcaffa8b0"
+content_hash = "sha256:5e1b1c4382266f9d90f403ac743b1bb168ef8145d40984e7e5c1eed22d257bd8"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -135,7 +135,7 @@ name = "aiosqlite"
 version = "0.21.0"
 requires_python = ">=3.9"
 summary = "asyncio bridge to the standard sqlite3 module"
-groups = ["dev"]
+groups = ["database", "dev", "full"]
 dependencies = [
     "typing-extensions>=4.0",
 ]
@@ -472,7 +472,7 @@ name = "greenlet"
 version = "3.2.3"
 requires_python = ">=3.9"
 summary = "Lightweight in-process concurrent programming"
-groups = ["dev"]
+groups = ["database", "dev", "full"]
 marker = "(platform_machine == \"win32\" or platform_machine == \"WIN32\" or platform_machine == \"AMD64\" or platform_machine == \"amd64\" or platform_machine == \"x86_64\" or platform_machine == \"ppc64le\" or platform_machine == \"aarch64\") and python_version < \"3.14\""
 files = [
     {file = "greenlet-3.2.3-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:1afd685acd5597349ee6d7a88a8bec83ce13c106ac78c196ee9dde7c04fe87be"},
@@ -1202,7 +1202,7 @@ name = "sqlalchemy"
 version = "2.0.41"
 requires_python = ">=3.7"
 summary = "Database Abstraction Library"
-groups = ["dev"]
+groups = ["database", "dev", "full"]
 dependencies = [
     "greenlet>=1; (platform_machine == \"win32\" or platform_machine == \"WIN32\" or platform_machine == \"AMD64\" or platform_machine == \"amd64\" or platform_machine == \"x86_64\" or platform_machine == \"ppc64le\" or platform_machine == \"aarch64\") and python_version < \"3.14\"",
     "importlib-metadata; python_version < \"3.8\"",
@@ -1422,7 +1422,7 @@ name = "typing-extensions"
 version = "4.12.2"
 requires_python = ">=3.8"
 summary = "Backported and Experimental Type Hints for Python 3.8+"
-groups = ["default", "dev", "full", "pydantic", "reload"]
+groups = ["default", "database", "dev", "full", "pydantic", "reload"]
 files = [
     {file = "typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d"},
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
