@@ -14,6 +14,7 @@ from typing import Optional
 from arclet.letoderea.scope import scope_ctx
 
 from ..logger import log
+from ..config import EntariConfig
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
 
@@ -141,6 +142,16 @@ class PluginLoader(SourceFileLoader):
         if self.loaded:
             return
 
+        if config is None:
+            key = module.__name__
+            if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
+                key = f"::{key[23:]}"
+            elif key.startswith("entari_plugin_") and f"{key[14:]}" in EntariConfig.instance.plugin:
+                key = f"{key[14:]}"
+            config = EntariConfig.instance.plugin.get(key, {}).copy()
+            config["$path"] = key
+            if key in EntariConfig.instance.prelude_plugin:
+                config["$static"] = True  # type: ignore
         # create plugin before executing
         plugin = Plugin(module.__name__, module, config=(config or {}).copy())
         # for `dataclasses` module
