@@ -10,7 +10,9 @@ import re
 from typing import Any, Callable, ClassVar, TypeVar
 import warnings
 
-from .model import BasicConfModel, Proxy, config_model_dump, config_model_validate
+from .model import Proxy, config_model_dump, config_model_validate
+from .models.default import BasicConfModel as BasicConfModel
+from .models.default import field as model_field
 from .util import nest_dict_update
 
 try:
@@ -23,13 +25,13 @@ T = TypeVar("T")
 
 
 class BasicConfig(BasicConfModel):
-    network: list[dict[str, Any]] = field(default_factory=list)
-    ignore_self_message: bool = True
-    skip_req_missing: bool = False
-    log_level: int | str = "INFO"
-    prefix: list[str] = field(default_factory=list)
-    cmd_count: int = 4096
-    external_dirs: list[str] = field(default_factory=list)
+    network: list[dict[str, Any]] = model_field(default_factory=list, description="Network configuration")
+    ignore_self_message: bool = model_field(default=True, description="Ignore self message")
+    skip_req_missing: bool = model_field(default=False, description="Skip Event Handler if requirement is missing")
+    log_level: int | str = model_field(default="INFO", description="Log level for the application")
+    prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
+    cmd_count: int = model_field(default=4096, description="Command count limit for the application")
+    external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
@@ -170,7 +172,7 @@ class EntariConfig:
             for ext_mod in ext_mods:
                 if not ext_mod:
                     continue
-                ext_mod = ext_mod.replace("::", "arclet.entari.builtins.config.")
+                ext_mod = ext_mod.replace("::", "arclet.entari.config.format.")
                 try:
                     import_module(ext_mod)
                 except ImportError as e:

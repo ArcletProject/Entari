@@ -9,12 +9,14 @@ from typing import Any, Callable, TypeVar, overload
 from weakref import finalize, proxy
 
 from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define, publish
+from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
 from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 
+from ..config import config_model_schema
 from ..event.plugin import PluginUnloaded
 from ..filter import parse
 from ..logger import log
@@ -37,25 +39,15 @@ class StaticPluginDispatchError(Exception):
 
 
 class PluginDispatcher:
-    def __init__(
-        self,
-        plugin: Plugin,
-        event: type[TE],
-        name: str | None = None,
-    ):
+    def __init__(self, plugin: Plugin, event: type[TE], name: str | None = None):
         self.publisher = define(event, name=name)
         self.plugin = plugin
         self._event = event
         self.providers: list[Provider[Any] | ProviderFactory] = []
         self.propagators: list[Propagator] = []
 
-    def waiter(
-        self,
-        *events: Any,
-        providers: Sequence[Provider | type[Provider]] | None = None,
-        priority: int = 15,
-        block: bool = False,
-    ) -> Callable[[TTarget[R]], StepOut[R]]:
+    # fmt: off
+    def waiter(self, *events: Any, providers: Sequence[Provider | type[Provider]] | None = None, priority: int = 15, block: bool = False) -> Callable[[TTarget[R]], StepOut[R]]:  # noqa: E501
         def wrapper(func: TTarget[R]):
             nonlocal events
             if not events:
@@ -65,45 +57,14 @@ class PluginDispatcher:
         return wrapper  # type: ignore
 
     @overload
-    def register(
-        self,
-        func: Callable[..., Any],
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-        once: bool = False,
-    ) -> Subscriber: ...
+    def register(self, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None, once: bool = False) -> Subscriber: ...  # noqa: E501
 
     @overload
-    def register(
-        self,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-        once: bool = False,
-    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
+    def register(self, *, priority: int = 16, providers: TProviders | None = None, once: bool = False) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
 
-    def register(
-        self,
-        func: Callable[..., Any] | None = None,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-        once: bool = False,
-    ):
+    def register(self, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None, once: bool = False):  # noqa: E501
         _providers = providers or []
-        wrapper = self.plugin._scope.register(
-            priority=priority,
-            providers=[*self.providers, *_providers],
-            once=once,
-            publisher=self.publisher,
-        )
+        wrapper = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # noqa: E501 # type: ignore
 
         def decorator(func1, /):
             self.plugin.validate(func1)
@@ -116,39 +77,17 @@ class PluginDispatcher:
         return decorator
 
     @overload
-    def once(
-        self,
-        func: Callable[..., Any],
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ) -> Subscriber: ...
+    def once(self, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None) -> Subscriber: ...  # noqa: E501
 
     @overload
-    def once(
-        self,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
+    def once(self, *, priority: int = 16, providers: TProviders | None = None) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
 
-    def once(
-        self,
-        func: Callable[..., Any] | None = None,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ):
+    def once(self, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if func:
             return self.register(func, priority=priority, providers=providers, once=True)
         return self.register(priority=priority, providers=providers, once=True)
 
+    # fmt: on
     on = register
     handle = register
 
@@ -181,6 +120,12 @@ class PluginMetadata:
     # standards: list[str] = field(default_factory=list)
     # frameworks: list[str] = field(default_factory=list)
     # component_endpoints: list[str] = field(default_factory=list)
+
+    def get_config_schema(self) -> dict[str, Any]:
+        """获取插件配置模型的 JSON Schema"""
+        if self.config is None:
+            return {}
+        return config_model_schema(self.config)
 
 
 @dataclass
@@ -329,39 +274,15 @@ class Plugin:
             raise StaticPluginDispatchError("static plugin cannot dispatch events")
         return PluginDispatcher(self, event, name=name)
 
-    @overload
-    def use(
-        self,
-        pub: str | Publisher,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ) -> Callable[[Callable[..., Any]], Subscriber]: ...
+    # fmt: off
 
     @overload
-    def use(
-        self,
-        pub: str | Publisher,
-        func: Callable[..., Any],
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ) -> Subscriber: ...
+    def use(self,  pub: str | Publisher, *, priority: int = 16, providers: TProviders | None = None) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
 
-    def use(
-        self,
-        pub: str | Publisher,
-        func: Callable[..., Any] | None = None,
-        *,
-        priority: int = 16,
-        providers: (
-            Sequence[Provider[Any] | type[Provider[Any]] | ProviderFactory | type[ProviderFactory]] | None
-        ) = None,
-    ):
+    @overload
+    def use(self, pub: str | Publisher, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None) -> Subscriber: ...  # noqa: E501
+
+    def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot use events by `Plugin.use`")
         if isinstance(pub, str):
@@ -376,6 +297,8 @@ class Plugin:
         if func:
             return disp.register(func=func, priority=priority, providers=providers)
         return disp.register(priority=priority, providers=providers)
+
+    # fmt: on
 
     def validate(self, func):
         if func.__module__ != self.module.__name__:

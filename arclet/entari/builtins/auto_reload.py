@@ -14,7 +14,7 @@ except ModuleNotFoundError:
     raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
 from arclet.entari import add_service, declare_static, load_plugin, metadata, plugin_config, unload_plugin
-from arclet.entari.config import BasicConfModel, EntariConfig, config_model_validate, field
+from arclet.entari.config import BasicConfModel, EntariConfig, config_model_validate, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import find_plugin, find_plugin_by_file
@@ -24,8 +24,11 @@ loguru_logger.disable("watchfiles.main")
 
 
 class Config(BasicConfModel):
-    watch_dirs: list[Union[str, Path]] = field(default_factory=lambda: ["."])
-    watch_config: bool = False
+    watch_dirs: list[Union[str, Path]] = model_field(
+        default_factory=lambda: ["."],
+        description="需要监视的目录列表，支持相对路径和绝对路径",
+    )
+    watch_config: bool = model_field(default=False, description="是否监视配置文件的变化，默认为 False")
 
 
 metadata(

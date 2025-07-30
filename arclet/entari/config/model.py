@@ -1,10 +1,6 @@
 from abc import ABCMeta, abstractmethod
-from dataclasses import asdict, dataclass, fields, is_dataclass
-from inspect import Signature
-from typing import Any, Generic, TypeVar, get_args, get_origin
-from typing_extensions import dataclass_transform
-
-_available_dc_attrs = set(Signature.from_callable(dataclass).parameters.keys())
+from dataclasses import asdict, fields
+from typing import Any, Generic, TypeVar
 
 _config_model_actions: dict[type, type["ConfigModelAction"]] = {}
 
@@ -33,6 +29,14 @@ class ConfigModelAction(Generic[C], metaclass=ABCMeta):
     def keys(cls, obj: C) -> list[str]:
         """
         Get the keys of the configuration model.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def schema(cls, t: type[C]) -> dict[str, Any]:
+        """
+        Get the schema of the configuration model.
         """
         pass
 
@@ -118,55 +122,8 @@ def config_model_keys(obj: Any) -> list[str]:
     return [field_.name for field_ in fields(obj)]  # type: ignore
 
 
-@dataclass_transform(kw_only_default=True)
-class BasicConfModel:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        dataclass(**{k: v for k, v in kwargs.items() if k in _available_dc_attrs})(cls)
-
-
-class BasicConfModelAction(ConfigModelAction[BasicConfModel]):
-    @classmethod
-    def load(cls, data: dict[str, Any], base: type[C]) -> C:
-        def _nested_validate(namespace: dict[str, Any], cls_):
-            result = {}
-            for field_ in fields(cls_):
-                if field_.name not in namespace:
-                    continue
-                if is_dataclass(field_.type):
-                    result[field_.name] = _nested_validate(namespace[field_.name], field_.type)
-                elif get_origin(field_.type) is list and is_dataclass(get_args(field_.type)[0]):
-                    result[field_.name] = [
-                        _nested_validate(d, get_args(field_.type)[0]) for d in namespace[field_.name]
-                    ]
-                elif get_origin(field_.type) is set and is_dataclass(get_args(field_.type)[0]):
-                    result[field_.name] = {
-                        _nested_validate(d, get_args(field_.type)[0]) for d in namespace[field_.name]
-                    }
-                elif get_origin(field_.type) is dict and is_dataclass(get_args(field_.type)[1]):
-                    result[field_.name] = {
-                        k: _nested_validate(v, get_args(field_.type)[1]) for k, v in namespace[field_.name].items()
-                    }
-                elif get_origin(field_.type) is tuple:
-                    args = get_args(field_.type)
-                    result[field_.name] = tuple(
-                        _nested_validate(d, args[i]) if is_dataclass(args[i]) else d
-                        for i, d in enumerate(namespace[field_.name])
-                    )
-                else:
-                    result[field_.name] = namespace[field_.name]
-            return cls_(**result)
-
-        return _nested_validate(data, base)
-
-    @classmethod
-    def dump(cls, obj: BasicConfModel) -> dict[str, Any]:
-        return asdict(obj)  # type: ignore
-
-    @classmethod
-    def keys(cls, obj: BasicConfModel) -> list[str]:
-        return [field_.name for field_ in fields(obj)]  # type: ignore
+def config_model_schema(base: type[C]) -> dict[str, Any]:
+    for b in base.__mro__[-2::-1]:
+        if b in _config_model_actions:
+            return _config_model_actions[b].schema(base)
+    return {field_.name: field_.type for field_ in fields(base)}  # type: ignore

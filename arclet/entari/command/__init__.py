@@ -6,8 +6,8 @@ from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_m
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
-from arclet.letoderea import ExitState, Provider, Scope, Subscriber
-from arclet.letoderea.provider import ProviderFactory, get_providers
+from arclet.letoderea import ExitState, Scope, Subscriber
+from arclet.letoderea.provider import TProviders, get_providers
 from arclet.letoderea.typing import Contexts, generate_contexts
 from nepattern import DirectPattern
 from satori.element import Text
@@ -111,54 +111,33 @@ class EntariCommands:
             if result is not None:
                 return result
 
-    def command(
-        self,
-        command: str,
-        help_text: Optional[str] = None,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-    ):
+    def command(self, cmd: str, help_text: Optional[str] = None, providers: Optional[TProviders] = None):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: Callable[..., TM]) -> Subscriber[TM]:
                 return self.on(_cmd_self.build(), providers)(func)
 
-        return Command(command, help_text)
+        return Command(cmd, help_text)
+
+    # fmt: off
+    @overload
+    def on(self, cmd: Alconna, providers: Optional[TProviders] = None) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...  # noqa: E501
 
     @overload
-    def on(
-        self,
-        command: Alconna,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...
+    def on(self, cmd: str, providers: Optional[TProviders] = None, *, args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None, meta: Optional[CommandMeta] = None) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...  # noqa: E501
 
-    @overload
-    def on(
-        self,
-        command: str,
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-        *,
-        args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
-        meta: Optional[CommandMeta] = None,
-    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]: ...
-
-    def on(
-        self,
-        command: Union[Alconna, str],
-        providers: Optional[list[Union[Provider, type[Provider], ProviderFactory, type[ProviderFactory]]]] = None,
-        *,
-        args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None,
-        meta: Optional[CommandMeta] = None,
-    ) -> Callable[[Callable[..., TM]], Subscriber[TM]]:
+    def on(self, cmd: Union[Alconna, str], providers: Optional[TProviders] = None, *, args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None, meta: Optional[CommandMeta] = None) -> Callable[[Callable[..., TM]], Subscriber[TM]]:  # noqa: E501
+        # fmt: on
         plg = _current_plugin.get()
         providers = providers or []
 
         def wrapper(func: Callable[..., TM]) -> Subscriber[TM]:
             nonlocal meta
-            if isinstance(command, str):
+            if isinstance(cmd, str):
                 if not meta and func.__doc__:
                     meta = CommandMeta(func.__doc__)
                 mapping = {arg.name: arg.value for arg in Args.from_callable(func)[0]}
                 mapping.update(args or {})  # type: ignore
-                _command = alconna_from_format(command, mapping, meta, union=False)
+                _command = alconna_from_format(cmd, mapping, meta, union=False)
                 _command.reset_namespace(self.__namespace__)
                 key = _command.name + "".join(
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
@@ -181,8 +160,8 @@ class EntariCommands:
                     target._dispose = _remove
                 return target
 
-            _command = cast(Alconna, command)
-            if not isinstance(command.command, str):
+            _command = cast(Alconna, cmd)
+            if not isinstance(cmd.command, str):
                 raise TypeError("Command name must be a string.")
             _command.reset_namespace(self.__namespace__)
             keys = []

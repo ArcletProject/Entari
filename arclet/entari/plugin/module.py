@@ -13,8 +13,8 @@ from typing import Optional
 
 from arclet.letoderea.scope import scope_ctx
 
-from ..logger import log
 from ..config import EntariConfig
+from ..logger import log
 from .model import Plugin, PluginMetadata, _current_plugin
 from .service import plugin_service
 

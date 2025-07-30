@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from os import PathLike
 from pathlib import Path
-from typing import Any, Callable, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 
 from arclet.letoderea import on, publish
 from tarina import init_spec
@@ -127,9 +127,15 @@ def load_plugins(dir_: str | PathLike | Path):
             load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
 
 
-@init_spec(PluginMetadata)
-def metadata(data: PluginMetadata):
-    get_plugin(1)._metadata = data  # type: ignore
+if TYPE_CHECKING:
+
+    @init_spec(PluginMetadata)
+    def metadata(data: PluginMetadata) -> None: ...
+
+else:
+
+    def metadata(*args, **kwargs):
+        get_plugin(1)._metadata = PluginMetadata(*args, **kwargs)  # type: ignore
 
 
 _C = TypeVar("_C")
