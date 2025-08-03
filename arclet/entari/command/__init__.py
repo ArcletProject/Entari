@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar, Union, cast, overload
+from typing import Callable, Optional, Generator, AsyncGenerator, TypeVar, Union, cast, overload
+from typing_extensions import TypeAlias
 
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
@@ -25,7 +26,9 @@ from .model import CommandResult, Match, Query
 from .plugin import mount
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges
 
-TM = TypeVar("TM", bound=Union[str, MessageChain, None, Awaitable[Union[str, MessageChain, None]]])
+_BaseM: TypeAlias = Union[str, MessageChain, None]
+_M: TypeAlias = Union[_BaseM, Generator[_BaseM, None, None], AsyncGenerator[_BaseM, None], Awaitable[_BaseM]]
+TM = TypeVar("TM", bound=_M)
 
 
 def get_cmd(target: Subscriber):
@@ -61,7 +64,7 @@ class EntariCommands:
         if not msg:
             return
         if matches := list(self.trie.prefixes(msg)):
-            subs = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            subs: list[Subscriber[_M]] = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
             results = await asyncio.gather(*(sub.handle(ctx.copy()) for sub in subs))
             for result in results:
                 if result is ExitState.stop:
@@ -69,14 +72,19 @@ class EntariCommands:
                 if result is ExitState.block:
                     return
                 if result is not None:
-                    await session.send(result)
+                    if isinstance(result, AsyncGenerator):
+                        async for msg in result:  # type: ignore
+                            if msg is not None:
+                                await session.send(msg)
+                    else:
+                        await session.send(result)  # type: ignore
             return
         # shortcut
         data = split(msg, " ")
         for value in self.trie.values():
             if value not in self.scope.subscribers:
                 continue
-            sub = self.scope.subscribers[value][0]
+            sub: Subscriber[_M] = self.scope.subscribers[value][0]
             try:
                 command_manager.find_shortcut(get_cmd(sub), data)
             except ValueError:
@@ -87,17 +95,25 @@ class EntariCommands:
             if result is ExitState.block:
                 return
             if result is not None:
-                await session.send(result)
+                if isinstance(result, AsyncGenerator):
+                    async for msg in result:  # type: ignore
+                        if msg is not None:
+                            await session.send(msg)
+                else:
+                    await session.send(result)  # type: ignore
 
     async def execute(self, event: CommandExecute):
         ctx = await generate_contexts(event)
         msg = str(event.command)
         if matches := list(self.trie.prefixes(msg)):
-            subs = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            subs: list[Subscriber[_M]] = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
             results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
             for result in results:
                 if result is not None:
-                    return result
+                    if isinstance(result, AsyncGenerator):
+                        ans = [msg async for msg in result if msg is not None]  # type: ignore
+                        return ans[0]
+                    return result  # type: ignore
         data = split(msg, " ")
         for value in self.trie.values():
             if value not in self.scope.subscribers:
@@ -109,7 +125,10 @@ class EntariCommands:
                 continue
             result = await sub.handle(ctx.copy(), inner=True)
             if result is not None:
-                return result
+                if isinstance(result, AsyncGenerator):
+                    ans = [msg async for msg in result if msg is not None]  # type: ignore
+                    return ans[0]
+                return result  # type: ignore
 
     def command(self, cmd: str, help_text: Optional[str] = None, providers: Optional[TProviders] = None):
         class Command(AlconnaString):

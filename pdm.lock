@@ -2,10 +2,10 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "cron", "database", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "yaml"]
+groups = ["default", "cron", "database", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:5e1b1c4382266f9d90f403ac743b1bb168ef8145d40984e7e5c1eed22d257bd8"
+content_hash = "sha256:481c0bb0488c269baa0cc639ea6711a2cf67d85b814e0ae523396bdca0a7fa36"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -208,7 +208,7 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.17.2"
+version = "0.17.4"
 requires_python = ">=3.9"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 groups = ["default"]
@@ -216,8 +216,8 @@ dependencies = [
     "tarina>=0.6.7",
 ]
 files = [
-    {file = "arclet_letoderea-0.17.2-py3-none-any.whl", hash = "sha256:0d5b9e6330a47123af0c6c2b99f91eb8ae948656073131413390a1b51fa7074a"},
-    {file = "arclet_letoderea-0.17.2.tar.gz", hash = "sha256:83d6e4058ccfadb40e302366fa899f348e607072c944303f62b1123c2c180821"},
+    {file = "arclet_letoderea-0.17.4-py3-none-any.whl", hash = "sha256:5f1ffcabbd7cedf316af3de1684a2cc1cd097101b940b39675b06e6bf67c7f2e"},
+    {file = "arclet_letoderea-0.17.4.tar.gz", hash = "sha256:a1c99029cb2b02a8d8c9996b241a03b332ccd8d8ece45d140be3b0f29f2ccc46"},
 ]
 
 [[package]]
@@ -1411,7 +1411,7 @@ name = "tomlkit"
 version = "0.13.3"
 requires_python = ">=3.8"
 summary = "Style preserving TOML library"
-groups = ["dev"]
+groups = ["dev", "toml"]
 files = [
     {file = "tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0"},
     {file = "tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1"},
