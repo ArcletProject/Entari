@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, TypeVar, overload
+from typing import Any, Callable, TypeVar, overload, cast
 from weakref import finalize, proxy
 
 from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define, publish
@@ -393,11 +393,20 @@ class KeepingVariable:
         del self.obj
 
 
-def keeping(id_: str, obj: T, dispose: Callable[[T], None] | None = None) -> T:
+@overload
+def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | None = None) -> T: ...
+
+
+@overload
+def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | None = None) -> T: ...
+
+
+def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | None = None) -> T:  # noqa: E501
     if not (plug := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     if id_ not in plugin_service._keep_values[plug.id]:
-        plugin_service._keep_values[plug.id][id_] = KeepingVariable(obj, dispose)
-    else:
-        obj = plugin_service._keep_values[plug.id][id_].obj  # type: ignore
-    return obj
+        if obj is None and obj_factory is None:
+            raise ValueError("Either `obj` or `obj_factory` must be provided")
+        _obj = obj_factory() if obj_factory else obj
+        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)
+    return plugin_service._keep_values[plug.id][id_].obj  # type: ignore
