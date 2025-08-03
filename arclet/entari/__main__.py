@@ -50,6 +50,7 @@ alc = Alconna(
         help_text="插件操作",
     ),
     Subcommand("run", help_text="运行 Entari"),
+    Subcommand("gen_main", help_text="生成一个 Entari 主程序文件"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径", dest="cfg_path"),
     meta=CommandMeta(
         "Entari App Launcher",
@@ -185,6 +186,13 @@ metadata(name="{name}")
 declare_static()
 """
 
+MAIN_SCRIPT = """\
+from arclet.entari import Entari
+
+app = Entari.load({path})
+app.run()
+"""
+
 
 def check_env(file: Path):
     env = Path.cwd() / ".env"
@@ -213,7 +221,7 @@ def main():
         if res.find("config.new"):
             is_dev = res.find("config.new.dev")
             names = res.query[tuple[str, ...]]("config.new.plugins.names", ())
-            if (path := res.query[str]("cfg_path", None)) is None:
+            if (path := res.query[str]("cfg_path.path", None)) is None:
                 if find_spec("ruamel.yaml"):
                     _path = Path.cwd() / "entari.yml"
                 else:
@@ -280,7 +288,7 @@ def main():
                 path.parent.mkdir(exist_ok=True)
             with path.open("w+", encoding="utf-8") as f:
                 f.write((PLUGIN_STATIC_TEMPLATE if is_static else PLUGIN_DEFAULT_TEMPLATE).format(name=name))
-            cfg = EntariConfig.load(res.query[str]("cfg_path", None))
+            cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
             if name in cfg.plugin:
                 return
             if f"entari_plugin_{name}" in cfg.plugin:
@@ -296,7 +304,7 @@ def main():
             if not name:
                 print(f"{Fore.BLUE}Please specify a plugin name:")
                 name = input(f"{Fore.RESET}>>> ").strip()
-            cfg = EntariConfig.load(res.query[str]("cfg_path", None))
+            cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
             cfg.basic.network = []
             for k in list(cfg.plugin.keys()):
                 if k.startswith("."):
@@ -344,7 +352,14 @@ def main():
             return
     if res.find("run"):
         command_manager.delete(alc)
-        entari = Entari.load(res.query[str]("cfg_path", None))
+        entari = Entari.load(res.query[str]("cfg_path.path", None))
         entari.run()
+        return
+    if res.find("gen_main"):
+        file = Path.cwd() / "main.py"
+        path = res.query[str]("cfg_path.path", "")
+        with file.open("w+", encoding="utf-8") as f:
+            f.write(MAIN_SCRIPT.format(path=f'"{path}"'))
+        print(f"Main script generated at {file}")
         return
     print(alc.formatter.format_node(res.origin))

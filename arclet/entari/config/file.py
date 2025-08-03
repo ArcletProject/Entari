@@ -158,7 +158,7 @@ class EntariConfig:
         except ImportError:
             dotenv = None  # noqa
             pass
-        if path is None:
+        if not path:
             if "ENTARI_CONFIG_FILE" in os.environ:
                 _path = Path(os.environ["ENTARI_CONFIG_FILE"])
             elif (Path.cwd() / ".entari.json").exists():
