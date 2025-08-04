@@ -47,6 +47,7 @@ from .core import Entari as Entari
 from .event.base import MessageCreatedEvent as MessageCreatedEvent
 from .event.base import MessageEvent as MessageEvent
 from .filter import filter_ as filter_
+from .localdata import local_data as local_data
 from .message import MessageChain as MessageChain
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
@@ -62,7 +63,6 @@ from .plugin import package as package
 from .plugin import plugin_config as plugin_config
 from .plugin import unload_plugin as unload_plugin
 from .session import Session as Session
-from .utils.local_data import local_data as local_data
 
 WS = WebsocketsInfo
 WH = WebhookInfo

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, TypeVar, overload, cast
+from typing import Any, Callable, TypeVar, cast, overload
 from weakref import finalize, proxy
 
 from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define, publish
@@ -401,7 +401,9 @@ def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | None = None) -> 
 def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | None = None) -> T: ...
 
 
+# fmt: off
 def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | None = None) -> T:  # noqa: E501
+# fmt: on
     if not (plug := _current_plugin.get(None)):
         raise LookupError("no plugin context found")
     if id_ not in plugin_service._keep_values[plug.id]:

@@ -6,8 +6,8 @@ from weakref import finalize
 
 from nonestorage import user_cache_dir, user_data_dir
 
-from ..event.config import ConfigReload
-from ..plugin.model import RootlessPlugin
+from .event.config import ConfigReload
+from .plugin.model import RootlessPlugin
 
 P = ParamSpec("P")
 

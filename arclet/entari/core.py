@@ -154,6 +154,10 @@ class Entari(App):
             self._path_scale = (len(sys.path) - len(_external), len(sys.path))
             log.core.debug(f"Added external dirs: {_external}")
 
+    @property
+    def config(self):
+        return EntariConfig.instance
+
     def reset_self(self, scope, key, value):
         if scope != "basic":
             return
@@ -186,11 +190,9 @@ class Entari(App):
         manager.add_component(plugin_service)
 
         requires(*EntariConfig.instance.prelude_plugin)
-        for plug in EntariConfig.instance.prelude_plugin:
+        for plug in EntariConfig.instance.prelude_plugin_names:
             load_plugin(plug, prelude=True)
-        plugins = [
-            plug for plug in EntariConfig.instance.plugin if not plug.startswith("~") and not plug.startswith("$")
-        ]
+        plugins = EntariConfig.instance.plugin_names
         requires(*plugins)
         for plug in plugins:
             load_plugin(plug)

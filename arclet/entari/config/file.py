@@ -86,6 +86,22 @@ class EntariConfig:
     def data(self) -> dict[str, Any]:
         return self.loader(self.path)
 
+    @property
+    def prelude_plugin_names(self) -> list[str]:
+        slots = [(name, self.plugin[name].get("$priority", 16)) for name in self.prelude_plugin if name in self.plugin]
+        slots.sort(key=lambda x: x[1])
+        return [name for name, _ in slots]
+
+    @property
+    def plugin_names(self) -> list[str]:
+        slots = [
+            (name, self.plugin[name].get("$priority", 16))
+            for name in self.plugin
+            if not name.startswith("~") and not name.startswith("$")
+        ]
+        slots.sort(key=lambda x: x[1])
+        return [name for name, _ in slots]
+
     def reload(self):
         if self.save_flag:
             self.save_flag = False

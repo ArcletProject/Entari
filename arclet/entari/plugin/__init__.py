@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import itertools
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 
-from arclet.letoderea import on, publish
+from arclet.letoderea import Subscriber, on, publish
 from tarina import init_spec
 
 from ..config import EntariConfig, config_model_keys, config_model_validate
@@ -48,6 +49,24 @@ def get_plugin(depth: int = 0) -> Plugin:
     raise LookupError("no plugin context found")
 
 
+def get_plugins():
+    return list(plugin_service.plugins.values())
+
+
+def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]:
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    return [s[0] for s in plg._scope.subscribers.values()] + plg._extra.get("subscribers", [])
+
+
+def get_all_subscribers():
+    return list(itertools.chain.from_iterable(get_plugin_subscribers(plug) for plug in plugin_service.plugins.values()))
+
+
 def dispatch(event: type[TE], name: str | None = None):
     return get_plugin(1).dispatch(event, name=name)
 
@@ -67,6 +86,7 @@ def load_plugin(
     if config is None:
         config = EntariConfig.instance.plugin.get(path)
     conf = (config or {}).copy()
+    conf.pop("$priority", None)
     conf["$path"] = path
     if prelude:
         conf["$static"] = True

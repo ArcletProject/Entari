@@ -62,7 +62,7 @@ def add(a: int, b: int):
 add.propagate(Interval(2, limit_prompt="太快了"))
 
 
-kept_data = keeping("foo", [], lambda x: x.clear())
+kept_data = keeping("foo", [], dispose=lambda x: x.clear())
 
 
 @command.on("append {data}")

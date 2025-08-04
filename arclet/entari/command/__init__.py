@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Awaitable
-from typing import Callable, Optional, Generator, AsyncGenerator, TypeVar, Union, cast, overload
+from collections.abc import Awaitable, AsyncGenerator, Generator
+from typing import Callable, Optional, TypeVar, Union, cast, overload
 from typing_extensions import TypeAlias
 
 from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
@@ -64,7 +64,9 @@ class EntariCommands:
         if not msg:
             return
         if matches := list(self.trie.prefixes(msg)):
-            subs: list[Subscriber[_M]] = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            subs: list[Subscriber[_M]] = [
+                self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers
+            ]
             results = await asyncio.gather(*(sub.handle(ctx.copy()) for sub in subs))
             for result in results:
                 if result is ExitState.stop:
@@ -106,7 +108,9 @@ class EntariCommands:
         ctx = await generate_contexts(event)
         msg = str(event.command)
         if matches := list(self.trie.prefixes(msg)):
-            subs: list[Subscriber[_M]] = [self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers]
+            subs: list[Subscriber[_M]] = [
+                self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers
+            ]
             results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
             for result in results:
                 if result is not None:
@@ -175,6 +179,7 @@ class EntariCommands:
                 if plg:
                     plg.collect(lambda: _remove(target))
                     plg._extra.setdefault("commands", []).append(([], _command.command))
+                    plg._extra.setdefault("subscribers", []).append(target)
                 else:
                     target._dispose = _remove
                 return target
@@ -208,6 +213,7 @@ class EntariCommands:
 
             if plg:
                 plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
+                plg._extra.setdefault("subscribers", []).append(target)
                 plg.collect(lambda: _remove(target))
             else:
                 target._dispose = _remove

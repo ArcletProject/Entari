@@ -150,6 +150,7 @@ class PluginLoader(SourceFileLoader):
                 key = f"{key[14:]}"
             config = EntariConfig.instance.plugin.get(key, {}).copy()
             config["$path"] = key
+            config.pop("$priority", None)
             if key in EntariConfig.instance.prelude_plugin:
                 config["$static"] = True  # type: ignore
         # create plugin before executing
