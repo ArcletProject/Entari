@@ -1,8 +1,11 @@
+from collections.abc import Sequence
 from dataclasses import field
-from typing import Optional, Sequence, Union, get_origin, get_args
+from typing import Optional
+from typing import Sequence as TypingSequence  # noqa: UP035
+from typing import Union, get_args, get_origin
 
 from arclet.letoderea import Contexts
-from arclet.letoderea.provider import ProviderFactory, global_providers, Provider, Param
+from arclet.letoderea.provider import Param, Provider, ProviderFactory, global_providers
 from creart import it
 from launart import Launart
 from tarina.generic import origin_is_union
@@ -16,9 +19,9 @@ try:
     from graia.amnesia.builtins.sqla.model import Base as Base
     from graia.amnesia.builtins.sqla.types import EngineOptions
     from sqlalchemy.engine.url import URL
-    from sqlalchemy.sql import select
     from sqlalchemy.orm import Mapped as Mapped
     from sqlalchemy.orm import mapped_column as mapped_column
+    from sqlalchemy.sql import select
 except ImportError:
     raise ImportError("Please install `sqlalchemy` first. Install with `pip install arclet-entari[db]`") from None
 
@@ -116,7 +119,7 @@ class ORMProviderFactory(ProviderFactory):
 
         def validate(self, param: Param):
             anno = get_origin(param.annotation)
-            if anno != Sequence:
+            if anno not in (Sequence, TypingSequence):
                 return False
             args = get_args(param.annotation)[0]
             return isinstance(args, type) and (args is self.base or issubclass(args, self.base))
@@ -134,7 +137,7 @@ class ORMProviderFactory(ProviderFactory):
             args = get_args(param.annotation)
             if len(args) == 2 and isinstance(args[0], type) and issubclass(args[0], Base) and args[1] is type(None):
                 return self._OneProvider(args[0])
-        if anno is Sequence:
+        if anno is Sequence or anno is TypingSequence:
             args = get_args(param.annotation)
             if len(args) == 1 and isinstance(args[0], type) and issubclass(args[0], Base):
                 return self._AllProvider(args[0])

@@ -5,9 +5,9 @@ from collections.abc import Iterable, Sequence
 from contextlib import suppress
 import os
 from pathlib import Path
-from typing import get_args
 import signal
 import sys
+from typing import get_args
 
 from arclet.alconna import config as alconna_config
 import arclet.letoderea as le
@@ -21,7 +21,7 @@ from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
 from satori.client.protocol import ApiProtocol
 from satori.model import Event
-from tarina.generic import origin_is_union, get_origin
+from tarina.generic import get_origin, origin_is_union
 
 from .config import EntariConfig
 from .event.base import MessageCreatedEvent, event_parse

@@ -6,7 +6,7 @@ from weakref import finalize
 
 from nonestorage import user_cache_dir, user_data_dir
 
-from .config import BasicConfModel, model_field, config_model_validate
+from .config import BasicConfModel, config_model_validate, model_field
 from .event.config import ConfigReload
 from .plugin import RootlessPlugin, metadata, plugin_config
 
@@ -79,16 +79,14 @@ local_data = LocalData()
 class Config(BasicConfModel):
     use_global: bool = model_field(default=False, description="是否使用全局数据目录")
     app_name: str = model_field(default="entari", description="应用名称")
-    base_dir: Optional[str] = model_field(default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，")
+    base_dir: Optional[str] = model_field(
+        default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，"
+    )
 
 
 @RootlessPlugin.apply("localdata")
 def localdata_apply(plg: RootlessPlugin):
-    metadata(
-        "LocalData",
-        ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
-        config=Config
-    )
+    metadata("LocalData", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
 
     conf = plugin_config(Config)
     local_data.global_path = conf.use_global

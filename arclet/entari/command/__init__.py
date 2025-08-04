@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Awaitable, AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Awaitable, Generator
 from typing import Callable, Optional, TypeVar, Union, cast, overload
 from typing_extensions import TypeAlias
 
@@ -15,12 +15,12 @@ from satori.element import Text
 from tarina.string import split
 from tarina.trie import CharTrie
 
+from ..config import BasicConfModel, config_model_validate, model_field
 from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..event.config import ConfigReload
 from ..message import MessageChain
-from ..plugin import RootlessPlugin, _current_plugin, plugin_config, metadata
-from ..config import BasicConfModel, model_field, config_model_validate
+from ..plugin import RootlessPlugin, _current_plugin, metadata, plugin_config
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
