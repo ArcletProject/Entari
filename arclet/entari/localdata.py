@@ -102,3 +102,4 @@ def localdata_apply(plg: RootlessPlugin):
             local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
         if "base_dir" in conf:
             local_data.base_dir = conf["base_dir"]
+        return True

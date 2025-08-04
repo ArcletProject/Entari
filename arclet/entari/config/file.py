@@ -29,6 +29,7 @@ class BasicConfig(BasicConfModel):
     ignore_self_message: bool = model_field(default=True, description="Ignore self message")
     skip_req_missing: bool = model_field(default=False, description="Skip Event Handler if requirement is missing")
     log_level: int | str = model_field(default="INFO", description="Log level for the application")
+    log_ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
     prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
     cmd_count: int = model_field(default=4096, description="Command count limit for the application")
     external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")

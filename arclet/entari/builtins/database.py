@@ -1,5 +1,11 @@
 from dataclasses import field
-from typing import Optional, Union
+from typing import Optional, Sequence, Union, get_origin, get_args
+
+from arclet.letoderea import Contexts
+from arclet.letoderea.provider import ProviderFactory, global_providers, Provider, Param
+from creart import it
+from launart import Launart
+from tarina.generic import origin_is_union
 
 from arclet.entari import BasicConfModel, plugin
 from arclet.entari.config import config_model_validate
@@ -10,6 +16,7 @@ try:
     from graia.amnesia.builtins.sqla.model import Base as Base
     from graia.amnesia.builtins.sqla.types import EngineOptions
     from sqlalchemy.engine.url import URL
+    from sqlalchemy.sql import select
     from sqlalchemy.orm import Mapped as Mapped
     from sqlalchemy.orm import mapped_column as mapped_column
 except ImportError:
@@ -83,5 +90,59 @@ async def reload_config(event: ConfigReload, serv: SqlalchemyService):
 
 
 BaseOrm = Base
+
+
+class ORMProviderFactory(ProviderFactory):
+    priority = 10
+
+    class _OneProvider(Provider[Base]):
+        def __init__(self, origin: type[Base]):
+            super().__init__()
+            self.origin = origin
+
+        def validate(self, param: Param):
+            anno = get_origin(param.annotation)
+            return isinstance(anno, type) and (anno is self.origin or issubclass(anno, self.origin))
+
+        async def __call__(self, context: Contexts):
+            db = it(Launart).get_component(SqlalchemyService)
+            async with db.get_session() as session:
+                return (await session.scalars(select(self.origin))).one_or_none()
+
+    class _AllProvider(Provider[Sequence[Base]]):
+        def __init__(self, base: type[Base]):
+            super().__init__()
+            self.base = base
+
+        def validate(self, param: Param):
+            anno = get_origin(param.annotation)
+            if anno != Sequence:
+                return False
+            args = get_args(param.annotation)[0]
+            return isinstance(args, type) and (args is self.base or issubclass(args, self.base))
+
+        async def __call__(self, context: Contexts):
+            db = it(Launart).get_component(SqlalchemyService)
+            async with db.get_session() as session:
+                return (await session.scalars(select(self.base))).all()
+
+    def validate(self, param: Param):
+        anno = get_origin(param.annotation)
+        if isinstance(anno, type) and issubclass(anno, Base):
+            return self._OneProvider(anno)
+        if origin_is_union(anno):
+            args = get_args(param.annotation)
+            if len(args) == 2 and isinstance(args[0], type) and issubclass(args[0], Base) and args[1] is type(None):
+                return self._OneProvider(args[0])
+        if anno is Sequence:
+            args = get_args(param.annotation)
+            if len(args) == 1 and isinstance(args[0], type) and issubclass(args[0], Base):
+                return self._AllProvider(args[0])
+
+
+_factory = ORMProviderFactory()
+global_providers.append(_factory)
+plugin.collect_disposes(lambda: global_providers.remove(_factory))
+
 
 __all__ = ["Base", "BaseOrm", "Mapped", "mapped_column", "EngineOptions", "URL", "SqlalchemyService", "Config"]

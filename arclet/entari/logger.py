@@ -18,6 +18,7 @@ class LoggerManager:
         self.fork("[plugin]")
         self.fork("[message]")
         self.log_level = "INFO"
+        self.ignores = set()
 
     def fork(self, child_name: str):
         patched = logger.patch(lambda r: r.update(name=child_name))
@@ -87,6 +88,8 @@ log = LoggerManager()
 
 
 def default_filter(record):
+    if record["name"] in log.ignores:
+        return False
     levelno = logger.level(log.log_level).no if isinstance(log.log_level, str) else log.log_level
     if record["name"].startswith("launart"):
         if levelno <= logger.level("TRACE").no:

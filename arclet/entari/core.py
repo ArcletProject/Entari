@@ -5,6 +5,7 @@ from collections.abc import Iterable, Sequence
 from contextlib import suppress
 import os
 from pathlib import Path
+from typing import get_args
 import signal
 import sys
 
@@ -20,7 +21,7 @@ from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
 from satori.client.protocol import ApiProtocol
 from satori.model import Event
-from tarina.generic import get_origin
+from tarina.generic import origin_is_union, get_origin
 
 from .config import EntariConfig
 from .event.base import MessageCreatedEvent, event_parse
@@ -138,6 +139,7 @@ class Entari(App):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
+        log.ignores.update(EntariConfig.instance.basic.log_ignores)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
         log.core.debug(f"Config loaded from <m>{EntariConfig.instance.path}</m>: <w>{EntariConfig.instance.data}</w>")
         self.ignore_self_message = ignore_self_message
@@ -254,12 +256,19 @@ class ServiceProviderFactory(ProviderFactory):
             return isinstance(anno, type) and issubclass(anno, self.origin)
 
         async def __call__(self, context: Contexts):
-            return it(Launart).get_component(self.origin)
+            try:
+                return it(Launart).get_component(self.origin)
+            except ValueError:  # Service not loaded yet
+                return
 
     def validate(self, param: Param):
         anno = get_origin(param.annotation)
         if isinstance(anno, type) and issubclass(anno, Service):
             return self._Provider(anno)
+        if origin_is_union(anno):
+            args = get_args(param.annotation)
+            if isinstance(args[0], type) and issubclass(args[0], Service):
+                return self._Provider(args[0])
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore

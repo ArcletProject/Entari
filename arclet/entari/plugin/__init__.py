@@ -190,6 +190,7 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
                     return
                 new = config_model_validate(model_type, event.value)
                 nest_obj_update(obj, new, config_model_keys(new))
+                return True
 
             sub = plugin._scope.register(_reload, event=ConfigReload)
             proxy = EntariConfig.instance.bind(plugin_key, obj)
