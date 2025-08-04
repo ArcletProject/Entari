@@ -1,6 +1,6 @@
 [project]
 name = "arclet-entari"
-version = "0.13.1"
+dynamic = ["version"]
 description = "Simple IM Framework based on satori-python"
 authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
@@ -73,6 +73,10 @@ build-backend = "pdm.backend"
 [tool.pdm]
 [tool.pdm.build]
 includes = ["arclet"]
+
+[tool.pdm.version]
+source = "file"
+path = "arclet/entari/__init__.py"
 
 [tool.pdm.dev-dependencies]
 dev = [
