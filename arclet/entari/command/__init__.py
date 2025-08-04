@@ -19,7 +19,8 @@ from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..event.config import ConfigReload
 from ..message import MessageChain
-from ..plugin import RootlessPlugin, _current_plugin
+from ..plugin import RootlessPlugin, _current_plugin, plugin_config, metadata
+from ..config import BasicConfModel, model_field, config_model_validate
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -241,14 +242,24 @@ async def execute(message: Union[str, MessageChain]):
         return res.value
 
 
+class CommandsConfig(BasicConfModel):
+    need_notice_me: bool = model_field(default=False, description="是否需要通知我")
+    need_reply_me: bool = model_field(default=False, description="是否需要回复我")
+    use_config_prefix: bool = model_field(default=True, description="是否使用配置前缀")
+
+
 @RootlessPlugin.apply("commands")
 def _(plg: RootlessPlugin):
-    if "need_notice_me" in plg.config:
-        _commands.judge.need_notice_me = plg.config["need_notice_me"]
-    if "need_reply_me" in plg.config:
-        _commands.judge.need_reply_me = plg.config["need_reply_me"]
-    if "use_config_prefix" in plg.config:
-        _commands.judge.use_config_prefix = plg.config["use_config_prefix"]
+    metadata(
+        "Commands Plugin",
+        ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+        config=CommandsConfig,
+    )
+
+    conf = plugin_config(CommandsConfig)
+    _commands.judge.need_notice_me = conf.need_notice_me
+    _commands.judge.need_reply_me = conf.need_reply_me
+    _commands.judge.use_config_prefix = conf.use_config_prefix
 
     plg.dispatch(MessageCreatedEvent).handle(_commands.handle).propagate(_commands.judge)
 
@@ -258,12 +269,10 @@ def _(plg: RootlessPlugin):
             return
         if event.key != ".commands":
             return
-        if "need_notice_me" in event.value:
-            _commands.judge.need_notice_me = event.value["need_notice_me"]
-        if "need_reply_me" in event.value:
-            _commands.judge.need_reply_me = event.value["need_reply_me"]
-        if "use_config_prefix" in event.value:
-            _commands.judge.use_config_prefix = event.value["use_config_prefix"]
+        new_conf = config_model_validate(CommandsConfig, event.value)
+        _commands.judge.need_notice_me = new_conf.need_notice_me
+        _commands.judge.need_reply_me = new_conf.need_reply_me
+        _commands.judge.use_config_prefix = new_conf.use_config_prefix
         return True
 
 
