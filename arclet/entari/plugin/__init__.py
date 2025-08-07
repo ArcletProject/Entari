@@ -87,6 +87,7 @@ def load_plugin(
         config = EntariConfig.instance.plugin.get(path)
     conf = (config or {}).copy()
     conf.pop("$priority", None)
+    conf.pop("$dry", None)
     conf["$path"] = path
     if prelude:
         conf["$static"] = True
@@ -96,7 +97,7 @@ def load_plugin(
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
     if path in plugin_service._apply:
-        return plugin_service._apply[path](conf)
+        return plugin_service._apply[path][0](conf)
     if plug := find_plugin(path):
         plugin_service._direct_plugins.add(plug.id)
         return plug

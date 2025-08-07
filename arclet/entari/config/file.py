@@ -90,16 +90,14 @@ class EntariConfig:
 
     @property
     def prelude_plugin_names(self) -> list[str]:
-        slots = [(name, self.plugin[name].get("$priority", 16)) for name in self.prelude_plugin if name in self.plugin]
-        slots.sort(key=lambda x: x[1])
-        return [name for name, _ in slots]
+        return [name for name in self.plugin_names if name in self.prelude_plugin]
 
     @property
     def plugin_names(self) -> list[str]:
         slots = [
             (name, self.plugin[name].get("$priority", 16))
             for name in self.plugin
-            if not name.startswith("~") and not name.startswith("$")
+            if not name.startswith("~") and not name.startswith("$") and not self.plugin[name].get("$dry", False)
         ]
         slots.sort(key=lambda x: x[1])
         return [name for name, _ in slots]
@@ -127,7 +125,6 @@ class EntariConfig:
             else:
                 self.plugin[path.stem] = self.loader(path)
 
-        self.plugin.setdefault(".commands", {})
         self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
         disabled = []
         for k, v in self.plugin.items():
@@ -147,8 +144,6 @@ class EntariConfig:
 
     def dump(self, indent: int = 2):
         plugins = self.plugin.copy()
-        if plugins[".commands"] == {}:
-            plugins.pop(".commands")
         if self.prelude_plugin:
             plugins = {"$prelude": self.prelude_plugin, **plugins}
         if self.plugin_extra_files:

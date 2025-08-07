@@ -84,7 +84,7 @@ class Config(BasicConfModel):
     )
 
 
-@RootlessPlugin.apply("localdata")
+@RootlessPlugin.apply("localdata", default=True)
 def localdata_apply(plg: RootlessPlugin):
     metadata("LocalData", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
 

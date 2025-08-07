@@ -21,7 +21,7 @@ from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
 from satori.client.protocol import ApiProtocol
 from satori.model import Event
-from tarina.generic import get_origin, is_optional, generic_issubclass, generic_isinstance
+from tarina.generic import generic_isinstance, get_origin, is_optional
 
 from .config import EntariConfig
 from .event.base import MessageCreatedEvent, event_parse
@@ -79,7 +79,7 @@ class AccountProvider(Provider[Account]):
 global_providers.extend([ApiProtocolProvider(), SessionProviderFactory(), AccountProvider()])
 
 
-@RootlessPlugin.apply("record_message")
+@RootlessPlugin.apply("record_message", default=True)
 def record(plg: RootlessPlugin):
     cfg = plugin_config()
     to_me_only = cfg.get("to_me_only", False)
@@ -209,6 +209,11 @@ class Entari(App):
             load_plugin(plug, prelude=True)
         plugins = EntariConfig.instance.plugin_names
         requires(*plugins)
+        for apply, slot in plugin_service._apply.items():
+            if f"~{apply}" in EntariConfig.instance.plugin:
+                continue
+            if slot[1] and apply not in EntariConfig.instance.plugin:
+                plugins.append(apply)
         for plug in plugins:
             load_plugin(plug)
 

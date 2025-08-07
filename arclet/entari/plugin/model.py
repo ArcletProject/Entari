@@ -341,17 +341,18 @@ class Plugin:
 
 
 class RootlessPlugin(Plugin):
+    # fmt: off
+    @classmethod
+    @overload
+    def apply(cls, id: str, *, default: bool = False) -> Callable[[Callable[[RootlessPlugin], Any]], Callable[[], None]]: ...  # noqa: E501
 
     @classmethod
     @overload
-    def apply(cls, id: str) -> Callable[[Callable[[RootlessPlugin], Any]], Callable[[], None]]: ...
+    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any], *, default: bool = False) -> Callable[[], None]: ...
 
     @classmethod
-    @overload
-    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any]) -> Callable[[], None]: ...
-
-    @classmethod
-    def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None) -> Any:
+    def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None, *, default: bool = False) -> Any:  # noqa: E501
+    # fmt: on
         if not id.startswith("."):
             id = f".{id}"
 
@@ -362,7 +363,7 @@ class RootlessPlugin(Plugin):
                 plugin_service._apply.pop(id, None)
 
         def wrapper(func: Callable[[RootlessPlugin], Any]):
-            plugin_service._apply[id] = lambda config: cls(id, func, config)
+            plugin_service._apply[id] = (lambda config: cls(id, func, config), default)
             return dispose
 
         if func:

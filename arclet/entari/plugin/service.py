@@ -22,7 +22,7 @@ class PluginManagerService(Service):
     _direct_plugins: set[str]
     _unloaded: set[str]
     _subplugined: dict[str, str]
-    _apply: dict[str, Callable[[dict[str, Any]], "RootlessPlugin"]]
+    _apply: dict[str, tuple[Callable[[dict[str, Any]], "RootlessPlugin"], bool]]
 
     def __init__(self):
         super().__init__()

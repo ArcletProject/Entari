@@ -247,7 +247,7 @@ class CommandsConfig(BasicConfModel):
     use_config_prefix: bool = model_field(default=True, description="是否使用配置前缀")
 
 
-@RootlessPlugin.apply("commands")
+@RootlessPlugin.apply("commands", default=True)
 def _(plg: RootlessPlugin):
     metadata(
         "Commands Plugin",
