@@ -3,7 +3,7 @@ from typing import Callable, Optional, Union
 from typing_extensions import TypeAlias
 
 from arclet.letoderea import STOP, Propagator
-from arclet.letoderea.typing import run_sync
+from tarina.tools import run_sync
 
 from ..session import Session
 from .message import direct_message, notice_me, public_message, reply_me, to_me

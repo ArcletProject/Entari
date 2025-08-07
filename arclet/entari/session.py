@@ -1,20 +1,30 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Generic, NoReturn, TypeVar, cast
+from collections.abc import Awaitable, Iterable
+from typing import Callable, Generic, NoReturn, TypeVar, cast, overload
 
 from arclet.letoderea import STOP, es, step_out
+from satori import ChannelType
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
 from satori.element import Element
 from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
 
-from .event.base import FriendRequestEvent, GuildMemberRequestEvent, GuildRequestEvent, MessageEvent, Reply, SatoriEvent
+from .event.base import (
+    FriendRequestEvent,
+    GuildMemberRequestEvent,
+    GuildRequestEvent,
+    MessageCreatedEvent,
+    MessageEvent,
+    Reply,
+    SatoriEvent,
+)
 from .event.send import SendRequest, SendResponse
 from .message import MessageChain
 
 TEvent = TypeVar("TEvent", bound=SatoriEvent)
+T = TypeVar("T")
 
 
 class EntariProtocol(ApiProtocol):
@@ -100,43 +110,77 @@ class Session(Generic[TEvent]):
             self._content = MessageChain(event.message.message)
         self.reply: Reply | None = None
 
+    @overload
     async def prompt(
         self,
-        message: str | Iterable[str | Element],
+        *,
+        message: str | Iterable[str | Element] | None = None,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
-        keep_sender: bool = True,
     ) -> MessageChain | None:
-        """发送提示消息, 并等待回复
+        """等待当前会话的下一次输入并返回
 
         Args:
-            message: 要发送的消息
+            message: 等待前用于提示的消息
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
-            keep_sender: 是否只允许原发送者回复
 
         Returns:
             MessageChain | None: 回复的消息，若超时则返回 None
         """
-        await self.send(message)
+        ...
 
-        async def waiter(content: MessageChain, session: Session[MessageEvent]):
-            if self.event.channel:
-                if self.event.channel.id == session.event.channel.id and (
-                    not keep_sender
-                    or (self.event.user and session.event.user and self.event.user.id == session.event.user.id)
-                ):
-                    return content
-            elif self.event.user:
-                if self.event.user.id == session.event.user.id:
-                    return content
+    @overload
+    async def prompt(
+        self,
+        handler: Callable[..., Awaitable[T]],
+        *,
+        message: str | Iterable[str | Element] | None = None,
+        timeout: float = 120,
+        timeout_message: str | Iterable[str | Element] = "等待超时",
+    ) -> T | None:
+        """处理当前会话的下一次输入并返回
 
-        waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
+        Args:
+            handler: 用于处理输入的函数
+            message: 等待前用于提示的消息
+            timeout: 等待超时时间
+            timeout_message: 超时后发送的消息
 
-        step = step_out(self.event.__class__, waiter)
+        Returns:
+            T | None: 回复的内容，若超时则返回 None
+        """
+        ...
+
+    async def prompt(
+        self,
+        handler: Callable[..., Awaitable[T]] | None = None,
+        *,
+        message: str | Iterable[str | Element] | None = None,
+        timeout: float = 120,
+        timeout_message: str | Iterable[str | Element] = "等待超时",
+    ) -> T | MessageChain | None:
+
+        if message:
+            await self.send(message)
+
+        if handler:
+            step = step_out(MessageCreatedEvent, handler)
+        else:
+
+            async def waiter(content: MessageChain, session: Session[MessageCreatedEvent]):
+                if self.event.user and self.event.user.id == session.event.user.id:
+                    if session.event.channel.type == ChannelType.DIRECT:
+                        return content
+                    if self.event.channel and session.event.channel.id == self.event.channel.id:
+                        return content
+
+            waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
+
+            step = step_out(MessageCreatedEvent, waiter)
 
         result = await step.wait(timeout=timeout)
-        if not result:
+        if result is None:
             await self.send(timeout_message)
             return None
         return result

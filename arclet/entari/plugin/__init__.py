@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
 from tarina import init_spec
+from tarina.tools import nest_obj_update
 
 from ..config import EntariConfig, config_model_keys, config_model_validate
-from ..config.util import nest_obj_update
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded

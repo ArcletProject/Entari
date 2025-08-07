@@ -6,8 +6,9 @@ from typing import Callable, Final, Optional, Union
 from typing_extensions import ParamSpec, Self, TypeAlias
 
 from arclet.letoderea import STOP, Propagator, propagate
-from arclet.letoderea.typing import TCallable, run_sync
+from arclet.letoderea.typing import TCallable
 from tarina import is_coroutinefunction
+from tarina.tools import run_sync
 
 from . import common, message
 from ..message import MessageChain

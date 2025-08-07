@@ -21,7 +21,7 @@ from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
 from satori.client.protocol import ApiProtocol
 from satori.model import Event
-from tarina.generic import get_origin, origin_is_union
+from tarina.generic import get_origin, is_optional, generic_issubclass, generic_isinstance
 
 from .config import EntariConfig
 from .event.base import MessageCreatedEvent, event_parse
@@ -41,20 +41,33 @@ class ApiProtocolProvider(Provider[ApiProtocol]):
             return account.protocol
 
 
-class SessionProvider(Provider[Session]):
-    def validate(self, param: Param):
-        return (get_origin(param.annotation) == Session) or super().validate(param)
+class SessionProviderFactory(ProviderFactory):
+    class _SessionProvider(Provider[Session]):
+        def __init__(self, target_type: type | None):
+            super().__init__()
+            self.target_type = target_type
 
-    async def __call__(self, context: Contexts):
-        if "session" in context and isinstance(context["session"], Session):
-            return context["session"]
-        if "$origin_event" in context and "account" in context:
-            session = Session(context["account"], context["$event"])
-            if "$message_content" in context:
-                session.elements = context["$message_content"]
-            if "$message_reply" in context:
-                session.reply = context["$message_reply"]
-            return session
+        async def __call__(self, context: Contexts):
+            if self.target_type and not generic_isinstance(context["$event"], self.target_type):
+                return
+            if "session" in context and isinstance(context["session"], Session):
+                return context["session"]
+            if "$origin_event" in context and "account" in context:
+                session = Session(context["account"], context["$origin_event"])
+                if "$message_content" in context:
+                    session.elements = context["$message_content"]
+                if "$message_reply" in context:
+                    session.reply = context["$message_reply"]
+                context["session"] = session
+                return session
+
+    def validate(self, param: Param):
+        if get_origin(param.annotation) is Session:
+            args = get_args(param.annotation)
+            return self._SessionProvider(args[0] if args else None)
+        if is_optional(param.annotation, Session):
+            args = get_args(get_args(param.annotation)[0])
+            return self._SessionProvider(args[0] if args else None)
 
 
 class AccountProvider(Provider[Account]):
@@ -63,7 +76,7 @@ class AccountProvider(Provider[Account]):
             return context["account"]
 
 
-global_providers.extend([ApiProtocolProvider(), SessionProvider(), AccountProvider()])
+global_providers.extend([ApiProtocolProvider(), SessionProviderFactory(), AccountProvider()])
 
 
 @RootlessPlugin.apply("record_message")
@@ -265,10 +278,9 @@ class ServiceProviderFactory(ProviderFactory):
         anno = get_origin(param.annotation)
         if isinstance(anno, type) and issubclass(anno, Service):
             return self._Provider(anno)
-        if origin_is_union(anno):
+        if is_optional(param.annotation, Service):
             args = get_args(param.annotation)
-            if isinstance(args[0], type) and issubclass(args[0], Service):
-                return self._Provider(args[0])
+            return self._Provider(args[0])
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore
