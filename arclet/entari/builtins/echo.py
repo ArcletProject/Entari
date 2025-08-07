@@ -5,7 +5,7 @@ from arclet.entari.command import Match
 
 metadata(
     "echo",
-    author=["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+    author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Echo the content",
 )
 

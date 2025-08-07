@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, TypeVar, cast, overload
+from typing import Any, Callable, TypedDict, TypeVar, cast, overload
+from typing_extensions import NotRequired
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, StepOut, Subscriber, define, publish
+from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, Subscriber, define, publish
+from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
-from arclet.letoderea.typing import TTarget
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
@@ -47,14 +47,16 @@ class PluginDispatcher:
         self.propagators: list[Propagator] = []
 
     # fmt: off
-    def waiter(self, *events: Any, providers: Sequence[Provider | type[Provider]] | None = None, priority: int = 15, block: bool = False) -> Callable[[TTarget[R]], StepOut[R]]:  # noqa: E501
-        def wrapper(func: TTarget[R]):
-            nonlocal events
-            if not events:
-                events = (self._event,)
-            return StepOut(list(events), func, providers, priority, block)  # type: ignore
 
-        return wrapper  # type: ignore
+    def waiter(self, event: Any = None, providers: TProviders | None = None, priority: int = 15, block: bool = False) -> Callable[[Callable[..., R]], StepOut[R]]:  # noqa: E501
+        if event is None:
+            def decorator1(func: Callable[..., R], /) -> StepOut[R]:
+                if isinstance(func, Subscriber):
+                    return StepOut(func, priority, block)
+                return step_out(self._event, func, providers=providers, priority=priority, block=block)
+            return decorator1
+
+        return step_out(event, providers=providers, priority=priority, block=block)
 
     @overload
     def register(self, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None, once: bool = False) -> Subscriber: ...  # noqa: E501
@@ -95,11 +97,18 @@ class PluginDispatcher:
         return self.register()(func)
 
 
+class Author(TypedDict):
+    name: str
+    """作者名称"""
+    email: NotRequired[str]
+    """作者邮箱"""
+
+
 @dataclass
 class PluginMetadata:
     name: str
     """插件名称"""
-    author: list[str] = field(default_factory=list)
+    author: list[str | Author] = field(default_factory=list)
     """插件作者"""
     version: str | None = None
     """插件版本"""

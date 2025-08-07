@@ -9,7 +9,7 @@ from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
 from arclet.letoderea import ExitState, Scope, Subscriber
 from arclet.letoderea.provider import TProviders, get_providers
-from arclet.letoderea.typing import Contexts, generate_contexts
+from arclet.letoderea.typing import Contexts
 from nepattern import DirectPattern
 from satori.element import Text
 from tarina.string import split
@@ -68,7 +68,7 @@ class EntariCommands:
             subs: list[Subscriber[_M]] = [
                 self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers
             ]
-            results = await asyncio.gather(*(sub.handle(ctx.copy()) for sub in subs))
+            results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
             for result in results:
                 if result is ExitState.stop:
                     continue
@@ -92,7 +92,7 @@ class EntariCommands:
                 command_manager.find_shortcut(get_cmd(sub), data)
             except ValueError:
                 continue
-            result = await sub.handle(ctx.copy())
+            result = await sub.handle(ctx.copy(), inner=True)
             if result is ExitState.stop:
                 continue
             if result is ExitState.block:
@@ -105,8 +105,7 @@ class EntariCommands:
                 else:
                     await session.send(result)  # type: ignore
 
-    async def execute(self, event: CommandExecute):
-        ctx = await generate_contexts(event)
+    async def execute(self, event: CommandExecute, ctx: Contexts) -> _M:
         msg = str(event.command)
         if matches := list(self.trie.prefixes(msg)):
             subs: list[Subscriber[_M]] = [

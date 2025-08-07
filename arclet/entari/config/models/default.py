@@ -6,10 +6,10 @@ from typing import Any, Callable, ForwardRef, Optional, TypeVar, get_args, get_o
 from typing_extensions import dataclass_transform
 
 from tarina import generic_isinstance
+from tarina.signature import merge_cls_and_parent_ns, parent_frame_namespace
 
 from ..dc_schema import SchemaGenerator
 from ..model import ConfigModelAction
-from ..util import merge_cls_and_parent_ns, parent_frame_namespace
 
 _available_dc_attrs = set(Signature.from_callable(dataclass).parameters.keys())
 _available_field_attrs = set(Signature.from_callable(Field).parameters.keys())

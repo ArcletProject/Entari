@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Generic, NoReturn, TypeVar, cast
 
-from arclet.letoderea import STOP, StepOut, es
+from arclet.letoderea import STOP, es, step_out
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
@@ -133,7 +133,7 @@ class Session(Generic[TEvent]):
 
         waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
 
-        step = StepOut([MessageEvent], waiter)
+        step = step_out(self.event.__class__, waiter)
 
         result = await step.wait(timeout=timeout)
         if not result:

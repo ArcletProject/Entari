@@ -38,8 +38,7 @@ import re
 import typing as t
 import typing_extensions as t_e
 
-from arclet.letoderea.typing import is_typed_dict
-from tarina.generic import Unions
+from tarina.generic import Unions, is_typed_dict
 
 from .util import store_field_description
 

@@ -10,10 +10,11 @@ import re
 from typing import Any, Callable, ClassVar, TypeVar
 import warnings
 
+from tarina.tools import nest_dict_update
+
 from .model import Proxy, config_model_dump, config_model_validate
 from .models.default import BasicConfModel as BasicConfModel
 from .models.default import field as model_field
-from .util import nest_dict_update
 
 try:
     from ruamel.yaml import YAML
