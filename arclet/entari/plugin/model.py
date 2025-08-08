@@ -4,11 +4,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, TypedDict, TypeVar, cast, overload
+from typing import Any, Callable, Literal, TypedDict, TypeVar, cast, overload
 from typing_extensions import NotRequired
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, Subscriber, define, publish
+from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, Subscriber, define, enter_if, publish
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
@@ -104,6 +104,13 @@ class Author(TypedDict):
     """作者邮箱"""
 
 
+class DependService(TypedDict):
+    id: str | type[Service]
+    """服务名称"""
+    stage: NotRequired[Literal["preparing", "prepared", "blocking"]]
+    """服务阶段"""
+
+
 @dataclass
 class PluginMetadata:
     name: str
@@ -124,6 +131,8 @@ class PluginMetadata:
     """插件分类"""
     requirements: list[str] = field(default_factory=list)
     """插件依赖"""
+    depend_services: list[type[Service] | str | DependService] = field(default_factory=list)
+    """插件依赖的服务"""
     config: Any | None = None
     """插件配置模型"""
     # standards: list[str] = field(default_factory=list)
@@ -135,6 +144,25 @@ class PluginMetadata:
         if self.config is None:
             return {}
         return config_model_schema(self.config)
+
+
+def inject(*services: type[Service] | str | DependService):
+
+    async def wrapper(launart: Launart):
+        for service in services:
+            if isinstance(service, dict):
+                serv_id = service["id"] if isinstance(service["id"], str) else service["id"].id
+                stage = service.get("stage", "prepared")
+            else:
+                serv_id = service if isinstance(service, str) else service.id
+                stage = "prepared"
+            await plugin_service.service_waiter.wait_for(serv_id)
+            serv = launart.components[serv_id]
+            if not serv.status.prepared:
+                await serv.status.wait_for(stage)
+        return True
+
+    return enter_if(wrapper)
 
 
 @dataclass
@@ -168,6 +196,12 @@ class Plugin:
     def metadata(self) -> PluginMetadata | None:
         return self._metadata
 
+    @metadata.setter
+    def metadata(self, value: PluginMetadata):
+        self._metadata = value
+        if value and value.depend_services:
+            self._scope.propagators.append(inject(*value.depend_services))
+
     def enable(self):
         self._scope.available = True
 
@@ -198,6 +232,8 @@ class Plugin:
             pat["$not"] = deny
         if pat:
             self._scope.propagators.append(parse(pat))
+        if self._metadata and self._metadata.depend_services:
+            self._scope.propagators.append(inject(*self._metadata.depend_services))
         if "$static" in self.config:
             self.is_static = True
             self.config.pop("$static")
@@ -337,6 +373,7 @@ class Plugin:
         self._services[serv.id] = serv
         if plugin_service.status.blocking:
             it(Launart).add_component(serv)
+            plugin_service.service_waiter.assign(serv.id)
         return serv
 
 

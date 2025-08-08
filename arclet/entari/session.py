@@ -113,8 +113,9 @@ class Session(Generic[TEvent]):
     @overload
     async def prompt(
         self,
-        *,
         message: str | Iterable[str | Element] | None = None,
+        /,
+        *,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
     ) -> MessageChain | None:
@@ -134,8 +135,9 @@ class Session(Generic[TEvent]):
     async def prompt(
         self,
         handler: Callable[..., Awaitable[T]],
-        *,
         message: str | Iterable[str | Element] | None = None,
+        /,
+        *,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
     ) -> T | None:
@@ -154,13 +156,19 @@ class Session(Generic[TEvent]):
 
     async def prompt(
         self,
-        handler: Callable[..., Awaitable[T]] | None = None,
-        *,
-        message: str | Iterable[str | Element] | None = None,
+        *args,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
-    ) -> T | MessageChain | None:
-
+    ):
+        if not args:
+            handler, message = None, None
+        elif len(args) == 1:
+            if callable(args[0]):
+                handler, message = args[0], None
+            else:
+                handler, message = None, args[0]
+        else:
+            handler, message = args[0], args[1]
         if message:
             await self.send(message)
 

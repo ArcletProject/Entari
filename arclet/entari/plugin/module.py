@@ -179,7 +179,7 @@ class PluginLoader(SourceFileLoader):
         # get plugin metadata
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
         if metadata and not plugin.metadata:
-            plugin._metadata = metadata
+            plugin.metadata = metadata
         if not is_sub:
             log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
         else:

@@ -156,7 +156,7 @@ if TYPE_CHECKING:
 else:
 
     def metadata(*args, **kwargs):
-        get_plugin(1)._metadata = PluginMetadata(*args, **kwargs)  # type: ignore
+        get_plugin(1).metadata = PluginMetadata(*args, **kwargs)  # type: ignore
 
 
 _C = TypeVar("_C")

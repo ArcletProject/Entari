@@ -1,14 +1,10 @@
 import asyncio
 from collections.abc import Awaitable
 from datetime import datetime
-from functools import wraps
 from typing import Callable, Final, Optional, Union
-from typing_extensions import ParamSpec, Self, TypeAlias
+from typing_extensions import ParamSpec, TypeAlias
 
-from arclet.letoderea import STOP, Propagator, propagate
-from arclet.letoderea.typing import TCallable
-from tarina import is_coroutinefunction
-from tarina.tools import run_sync
+from arclet.letoderea import STOP, Propagator, enter_if
 
 from . import common, message
 from ..message import MessageChain
@@ -18,45 +14,12 @@ from .common import parse as parse
 _SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
 
 
-class _Check(Propagator):
-    def __init__(self, func: Union[Callable[..., bool], Callable[..., Awaitable[bool]]]):
-        self.predicates = [func]
-
-    def append(self, predicate: Union["_Check", Callable[..., bool], Callable[..., Awaitable[bool]]]) -> Self:
-        if isinstance(predicate, _Check):
-            self.predicates.extend(predicate.predicates)
-        else:
-            self.predicates.append(predicate)
-        return self
-
-    __and__ = append
-    __or__ = append
-
-    def checkers(self):
-        for predicate in self.predicates:
-            func = predicate if is_coroutinefunction(predicate) else run_sync(predicate)
-
-            @wraps(predicate)
-            async def _(*args, _func=func, **kwargs):
-                if await _func(*args, **kwargs) is False:
-                    return STOP
-
-            yield _
-
-    def compose(self):
-        for checker in self.checkers():
-            yield checker, True, 0
-
-    def __call__(self, func: TCallable) -> TCallable:
-        return propagate(self)(func)
-
-
 P = ParamSpec("P")
 
 
-def _check_wrapper(func: Callable[P, _SessionFilter]) -> Callable[P, _Check]:
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> _Check:
-        return _Check(func(*args, **kwargs))
+def _check_wrapper(func: Callable[P, _SessionFilter]):
+    def wrapper(*args: P.args, **kwargs: P.kwargs):
+        return enter_if(func(*args, **kwargs))
 
     return wrapper
 
@@ -67,17 +30,17 @@ class _Filter:
     channel = staticmethod(_check_wrapper(common.channel))
     self_ = staticmethod(_check_wrapper(common.account))
     platform = staticmethod(_check_wrapper(common.platform))
-    direct = _Check(message.direct_message)
-    private = _Check(message.direct_message)
-    direct_message = _Check(message.direct_message)
-    public = _Check(message.public_message)
-    public_message = _Check(message.public_message)
-    notice_me = _Check(message.notice_me)
-    reply_me = _Check(message.reply_me)
-    to_me = _Check(message.to_me)
+    direct = enter_if(message.direct_message)
+    private = enter_if(message.direct_message)
+    direct_message = enter_if(message.direct_message)
+    public = enter_if(message.public_message)
+    public_message = enter_if(message.public_message)
+    notice_me = enter_if(message.notice_me)
+    reply_me = enter_if(message.reply_me)
+    to_me = enter_if(message.to_me)
 
     def __call__(self, func: _SessionFilter):
-        return _Check(func)
+        return enter_if(func)
 
 
 filter_: Final[_Filter] = _Filter()

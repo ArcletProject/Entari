@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Any, Callable
 
 from arclet.letoderea import es
@@ -10,6 +11,21 @@ from ..logger import log
 
 if TYPE_CHECKING:
     from .model import KeepingVariable, Plugin, RootlessPlugin
+
+
+class ServiceWaiters:
+    def __init__(self):
+        self._futures: dict[str, asyncio.Future] = {}
+
+    def assign(self, service_id: str):
+        if service_id not in self._futures:
+            self._futures[service_id] = asyncio.Future()
+        self._futures[service_id].set_result(True)
+
+    async def wait_for(self, service_id: str):
+        if service_id not in self._futures:
+            self._futures[service_id] = asyncio.Future()
+        await self._futures[service_id]
 
 
 class PluginManagerService(Service):
@@ -34,6 +50,7 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
+        self.service_waiter = ServiceWaiters()
 
     @property
     def required(self) -> set[str]:
@@ -48,14 +65,15 @@ class PluginManagerService(Service):
         for plug in self.plugins.values():
             for serv in plug._services.values():
                 manager.add_component(serv)
+                self.service_waiter.assign(serv.id)
 
         async with self.stage("preparing"):
-            await es.publish(Startup())
+            es.publish(Startup())
         async with self.stage("blocking"):
-            await es.publish(Ready())
+            es.publish(Ready())
             await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):
-            await es.publish(Cleanup())
+            es.publish(Cleanup())
             ids = [k for k in self.plugins.keys() if k not in self._subplugined]
             for plug_id in reversed(ids):
                 plug = self.plugins[plug_id]
