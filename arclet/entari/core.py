@@ -53,7 +53,7 @@ class SessionProviderFactory(ProviderFactory):
             if "session" in context and isinstance(context["session"], Session):
                 return context["session"]
             if "$origin_event" in context and "account" in context:
-                session = Session(context["account"], context["$origin_event"])
+                session = Session(context["account"], context["$event"])
                 if "$message_content" in context:
                     session.elements = context["$message_content"]
                 if "$message_reply" in context:

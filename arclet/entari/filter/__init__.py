@@ -5,6 +5,7 @@ from typing import Callable, Final, Optional, Union
 from typing_extensions import ParamSpec, TypeAlias
 
 from arclet.letoderea import STOP, Propagator, enter_if
+from tarina import get_signature
 
 from . import common, message
 from ..message import MessageChain
@@ -40,6 +41,9 @@ class _Filter:
     to_me = enter_if(message.to_me)
 
     def __call__(self, func: _SessionFilter):
+        params = get_signature(func)
+        name = next(iter(params)).name
+        func.__annotations__ = {name: Session}
         return enter_if(func)
 
 

@@ -4,28 +4,29 @@ from datetime import datetime, timedelta
 from traceback import print_exc
 from typing import Callable, Literal
 
-from arclet.letoderea import Scope, define
+from arclet.letoderea import Scope, Subscriber, make_event
 from arclet.letoderea.typing import Contexts
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
-from .plugin import RootlessPlugin, _current_plugin
+from .plugin import RootlessPlugin, get_plugin
 
 
+@make_event(name="entari.event/internal/schedule")
 class _ScheduleEvent:
     pass
 
 
-pub = define(_ScheduleEvent, name="entari.event/schedule")
 scope = Scope.of("entari.scheduler")
 contexts: Contexts = {"$event": _ScheduleEvent()}  # type: ignore
 
 
 class TimerTask:
-    def __init__(self, supplier: Callable[[], timedelta], sub_id: str):
-        self.sub_id = sub_id
+    def __init__(self, supplier: Callable[[], timedelta], sub: Subscriber):
+        self.sub = sub
         self.supplier = supplier
         self.handle = None
+        self.available = True
 
     def start(self, queue: asyncio.Queue):
         loop = asyncio.get_running_loop()
@@ -54,12 +55,12 @@ class Scheduler(Service):
     async def fetch(self):
         while True:
             task = await self.queue.get()
-            if task.sub_id not in scope.subscribers:
-                del self.tasks[task.sub_id]
+            if not task.available:
+                del self.tasks[task.sub.id]
                 continue
             task.start(self.queue)
             try:
-                await scope.subscribers[task.sub_id][0].handle(contexts.copy())
+                await task.sub.handle(contexts.copy())
             except Exception:
                 print_exc()
 
@@ -73,10 +74,19 @@ class Scheduler(Service):
         """
 
         def wrapper(func: Callable):
-            sub = scope.register(func, once=once, publisher=pub)
-            if plugin := _current_plugin.get():
-                plugin.collect(sub.dispose)
-            self.tasks[sub.id] = TimerTask(time_fn, sub.id)
+            plg = get_plugin(1, optional=True)
+            if plg:
+                sub = plg.dispatch(_ScheduleEvent).handle(func, once=once)
+            else:
+                sub = scope.register(func, _ScheduleEvent, once=once)
+            task = self.tasks[sub.id] = TimerTask(time_fn, sub)
+
+            def _dispose(_):
+                task.available = False
+
+            old_dispose = sub._dispose
+            sub._dispose = lambda s: (_dispose(s), old_dispose(s))  # type: ignore
+
             if _get_running_loop():
                 self.tasks[sub.id].start(self.queue)
             return sub
@@ -106,7 +116,7 @@ scheduler = service = Scheduler()
 schedule = scheduler.schedule
 
 
-@RootlessPlugin.apply("scheduler")
+@RootlessPlugin.apply("scheduler", default=True)
 def _(plg: RootlessPlugin):
     plg.service(service)
 

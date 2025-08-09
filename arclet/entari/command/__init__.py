@@ -7,12 +7,12 @@ from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_m
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
-from arclet.letoderea import ExitState, Scope, Subscriber
+from arclet.letoderea import RESULT, ExitState, Scope, Subscriber, make_event
 from arclet.letoderea.provider import TProviders, get_providers
-from arclet.letoderea.typing import Contexts
+from arclet.letoderea.scope import _scopes
+from arclet.letoderea.typing import Contexts, Result
 from nepattern import DirectPattern
 from satori.element import Text
-from tarina.string import split
 from tarina.trie import CharTrie
 
 from ..config import BasicConfModel, config_model_validate, model_field
@@ -20,7 +20,7 @@ from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute
 from ..event.config import ConfigReload
 from ..message import MessageChain
-from ..plugin import RootlessPlugin, _current_plugin, metadata, plugin_config
+from ..plugin import RootlessPlugin, get_plugin, metadata, plugin_config
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -29,6 +29,7 @@ from .provider import AlconnaProviderFactory, AlconnaSuppiler, MessageJudges
 
 _BaseM: TypeAlias = Union[str, MessageChain, None]
 _M: TypeAlias = Union[_BaseM, Generator[_BaseM, None, None], AsyncGenerator[_BaseM, None], Awaitable[_BaseM]]
+_RM: TypeAlias = Union[_BaseM, AsyncGenerator[_BaseM, None]]
 TM = TypeVar("TM", bound=_M)
 
 
@@ -38,13 +39,30 @@ def get_cmd(target: Subscriber):
     raise ValueError("Subscriber has no command.")
 
 
+@make_event(name="entari.event/internal/command_dispatch")
+class CommandDispatch:
+    providers = [*get_providers(MessageCreatedEvent), *get_providers(CommandExecute), AlconnaProviderFactory()]
+
+
+async def _after_execute(ctx: Contexts, session: Optional[Session] = None):
+    result: _RM = ctx[RESULT]
+    if result is not None:
+        if isinstance(result, AsyncGenerator):
+            msg = None
+            async for msg in result:
+                if session and msg is not None:
+                    await session.send(msg)
+            return Result(msg)
+        if session:
+            await session.send(result)
+
+
 class EntariCommands:
     __namespace__ = "Entari"
 
     def __init__(self, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True):
         self.trie: CharTrie[str] = CharTrie()
         self.scope = Scope("entari.command")
-        self.scope.bind(*get_providers(MessageCreatedEvent), *get_providers(CommandExecute), AlconnaProviderFactory())
         self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
         config.namespaces["Entari"] = Namespace(
             self.__namespace__,
@@ -60,79 +78,27 @@ class EntariCommands:
     def get_help(self, command: str) -> str:
         return command_manager.get_command(f"{self.__namespace__}::{command}").get_help()
 
-    async def handle(self, session: Session, message: MessageChain, ctx: Contexts):
+    async def execute(self, message: MessageChain, ctx: Contexts):
         msg = str(message).lstrip()
         if not msg:
             return
+        scopes = [sp for sp in _scopes.values() if sp.available]
+        subs = {
+            slot[0].id: slot[0]
+            for sp in scopes
+            for slot in sp.subscribers.values()
+            if slot[1] == "entari.event/internal/command_dispatch"
+        }
         if matches := list(self.trie.prefixes(msg)):
-            subs: list[Subscriber[_M]] = [
-                self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers
-            ]
-            results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
-            for result in results:
-                if result is ExitState.stop:
-                    continue
-                if result is ExitState.block:
-                    return
-                if result is not None:
-                    if isinstance(result, AsyncGenerator):
-                        async for msg in result:  # type: ignore
-                            if msg is not None:
-                                await session.send(msg)
-                    else:
-                        await session.send(result)  # type: ignore
-            return
-        # shortcut
-        data = split(msg, " ")
-        for value in self.trie.values():
-            if value not in self.scope.subscribers:
-                continue
-            sub: Subscriber[_M] = self.scope.subscribers[value][0]
-            try:
-                command_manager.find_shortcut(get_cmd(sub), data)
-            except ValueError:
-                continue
-            result = await sub.handle(ctx.copy(), inner=True)
+            subs = {res.value: subs[res.value] for res in matches if res.value in subs}
+        results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs.values()))
+        for result in results:
             if result is ExitState.stop:
                 continue
             if result is ExitState.block:
                 return
             if result is not None:
-                if isinstance(result, AsyncGenerator):
-                    async for msg in result:  # type: ignore
-                        if msg is not None:
-                            await session.send(msg)
-                else:
-                    await session.send(result)  # type: ignore
-
-    async def execute(self, event: CommandExecute, ctx: Contexts) -> _M:
-        msg = str(event.command)
-        if matches := list(self.trie.prefixes(msg)):
-            subs: list[Subscriber[_M]] = [
-                self.scope.subscribers[res.value][0] for res in matches if res.value in self.scope.subscribers
-            ]
-            results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs))
-            for result in results:
-                if result is not None:
-                    if isinstance(result, AsyncGenerator):
-                        ans = [msg async for msg in result if msg is not None]  # type: ignore
-                        return ans[0]
-                    return result  # type: ignore
-        data = split(msg, " ")
-        for value in self.trie.values():
-            if value not in self.scope.subscribers:
-                continue
-            sub = self.scope.subscribers[value][0]
-            try:
-                command_manager.find_shortcut(get_cmd(sub), data)
-            except ValueError:
-                continue
-            result = await sub.handle(ctx.copy(), inner=True)
-            if result is not None:
-                if isinstance(result, AsyncGenerator):
-                    ans = [msg async for msg in result if msg is not None]  # type: ignore
-                    return ans[0]
-                return result  # type: ignore
+                return cast(Union[str, MessageChain], result)
 
     def command(self, cmd: str, help_text: Optional[str] = None, providers: Optional[TProviders] = None):
         class Command(AlconnaString):
@@ -150,7 +116,7 @@ class EntariCommands:
 
     def on(self, cmd: Union[Alconna, str], providers: Optional[TProviders] = None, *, args: Optional[dict[str, Union[TAValue, Args, Arg]]] = None, meta: Optional[CommandMeta] = None) -> Callable[[Callable[..., TM]], Subscriber[TM]]:  # noqa: E501
         # fmt: on
-        plg = _current_plugin.get()
+        plg = get_plugin(1, optional=True)
         providers = providers or []
 
         def wrapper(func: Callable[..., TM]) -> Subscriber[TM]:
@@ -165,23 +131,24 @@ class EntariCommands:
                 key = _command.name + "".join(
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
-                target = self.scope.register(func, providers=providers)
-                target.propagate(AlconnaSuppiler(_command))
                 if plg:
-                    target.propagates(*plg._scope.propagators)
+                    target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+                else:
+                    target = self.scope.register(func, CommandDispatch, providers=providers)
+                target.propagate(AlconnaSuppiler(_command))
+                target.propagate(_after_execute, priority=0)
                 self.trie[key] = target.id
 
                 def _remove(_):
-                    self.scope.remove_subscriber(_)
                     command_manager.delete(get_cmd(_))
                     self.trie.pop(key, None)  # type: ignore
 
                 if plg:
                     plg.collect(lambda: _remove(target))
                     plg._extra.setdefault("commands", []).append(([], _command.command))
-                    plg._extra.setdefault("subscribers", []).append(target)
                 else:
-                    target._dispose = _remove
+                    old_dispose = target._dispose
+                    target._dispose = lambda s: old_dispose(s) or _remove(s)  # type: ignore
                 return target
 
             _command = cast(Alconna, cmd)
@@ -197,28 +164,27 @@ class EntariCommands:
                 for prefix in cast(list[str], _command.prefixes):
                     keys.append(prefix + _command.command)
 
-            target = self.scope.register(func, providers=providers)
-            target.propagate(AlconnaSuppiler(_command))
             if plg:
-                target.propagates(*plg._scope.propagators)
-
+                target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+            else:
+                target = self.scope.register(func, providers=providers)
+            target.propagate(AlconnaSuppiler(_command))
+            target.propagate(_after_execute, priority=0)
             for _key in keys:
                 self.trie[_key] = target.id
 
             def _remove(_):
-                self.scope.remove_subscriber(_)
                 command_manager.delete(get_cmd(_))
                 for _key in keys:
                     self.trie.pop(_key, None)  # type: ignore
 
             if plg:
-                plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
-                plg._extra.setdefault("subscribers", []).append(target)
                 plg.collect(lambda: _remove(target))
+                plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
             else:
-                target._dispose = _remove
+                old_dispose = target._dispose
+                target._dispose = lambda s: old_dispose(s) or _remove(s)  # type: ignore
             return target
-
         return wrapper
 
 
@@ -260,7 +226,7 @@ def _(plg: RootlessPlugin):
     _commands.judge.need_reply_me = conf.need_reply_me
     _commands.judge.use_config_prefix = conf.use_config_prefix
 
-    plg.dispatch(MessageCreatedEvent).handle(_commands.handle).propagate(_commands.judge)
+    plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
 
     @plg.dispatch(ConfigReload)
     def update(event: ConfigReload):

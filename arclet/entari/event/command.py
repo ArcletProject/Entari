@@ -10,17 +10,17 @@ from .base import Reply
 
 @make_event(name="entari.event/command/execute")
 class CommandExecute:
-    command: Union[str, MessageChain]
+    message: Union[str, MessageChain]
 
     async def gather(self, context: Contexts):
-        if isinstance(self.command, str):
-            context["command"] = MessageChain(self.command)
+        if isinstance(self.message, str):
+            context["message"] = MessageChain(self.message)
         else:
-            context["command"] = self.command
+            context["message"] = self.message
 
     class CommandProvider(Provider[MessageChain]):
         async def __call__(self, context: Contexts):
-            return context.get("command")
+            return context.get("message")
 
     __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
 

@@ -4,7 +4,7 @@ import inspect
 import itertools
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
 from tarina import init_spec
@@ -26,17 +26,40 @@ from .module import requires as requires
 from .service import plugin_service
 
 
-def get_plugin(depth: int = 0) -> Plugin:
+@overload
+def get_plugin(depth: int = 0) -> Plugin: ...
+
+
+@overload
+def get_plugin(depth: int = 0, *, optional: Literal[True]) -> Plugin | None: ...
+
+
+def get_plugin(depth: int = 0, *, optional: bool = False) -> Plugin | None:
+    """获取当前插件上下文
+
+    Args:
+        depth (int, optional): 获取的深度，默认为0，表示当前插件上下文. Defaults to 0.
+        optional (bool, optional): 是否允许返回None，默认为False. Defaults to False.
+    Raises:
+        ValueError: 如果深度超出范围
+        LookupError: 如果没有找到插件上下文
+    Returns:
+        Plugin | None: 当前插件上下文，如果没有找到且optional为True则返回None
+    """
     if plugin := _current_plugin.get(None):
         return plugin
     current_frame = inspect.currentframe()
     if current_frame is None:
+        if optional:
+            return None
         raise ValueError("Depth out of range")
     frame = current_frame
     d = depth + 1
     while d > 0:
         frame = frame.f_back
         if frame is None:
+            if optional:
+                return None
             raise ValueError("Depth out of range")
         d -= 1
     locals_ = frame.f_locals
@@ -45,6 +68,8 @@ def get_plugin(depth: int = 0) -> Plugin:
     globals_ = frame.f_globals
     if "__plugin__" in globals_:
         return globals_["__plugin__"]
+    if optional:
+        return None
     raise LookupError("no plugin context found")
 
 
@@ -59,7 +84,7 @@ def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]
         plg = plugin_service.plugins[plug]
     else:
         plg = get_plugin(1)
-    return [s[0] for s in plg._scope.subscribers.values()] + plg._extra.get("subscribers", [])
+    return [s[0] for s in plg._scope.subscribers.values()]
 
 
 def get_all_subscribers():
