@@ -13,10 +13,9 @@ from tarina.tools import nest_obj_update
 from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
-from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
+from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
-from .model import RegisterNotInPluginError
 from .model import RootlessPlugin as RootlessPlugin
 from .model import StaticPluginDispatchError, _current_plugin
 from .model import TE, TS, Plugin
@@ -103,9 +102,9 @@ def load_plugin(
         return plug
     try:
         if pref := conf.pop("$prefix", None):
-            path = f"{pref if isinstance(pref, str) else 'entari_plugin'}_{path}"
+            path = f"{pref if isinstance(pref, str) else 'entari_plugin_'}{path}"
         mod = import_plugin(path, config=conf)
-        if not pref and not mod:
+        if not pref and not mod and not path.count("."):
             path1 = f"entari_plugin_{path}"
             mod = import_plugin(path1, config=conf)
         if not mod:
@@ -127,16 +126,10 @@ def load_plugin(
                 else:
                     publish(Ready(), plug._scope)
                     recursive_guard.add(referent)
-        if plugin_service.status.blocking:
-            publish(Ready(), mod.__plugin__._scope)
-        publish(PluginLoadedSuccess(mod.__name__))
+
         return mod.__plugin__
-    except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
-        log.plugin.error(f"failed to load plugin <blue>{path!r}</blue>: {e.args[0]}")
-        publish(PluginLoadedFailed(path, e))
-    except Exception as e:
-        log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue> caused by {e!r}", exc_info=e)
-        publish(PluginLoadedFailed(path, e))
+    except Exception:
+        return
 
 
 def load_plugins(dir_: str | PathLike | Path):
@@ -229,7 +222,7 @@ def restore():
 def find_plugin(name: str) -> Plugin | None:
     if name in plugin_service.plugins:
         return plugin_service.plugins[name]
-    if f"entari_plugin_{name}" in plugin_service.plugins:
+    if not name.count(".") and f"entari_plugin_{name}" in plugin_service.plugins:
         return plugin_service.plugins[f"entari_plugin_{name}"]
 
 

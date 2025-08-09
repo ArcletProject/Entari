@@ -22,6 +22,12 @@ class ServiceWaiters:
             self._futures[service_id] = asyncio.Future()
         self._futures[service_id].set_result(True)
 
+    def clear(self, service_id: str):
+        if service_id in self._futures:
+            future = self._futures.pop(service_id)
+            if not future.done():
+                future.set_result(True)
+
     async def wait_for(self, service_id: str):
         if service_id not in self._futures:
             self._futures[service_id] = asyncio.Future()
@@ -63,6 +69,8 @@ class PluginManagerService(Service):
     async def launch(self, manager: Launart):
 
         for plug in self.plugins.values():
+            if plug._apply:
+                plug.exec_apply()
             for serv in plug._services.values():
                 manager.add_component(serv)
                 self.service_waiter.assign(serv.id)

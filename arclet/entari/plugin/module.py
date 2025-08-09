@@ -11,11 +11,14 @@ import tokenize
 from types import ModuleType
 from typing import Optional
 
+from arclet.letoderea import publish
 from arclet.letoderea.scope import scope_ctx
 
 from ..config import EntariConfig
+from ..event.lifespan import Ready
+from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..logger import log
-from .model import Plugin, PluginMetadata, _current_plugin
+from .model import Plugin, PluginMetadata, RegisterNotInPluginError, StaticPluginDispatchError, _current_plugin
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -166,8 +169,15 @@ class PluginLoader(SourceFileLoader):
             token1 = scope_ctx.set(plugin._scope)
         try:
             super().exec_module(module)
-        except Exception:
+        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
             plugin.dispose()
+            log.plugin.error(f"failed to load plugin <blue>{module.__name__!r}</blue>: {e.args[0]}")
+            publish(PluginLoadedFailed(module.__name__, e))
+            raise
+        except Exception as e:
+            plugin.dispose()
+            log.plugin.exception(f"failed to load plugin <blue>{module.__name__!r}</blue> caused by {e!r}", exc_info=e)
+            publish(PluginLoadedFailed(module.__name__, e))
             raise
         finally:
             # leave plugin context
@@ -180,10 +190,16 @@ class PluginLoader(SourceFileLoader):
         metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
         if metadata and not plugin.metadata:
             plugin.metadata = metadata
+        plugin._apply = getattr(module, "__plugin_apply__", None)
         if not is_sub:
             log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
         else:
             log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
+        if plugin_service.status.blocking:
+            if plugin._apply:
+                plugin.exec_apply()
+            publish(Ready(), plugin._scope)
+        publish(PluginLoadedSuccess(module.__name__))
         return
 
 

@@ -17,7 +17,7 @@ from launart import Launart, Service
 from tarina import ContextModel
 
 from ..config import config_model_schema
-from ..event.plugin import PluginUnloaded
+from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..filter import parse
 from ..logger import log
 from .service import plugin_service
@@ -180,6 +180,7 @@ class Plugin:
     _config_key: str = field(init=False)
     _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
+    _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
 
     @property
     def available(self) -> bool:
@@ -201,6 +202,24 @@ class Plugin:
         self._metadata = value
         if value and value.depend_services:
             self._scope.propagators.append(inject(*value.depend_services))
+
+    def exec_apply(self):
+        if self._apply:
+            token = _current_plugin.set(self)
+            try:
+                self._apply(self)
+            except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
+                self.dispose()
+                log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
+                publish(PluginLoadedFailed(self.id, e))
+                raise
+            except Exception as e:
+                self.dispose()
+                log.plugin.exception(f"failed to load plugin <blue>{self.id!r}</blue> caused by {e!r}", exc_info=e)
+                publish(PluginLoadedFailed(self.id, e))
+                raise
+            finally:
+                _current_plugin.reset(token)
 
     def enable(self):
         self._scope.available = True
@@ -256,6 +275,7 @@ class Plugin:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
         for serv in self._services.values():
+            plugin_service.service_waiter.clear(serv.id)
             try:
                 it(Launart).remove_component(serv)
             except ValueError:
