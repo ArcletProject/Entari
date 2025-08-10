@@ -78,6 +78,7 @@ def get_plugins():
 
 
 def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]:
+    """获取指定插件的所有订阅者"""
     if isinstance(plug, Plugin):
         plg = plug
     elif plug in plugin_service.plugins:
@@ -88,10 +89,12 @@ def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]
 
 
 def get_all_subscribers():
+    """获取所有插件的所有订阅者"""
     return list(itertools.chain.from_iterable(get_plugin_subscribers(plug) for plug in plugin_service.plugins.values()))
 
 
 def dispatch(event: type[TE], name: str | None = None):
+    """对当前插件创建一个事件分发"""
     return get_plugin(1).dispatch(event, name=name)
 
 
@@ -158,6 +161,7 @@ def load_plugin(
 
 
 def load_plugins(dir_: str | PathLike | Path):
+    """加载指定目录下的所有插件"""
     path = dir_ if isinstance(dir_, Path) else Path(dir_)
     if not path.is_dir():
         raise NotADirectoryError(f"{path} is not a directory")
@@ -169,11 +173,13 @@ def load_plugins(dir_: str | PathLike | Path):
 if TYPE_CHECKING:
 
     @init_spec(PluginMetadata)
-    def metadata(data: PluginMetadata) -> None: ...
+    def metadata(data: PluginMetadata) -> None:
+        """声明当前插件的元数据"""
 
 else:
 
     def metadata(*args, **kwargs):
+        """声明当前插件的元数据"""
         get_plugin(1).metadata = PluginMetadata(*args, **kwargs)  # type: ignore
 
 
@@ -231,6 +237,7 @@ def declare_static():
 
 
 def add_service(serv: TS | type[TS]) -> TS:
+    """添加一个服务到当前插件"""
     return get_plugin(1).service(serv)
 
 
@@ -245,6 +252,7 @@ def restore():
 
 
 def find_plugin(name: str) -> Plugin | None:
+    """根据插件名称查找插件"""
     if name in plugin_service.plugins:
         return plugin_service.plugins[name]
     if not name.count(".") and f"entari_plugin_{name}" in plugin_service.plugins:
@@ -273,6 +281,26 @@ def unload_plugin(plugin: str):
         return False
     publish(PluginUnloaded(_plugin.id))
     _plugin.dispose()
+    return True
+
+
+def enable_plugin(plugin: str):
+    """启用指定插件"""
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
+    if not (_plugin := find_plugin(plugin)):
+        return False
+    _plugin.enable()
+    return True
+
+
+def disable_plugin(plugin: str):
+    """禁用指定插件"""
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
+    if not (_plugin := find_plugin(plugin)):
+        return False
+    _plugin.disable()
     return True
 
 

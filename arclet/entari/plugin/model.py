@@ -222,10 +222,51 @@ class Plugin:
                 _current_plugin.reset(token)
 
     def enable(self):
-        self._scope.available = True
+        self._scope.enable()
+        if self.subplugins:
+            subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
+            subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
+            log.plugin.trace(f"enabling sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
+            for subplug in self.subplugins:
+                if subplug not in plugin_service.plugins:
+                    continue
+                plugin_service.plugins[subplug].enable()
+        for ret in plugin_service.referents[self.id].copy():
+            if plugin_service._subplugined.get(self.id) == ret:
+                continue
+            if ret not in plugin_service.plugins:
+                continue
+            plugin_service.plugins[ret].enable()
+        if plugin_service.status.blocking:
+            for serv in self._services.values():
+                plugin_service.service_waiter.assign(serv.id)
+                try:
+                    it(Launart).add_component(serv)
+                except ValueError:
+                    pass
 
     def disable(self):
-        self._scope.available = False
+        if self.subplugins:
+            subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
+            subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
+            log.plugin.trace(f"disabling sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
+            for subplug in self.subplugins:
+                if subplug not in plugin_service.plugins:
+                    continue
+                plugin_service.plugins[subplug].disable()
+        for ret in plugin_service.referents[self.id].copy():
+            if plugin_service._subplugined.get(self.id) == ret:
+                continue
+            if ret not in plugin_service.plugins:
+                continue
+            plugin_service.plugins[ret].disable()
+        for serv in self._services.values():
+            plugin_service.service_waiter.clear(serv.id)
+            try:
+                it(Launart).remove_component(serv)
+            except ValueError:
+                pass
+        self._scope.disable()
 
     def collect(self, *disposes: Callable[[], None]):
         """收集副作用回收函数"""
@@ -311,24 +352,19 @@ class Plugin:
                 if self.id not in plugin_service.referents[ref]:
                     continue
                 plugin_service.referents[ref].remove(self.id)
-                if (
-                    not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins
-                ):  # if no more referents, remove it
+                if not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins:
+                    # if no more referents, remove it
                     try:
                         plugin_service.plugins[ref].dispose(is_cleanup=is_cleanup)
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
             for ret in plugin_service.referents[self.id].copy():
+                if plugin_service._subplugined.get(self.id) == ret:
+                    continue
                 if ret not in plugin_service.plugins:
                     continue
-                if ret in plugin_service._unloaded:
-                    continue
-                try:
-                    plugin_service.plugins[ret].dispose(is_cleanup=is_cleanup)
-                except Exception as e:
-                    log.plugin.error(f"failed to dispose referent plugin <r>{ret}</r> caused by {e!r}")
-                    plugin_service.plugins.pop(ret, None)
+                plugin_service.plugins[ret].disable()
         self._scope.dispose()
         self._scope.propagators.clear()
         del plugin_service.plugins[self.id]

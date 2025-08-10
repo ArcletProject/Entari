@@ -59,10 +59,11 @@ class Scheduler(Service):
                 del self.tasks[task.sub.id]
                 continue
             task.start(self.queue)
-            try:
-                await task.sub.handle(contexts.copy())
-            except Exception:
-                print_exc()
+            if task.sub.available:
+                try:
+                    await task.sub.handle(contexts.copy())
+                except Exception:
+                    print_exc()
 
     def schedule(self, time_fn: Callable[[], timedelta], once: bool = False):
         """
@@ -84,8 +85,7 @@ class Scheduler(Service):
             def _dispose(_):
                 task.available = False
 
-            old_dispose = sub._dispose
-            sub._dispose = lambda s: (_dispose(s), old_dispose(s))  # type: ignore
+            sub._attach_disposes(_dispose)
 
             if _get_running_loop():
                 self.tasks[sub.id].start(self.queue)

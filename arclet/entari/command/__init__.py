@@ -82,7 +82,7 @@ class EntariCommands:
         msg = str(message).lstrip()
         if not msg:
             return
-        scopes = [sp for sp in _scopes.values() if sp.available]
+        scopes = [self.scope] + [sp for sp in _scopes.values() if sp.available]
         subs = {
             slot[0].id: slot[0]
             for sp in scopes
@@ -133,6 +133,7 @@ class EntariCommands:
                 )
                 if plg:
                     target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+                    plg._extra.setdefault("commands", []).append(([], _command.command))
                 else:
                     target = self.scope.register(func, CommandDispatch, providers=providers)
                 target.propagate(AlconnaSuppiler(_command))
@@ -143,12 +144,7 @@ class EntariCommands:
                     command_manager.delete(get_cmd(_))
                     self.trie.pop(key, None)  # type: ignore
 
-                if plg:
-                    plg.collect(lambda: _remove(target))
-                    plg._extra.setdefault("commands", []).append(([], _command.command))
-                else:
-                    old_dispose = target._dispose
-                    target._dispose = lambda s: old_dispose(s) or _remove(s)  # type: ignore
+                target._attach_disposes(_remove)
                 return target
 
             _command = cast(Alconna, cmd)
@@ -166,6 +162,7 @@ class EntariCommands:
 
             if plg:
                 target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+                plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
             else:
                 target = self.scope.register(func, providers=providers)
             target.propagate(AlconnaSuppiler(_command))
@@ -178,12 +175,7 @@ class EntariCommands:
                 for _key in keys:
                     self.trie.pop(_key, None)  # type: ignore
 
-            if plg:
-                plg.collect(lambda: _remove(target))
-                plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
-            else:
-                old_dispose = target._dispose
-                target._dispose = lambda s: old_dispose(s) or _remove(s)  # type: ignore
+            target._attach_disposes(_remove)
             return target
         return wrapper
 

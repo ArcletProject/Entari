@@ -103,16 +103,15 @@ class PluginLoader(SourceFileLoader):
                     _ensure_plugin(
                         [alias.name for alias in body.names], body.lineno not in signed_plugin_lineno, name, f"{name}."
                     )
-                elif body.level == 0 and body.module not in (
-                    *sys.builtin_module_names,
-                    *getattr(sys, "stdlib_module_names", []),
-                ):  # from xxx import xxx
+                elif body.level == 0:  # from xxx import xxx
+                    if body.module in (*sys.builtin_module_names, *getattr(sys, "stdlib_module_names", [])):
+                        continue
                     if body.lineno in signed_plugin_lineno:
                         _ensure_plugin([body.module], False, name)
                     if body.lineno in signed_subplugin_lineno:
                         _ensure_plugin([body.module], True, name)
                 elif body.level == 1:  # from .xxx import xxx
-                    prefix = f"{name}." if path.endswith("__init__.py") else name.rpartition(".")[0] + "."
+                    prefix = name if path.endswith("__init__.py") else name.rpartition(".")[0]
                     _ensure_plugin([body.module], True, name, f"{prefix}.")
                 else:  # from ..xxx import xxx
                     prefix = ".".join(
