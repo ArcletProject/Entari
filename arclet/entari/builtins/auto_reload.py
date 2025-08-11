@@ -42,13 +42,6 @@ metadata(
 logger = log.wrapper("[AutoReload]").opt(colors=True)
 
 
-def detect_filter_change(old: dict, new: dict):
-    added = set(new) - set(old)
-    removed = set(old) - set(new)
-    changed = {key for key in set(new) & set(old) if new[key] != old[key]}
-    return "allow" in (added | removed | changed) or "$deny" in (added | removed | changed)
-
-
 class Watcher(Service):
     id = "entari.plugin.auto_reload/watcher"
 
@@ -123,7 +116,7 @@ class Watcher(Service):
                     logger.debug(f"Basic config <y>{key!r}</y> appended")
                     await es.publish(ConfigReload("basic", key, new_basic[key]))
                 for plugin_name in old_plugin:
-                    if plugin_name.startswith("$") or plugin_name.startswith("~"):
+                    if plugin_name.startswith("$"):
                         continue
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if plugin_name not in EntariConfig.instance.plugin:
@@ -143,14 +136,26 @@ class Watcher(Service):
                         old_conf = old_plugin[plugin_name]
                         new_conf = EntariConfig.instance.plugin[plugin_name]
                         if plugin := find_plugin(pid):
-                            filter_changed = detect_filter_change(old_conf, new_conf)
-                            if not filter_changed:
-                                res = await es.post(
-                                    ConfigReload("plugin", plugin_name, new_conf, old_conf),
-                                )
-                                if res and res.value:
-                                    logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
+                            added = set(new_conf) - set(old_conf)
+                            removed = set(old_conf) - set(new_conf)
+                            changed = {k for k in set(new_conf) & set(old_conf) if new_conf[k] != old_conf[k]}
+                            changes = added | removed | changed
+                            if "$disable" in changes:
+                                plugin.disable() if new_conf.get("$disable", False) else plugin.enable()
+                                changes.remove("$disable")
+                            if "$dry" in changes:
+                                changes.remove("$dry")
+                                if new_conf.get("$dry", False):
+                                    logger.debug(f"Plugin <y>{plugin.id!r}</y> is dry, ignored.")
                                     continue
+                            if not changes:
+                                continue
+                            res = await es.post(
+                                ConfigReload("plugin", plugin_name, new_conf, old_conf),
+                            )
+                            if res and res.value:
+                                logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
+                                continue
                             if plugin.is_static:
                                 logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                                 continue

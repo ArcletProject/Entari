@@ -52,6 +52,7 @@ def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
         _IMPORTING.add(f"{prefix}{name}")
 
 
+# fmt: off
 class _Visitor(ast.NodeVisitor):
     def __init__(self, current: str, path: str, signed_plugin_lineno: list[int], signed_subplugin_lineno: list[int]):
         self.current_name = current
@@ -59,19 +60,19 @@ class _Visitor(ast.NodeVisitor):
         self.signed_plugin_lineno = signed_plugin_lineno
         self.signed_subplugin_lineno = signed_subplugin_lineno
         self.type_checking_stack = []
-        self.typing_aliases = {'typing', 'typing_extensions'}  # 跟踪typing模块的别名
+        self.typing_aliases = {"typing", "typing_extensions"}  # 跟踪typing模块的别名
 
     def visit_Import(self, node: ast.Import):
         # 跟踪typing模块的导入别名
         for alias in node.names:
-            if alias.name in ('typing', 'typing_extensions'):
+            if alias.name in ("typing", "typing_extensions"):
                 self.typing_aliases.add(alias.asname or alias.name)
 
         if self._in_type_checking():
             return
-        if node.lineno in self.signed_plugin_lineno or all(map(lambda x: x.name in _ENSURE_IS_PLUGIN, node.names)):
+        if node.lineno in self.signed_plugin_lineno or all(x.name in _ENSURE_IS_PLUGIN for x in node.names):
             _ensure_plugin([alias.name for alias in node.names], False, self.current_name)
-        elif node.lineno in self.signed_subplugin_lineno or all(map(lambda x: x.name in _SUBMODULE_WAITLIST, node.names)):  # noqa: E501
+        elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST for x in node.names):
             _ensure_plugin([alias.name for alias in node.names], True, self.current_name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -107,19 +108,20 @@ class _Visitor(ast.NodeVisitor):
 
     def _is_type_checking(self, node: ast.If) -> bool:
         test = node.test
-        if isinstance(test, ast.Name) and test.id == 'TYPE_CHECKING':
+        if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
             return True
         if isinstance(test, ast.Attribute):
-            if isinstance(test.value, ast.Name) and test.value.id in self.typing_aliases and test.attr == 'TYPE_CHECKING':  # noqa: E501
+            if isinstance(test.value, ast.Name) and test.value.id in self.typing_aliases and test.attr == "TYPE_CHECKING":  # noqa: E501
                 return True
         if isinstance(test, ast.Compare):
             left = test.left
-            if isinstance(left, ast.Name) and left.id == 'TYPE_CHECKING':
+            if isinstance(left, ast.Name) and left.id == "TYPE_CHECKING":
                 return True
             elif isinstance(left, ast.Attribute):
-                if isinstance(left.value, ast.Name) and left.value.id in self.typing_aliases and left.attr == 'TYPE_CHECKING':  # noqa: E501
+                if isinstance(left.value, ast.Name) and left.value.id in self.typing_aliases and left.attr == "TYPE_CHECKING":  # noqa: E501
                     return True
         return False
+# fmt: on
 
 
 class PluginLoader(SourceFileLoader):
@@ -196,14 +198,12 @@ class PluginLoader(SourceFileLoader):
                 key = f"::{key[23:]}"
             elif key.startswith("entari_plugin_") and f"{key[14:]}" in EntariConfig.instance.plugin:
                 key = f"{key[14:]}"
-            config = EntariConfig.instance.plugin.get(key, {}).copy()
+            config = EntariConfig.instance.plugin.get(key, {})
             config["$path"] = key
-            config.pop("$priority", None)
-            config.pop("$dry", None)
             if key in EntariConfig.instance.prelude_plugin:
                 config["$static"] = True  # type: ignore
         # create plugin before executing
-        plugin = Plugin(module.__name__, module, config=(config or {}).copy())
+        plugin = Plugin(module.__name__, module, config=config)
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)
@@ -243,6 +243,8 @@ class PluginLoader(SourceFileLoader):
         if plugin_service.status.blocking:
             if plugin._apply:
                 plugin.exec_apply()
+            if plugin.config.get("$disable", False):
+                plugin.disable()
             publish(Ready(), plugin._scope)
         publish(PluginLoadedSuccess(module.__name__))
         return

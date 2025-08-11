@@ -74,6 +74,8 @@ class PluginManagerService(Service):
             for serv in plug._services.values():
                 manager.add_component(serv)
                 self.service_waiter.assign(serv.id)
+            if plug.config.get("$disable", False):
+                plug.disable()
 
         async with self.stage("preparing"):
             es.publish(Startup())

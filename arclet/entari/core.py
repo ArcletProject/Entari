@@ -240,6 +240,8 @@ class Entari(App):
         super().run(manager, loop=loop, stop_signal=stop_signal)
         if self._path_scale:
             del sys.path[self._path_scale[0] : self._path_scale[1]]
+        if EntariConfig.instance.path.exists():
+            EntariConfig.instance.save()
         log.core.info("Entari Shutdown.")
 
     @classmethod

@@ -102,6 +102,7 @@ class Proxy:
 
 
 def config_model_validate(base: type[C], data: dict[str, Any]) -> C:
+    data = {k: v for k, v in data.items() if not k.startswith("$")}
     for b in base.__mro__[-2::-1]:
         if b in _config_model_actions:
             return _config_model_actions[b].load(data, base)

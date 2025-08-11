@@ -10,4 +10,7 @@ class ConfigReload:
     value: Any
     old: Optional[Any] = None
 
+    def __post_init__(self):
+        self.key = self.key.lstrip("~")
+
     __result_type__: type[bool] = bool

@@ -111,30 +111,27 @@ def load_plugin(
         prelude (bool): 是否为前置插件
     """
     if config is None:
-        config = EntariConfig.instance.plugin.get(path)
-    conf = (config or {}).copy()
-    conf.pop("$priority", None)
-    conf.pop("$dry", None)
-    conf["$path"] = path
+        config = EntariConfig.instance.plugin.get(path, {})
+    config["$path"] = path
     if prelude:
-        conf["$static"] = True
+        config["$static"] = True
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.builtins.")
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
     if path in plugin_service._apply:
-        return plugin_service._apply[path][0](conf)
+        return plugin_service._apply[path][0](config)
     if plug := find_plugin(path):
         plugin_service._direct_plugins.add(plug.id)
         return plug
     try:
-        if pref := conf.pop("$prefix", None):
+        if pref := config.get("$prefix"):
             path = f"{pref if isinstance(pref, str) else 'entari_plugin_'}{path}"
-        mod = import_plugin(path, config=conf)
+        mod = import_plugin(path, config=config)
         if not pref and not mod and not path.count("."):
             path1 = f"entari_plugin_{path}"
-            mod = import_plugin(path1, config=conf)
+            mod = import_plugin(path1, config=config)
         if not mod:
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             publish(PluginLoadedFailed(path))

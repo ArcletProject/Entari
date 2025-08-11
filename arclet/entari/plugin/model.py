@@ -221,8 +221,13 @@ class Plugin:
             finally:
                 _current_plugin.reset(token)
 
+    @property
+    def is_available(self) -> bool:
+        return self._scope.available
+
     def enable(self):
         self._scope.enable()
+        self.config.pop("$disable", None)
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
@@ -263,6 +268,7 @@ class Plugin:
             except ValueError:
                 pass
         self._scope.disable()
+        self.config["$disable"] = True
 
     def collect(self, *disposes: Callable[[], None]):
         """收集副作用回收函数"""
@@ -278,9 +284,9 @@ class Plugin:
     def __post_init__(self):
         self._scope = Scope.of(self.id)
         plugin_service.plugins[self.id] = self
-        self._config_key = self.config.pop("$path", self.id)
-        allow = self.config.pop("$allow", {})
-        deny = self.config.pop("$deny", {})
+        self._config_key = self.config.get("$path", self.id)
+        allow = self.config.get("$allow", {})
+        deny = self.config.get("$deny", {})
         pat = {}
         if allow:
             pat["$and"] = allow
@@ -292,7 +298,6 @@ class Plugin:
             self._scope.propagators.append(inject(*self._metadata.depend_services))
         if "$static" in self.config:
             self.is_static = True
-            self.config.pop("$static")
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
         if self.id not in plugin_service.referents:
@@ -421,7 +426,7 @@ class Plugin:
         if isinstance(serv, type):
             serv = serv()
         self._services[serv.id] = serv
-        if plugin_service.status.blocking:
+        if plugin_service.status.blocking and self.is_available:
             it(Launart).add_component(serv)
             plugin_service.service_waiter.assign(serv.id)
         return serv

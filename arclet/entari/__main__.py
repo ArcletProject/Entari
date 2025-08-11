@@ -297,7 +297,7 @@ def main():
                 return
             cfg.plugin[name] = {}
             if is_application:
-                cfg._basic_data.setdefault("external_dirs", []).append("plugins")
+                cfg._origin_data["basic"].setdefault("external_dirs", []).append("plugins")
             cfg.save()
             return
         if res.find("plugin.test"):

@@ -48,7 +48,7 @@ class EntariConfig:
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     save_flag: bool = field(default=False)
-    _basic_data: dict[str, Any] = field(default_factory=dict, init=False)
+    _origin_data: dict[str, Any] = field(init=False)
 
     instance: ClassVar[EntariConfig]
 
@@ -71,9 +71,9 @@ class EntariConfig:
             return
         origin = cls.loader(path)
         if "entari" in origin:
-            nest_dict_update(origin["entari"], data)
+            origin["entari"] = data
         else:
-            nest_dict_update(origin, data)
+            origin = data
         end = save_path.suffix.split(".")[-1]
         if end in _dumpers:
             _dumpers[end](save_path, origin, indent)
@@ -86,7 +86,7 @@ class EntariConfig:
 
     @property
     def data(self) -> dict[str, Any]:
-        return self.loader(self.path)
+        return self._origin_data
 
     @property
     def prelude_plugin_names(self) -> list[str]:
@@ -97,7 +97,7 @@ class EntariConfig:
         slots = [
             (name, self.plugin[name].get("$priority", 16))
             for name in self.plugin
-            if not name.startswith("~") and not name.startswith("$") and not self.plugin[name].get("$dry", False)
+            if not name.startswith("$") and not self.plugin[name].get("$optional", False)
         ]
         slots.sort(key=lambda x: x[1])
         return [name for name, _ in slots]
@@ -110,9 +110,21 @@ class EntariConfig:
         if "entari" in data:
             data = data["entari"]
         self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
-        self._basic_data = data.get("basic", {})
+        self._origin_data = data
         self.plugin = data.get("plugins", {})
-        self.plugin_extra_files: list[str] = self.plugin.pop("$files", [])  # type: ignore
+        self.plugin_extra_files: list[str] = self.plugin.get("$files", [])  # type: ignore
+        self.prelude_plugin = self.plugin.get("$prelude", [])  # type: ignore
+        for key in list(self.plugin.keys()):
+            if key.startswith("$"):
+                continue
+            value = self.plugin.pop(key)
+            if key.startswith("~"):
+                key = key[1:]
+                value["$disable"] = True
+            elif key.startswith("?"):
+                key = key[1:]
+                value["$optional"] = True
+            self.plugin[key] = value
         for file in self.plugin_extra_files:
             path = Path(file)
             if not path.exists():
@@ -124,39 +136,32 @@ class EntariConfig:
                     self.plugin[_path.stem] = self.loader(_path)
             else:
                 self.plugin[path.stem] = self.loader(path)
-
-        self.prelude_plugin = self.plugin.pop("$prelude", [])  # type: ignore
-        disabled = []
-        for k, v in self.plugin.items():
-            if v is True:
-                self.plugin[k] = {}
-                warnings.warn(
-                    f"`True` usage in plugin '{k}' config is deprecated, use empty dict instead", DeprecationWarning
-                )
-            elif v is False:
-                disabled.append(k)
-        for k in disabled:
-            self.plugin[f"~{k}"] = self.plugin.pop(k)
-            warnings.warn(
-                f"`False` usage in plugin '{k}' config is deprecated, use `~` prefix instead", DeprecationWarning
-            )
         return True
 
     def dump(self, indent: int = 2):
-        plugins = self.plugin.copy()
-        if self.prelude_plugin:
-            plugins = {"$prelude": self.prelude_plugin, **plugins}
+
+        def _clean(value: dict):
+            return {k: v for k, v in value.items() if k not in {"$path", "$static"}}
+
         if self.plugin_extra_files:
             for file in self.plugin_extra_files:
                 path = Path(file)
                 if path.is_file():
-                    self.dumper(path, path, plugins.pop(path.stem), indent)
+                    self.dumper(path, path, _clean(self.plugin.pop(path.stem)), indent)
                 else:
                     for _path in path.iterdir():
                         if _path.is_file():
-                            self.dumper(_path, _path, plugins.pop(_path.stem), indent)
-            plugins = {"$files": self.plugin_extra_files, **plugins}
-        return {"basic": self._basic_data, "plugins": plugins}
+                            self.dumper(_path, _path, _clean(self.plugin.pop(_path.stem)), indent)
+        for key in list(self.plugin.keys()):
+            value = self.plugin.pop(key)
+            if "$disable" in value:
+                key = f"~{key}" if value["$disable"] else key
+                value.pop("$disable", None)
+            if "$optional" in value:
+                key = f"?{key}" if value["$optional"] else key
+                value.pop("$optional", None)
+            self.plugin[key] = _clean(value)
+        return self._origin_data
 
     def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):
         self.save_flag = True
