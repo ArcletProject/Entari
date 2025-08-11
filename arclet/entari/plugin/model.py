@@ -232,8 +232,6 @@ class Plugin:
                     continue
                 plugin_service.plugins[subplug].enable()
         for ret in plugin_service.referents[self.id].copy():
-            if plugin_service._subplugined.get(self.id) == ret:
-                continue
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].enable()
@@ -255,8 +253,6 @@ class Plugin:
                     continue
                 plugin_service.plugins[subplug].disable()
         for ret in plugin_service.referents[self.id].copy():
-            if plugin_service._subplugined.get(self.id) == ret:
-                continue
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].disable()
@@ -360,8 +356,6 @@ class Plugin:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
             for ret in plugin_service.referents[self.id].copy():
-                if plugin_service._subplugined.get(self.id) == ret:
-                    continue
                 if ret not in plugin_service.plugins:
                     continue
                 plugin_service.plugins[ret].disable()

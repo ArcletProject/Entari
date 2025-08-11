@@ -47,9 +47,79 @@ def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
             _SUBMODULE_WAITLIST.setdefault(current, set()).add(f"{prefix}{name}")
         else:
             _ENSURE_IS_PLUGIN.add(f"{prefix}{name}")
-        plugin_service.referents.setdefault(f"{prefix}{name}", set()).add(current)
-        plugin_service.references.setdefault(current, set()).add(f"{prefix}{name}")
+            plugin_service.referents.setdefault(f"{prefix}{name}", set()).add(current)
+            plugin_service.references.setdefault(current, set()).add(f"{prefix}{name}")
         _IMPORTING.add(f"{prefix}{name}")
+
+
+class _Visitor(ast.NodeVisitor):
+    def __init__(self, current: str, path: str, signed_plugin_lineno: list[int], signed_subplugin_lineno: list[int]):
+        self.current_name = current
+        self.path = path
+        self.signed_plugin_lineno = signed_plugin_lineno
+        self.signed_subplugin_lineno = signed_subplugin_lineno
+        self.type_checking_stack = []
+        self.typing_aliases = {'typing', 'typing_extensions'}  # 跟踪typing模块的别名
+
+    def visit_Import(self, node: ast.Import):
+        # 跟踪typing模块的导入别名
+        for alias in node.names:
+            if alias.name in ('typing', 'typing_extensions'):
+                self.typing_aliases.add(alias.asname or alias.name)
+
+        if self._in_type_checking():
+            return
+        if node.lineno in self.signed_plugin_lineno or all(map(lambda x: x.name in _ENSURE_IS_PLUGIN, node.names)):
+            _ensure_plugin([alias.name for alias in node.names], False, self.current_name)
+        elif node.lineno in self.signed_subplugin_lineno or all(map(lambda x: x.name in _SUBMODULE_WAITLIST, node.names)):  # noqa: E501
+            _ensure_plugin([alias.name for alias in node.names], True, self.current_name)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        name = self.current_name
+        if self._in_type_checking():
+            return
+        if node.module is None:  # from . import xxx
+            _ensure_plugin([alias.name for alias in node.names], node.lineno not in self.signed_plugin_lineno, name, f"{name}.")  # noqa: E501
+        elif node.level == 0:  # from xxx import xxx
+            if node.module in (*sys.builtin_module_names, *getattr(sys, "stdlib_module_names", [])):
+                return
+            if node.lineno in self.signed_plugin_lineno or node.module in _ENSURE_IS_PLUGIN:
+                _ensure_plugin([node.module], False, name)
+            elif node.lineno in self.signed_subplugin_lineno or node.module in _SUBMODULE_WAITLIST:
+                _ensure_plugin([node.module], True, name)
+        elif node.level == 1:  # from .xxx import xxx
+            prefix = name if self.path.endswith("__init__.py") else name.rpartition(".")[0]
+            _ensure_plugin([node.module], True, name, f"{prefix}.")
+        else:  # from ..xxx import xxx
+            prefix = ".".join(name.split(".")[: -node.level + 1 if self.path.endswith("__init__.py") else -node.level])
+            _ensure_plugin([node.module], node.lineno not in self.signed_plugin_lineno, name, f"{prefix}.")
+
+    def visit_If(self, node: ast.If):
+        is_type_checking = self._is_type_checking(node)
+        if is_type_checking:
+            self.type_checking_stack.append(True)
+        self.generic_visit(node)
+        if is_type_checking:
+            self.type_checking_stack.pop()
+
+    def _in_type_checking(self) -> bool:
+        return len(self.type_checking_stack) > 0
+
+    def _is_type_checking(self, node: ast.If) -> bool:
+        test = node.test
+        if isinstance(test, ast.Name) and test.id == 'TYPE_CHECKING':
+            return True
+        if isinstance(test, ast.Attribute):
+            if isinstance(test.value, ast.Name) and test.value.id in self.typing_aliases and test.attr == 'TYPE_CHECKING':  # noqa: E501
+                return True
+        if isinstance(test, ast.Compare):
+            left = test.left
+            if isinstance(left, ast.Name) and left.id == 'TYPE_CHECKING':
+                return True
+            elif isinstance(left, ast.Attribute):
+                if isinstance(left.value, ast.Name) and left.value.id in self.typing_aliases and left.attr == 'TYPE_CHECKING':  # noqa: E501
+                    return True
+        return False
 
 
 class PluginLoader(SourceFileLoader):
@@ -97,32 +167,8 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
-        for body in ast.walk(nodes):
-            if isinstance(body, ast.ImportFrom):
-                if body.module is None:  # from . import xxx
-                    _ensure_plugin(
-                        [alias.name for alias in body.names], body.lineno not in signed_plugin_lineno, name, f"{name}."
-                    )
-                elif body.level == 0:  # from xxx import xxx
-                    if body.module in (*sys.builtin_module_names, *getattr(sys, "stdlib_module_names", [])):
-                        continue
-                    if body.lineno in signed_plugin_lineno:
-                        _ensure_plugin([body.module], False, name)
-                    if body.lineno in signed_subplugin_lineno:
-                        _ensure_plugin([body.module], True, name)
-                elif body.level == 1:  # from .xxx import xxx
-                    prefix = name if path.endswith("__init__.py") else name.rpartition(".")[0]
-                    _ensure_plugin([body.module], True, name, f"{prefix}.")
-                else:  # from ..xxx import xxx
-                    prefix = ".".join(
-                        name.split(".")[: -body.level + 1 if path.endswith("__init__.py") else -body.level]
-                    )
-                    _ensure_plugin([body.module], body.lineno not in signed_plugin_lineno, name, f"{prefix}.")
-            elif isinstance(body, ast.Import):
-                if body.lineno in signed_plugin_lineno:
-                    _ensure_plugin([alias.name for alias in body.names], False, name)
-                if body.lineno in signed_subplugin_lineno:
-                    _ensure_plugin([alias.name for alias in body.names], True, name)
+        visitor = _Visitor(name, path, signed_plugin_lineno, signed_subplugin_lineno)
+        visitor.visit(nodes)
 
         return _bootstrap._call_with_frames_removed(  # type: ignore
             compile, nodes, path, "exec", dont_inherit=True, optimize=-1
@@ -258,7 +304,7 @@ class _PluginFinder(MetaPathFinder):
                 return module_spec
             elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
                 module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
-                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
+                # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec
             if (

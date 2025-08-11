@@ -275,6 +275,7 @@ def find_plugin_by_file(file: str) -> Plugin | None:
 
 
 def unload_plugin(plugin: str):
+    plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
@@ -286,6 +287,7 @@ def unload_plugin(plugin: str):
 
 def enable_plugin(plugin: str):
     """启用指定插件"""
+    plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
@@ -296,6 +298,7 @@ def enable_plugin(plugin: str):
 
 def disable_plugin(plugin: str):
     """禁用指定插件"""
+    plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
