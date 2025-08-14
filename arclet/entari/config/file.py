@@ -153,6 +153,8 @@ class EntariConfig:
                         if _path.is_file():
                             self.dumper(_path, _path, _clean(self.plugin.pop(_path.stem)), indent)
         for key in list(self.plugin.keys()):
+            if key.startswith("$"):
+                continue
             value = self.plugin.pop(key)
             if "$disable" in value:
                 key = f"~{key}" if value["$disable"] else key
@@ -257,6 +259,7 @@ def yaml_loader(text: str) -> dict:
     if YAML is None:
         raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
     yaml = YAML()
+    yaml.preserve_quotes = True
     yaml.indent(mapping=2, sequence=4, offset=2)
     return yaml.load(StringIO(text))
 
@@ -266,6 +269,7 @@ def yaml_dumper(save_path: Path, origin: dict, indent: int):
     if YAML is None:
         raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
     yaml = YAML()
+    yaml.preserve_quotes = True
     yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
     with save_path.open("w+", encoding="utf-8") as f:
         yaml.dump(origin, f)

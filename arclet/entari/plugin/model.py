@@ -205,9 +205,11 @@ class Plugin:
 
     def exec_apply(self):
         if self._apply:
+            log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
             token = _current_plugin.set(self)
             try:
                 self._apply(self)
+                log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
             except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
                 self.dispose()
                 log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")

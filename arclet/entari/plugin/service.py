@@ -69,8 +69,6 @@ class PluginManagerService(Service):
     async def launch(self, manager: Launart):
 
         for plug in self.plugins.values():
-            if plug._apply:
-                plug.exec_apply()
             for serv in plug._services.values():
                 manager.add_component(serv)
                 self.service_waiter.assign(serv.id)
@@ -80,6 +78,12 @@ class PluginManagerService(Service):
         async with self.stage("preparing"):
             es.publish(Startup())
         async with self.stage("blocking"):
+            for plug in self.plugins.values():
+                if not plug._apply:
+                    continue
+                plug.exec_apply()
+                if plug.config.get("$disable", False):
+                    plug.disable()
             es.publish(Ready())
             await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):

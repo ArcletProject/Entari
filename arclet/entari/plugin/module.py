@@ -237,7 +237,10 @@ class PluginLoader(SourceFileLoader):
             plugin.metadata = metadata
         plugin._apply = getattr(module, "__plugin_apply__", None)
         if not is_sub:
-            log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
+            if plugin._apply:
+                log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue> partially applied")
+            else:
+                log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
         else:
             log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
         if plugin_service.status.blocking:

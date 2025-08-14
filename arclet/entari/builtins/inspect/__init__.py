@@ -8,7 +8,7 @@ from .i18n import Lang
 
 metadata(
     "inspect",
-    ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+    [{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Inspect on any user, group or channel",
 )
 
@@ -16,7 +16,7 @@ metadata(
 inspect_cmd = Alconna(
     "inspect",
     Args["target?", [At, Sharp]],
-    meta=CommandMeta(Lang.entari_plugin_inspect.description(), example="inspect @user\ninspect #channel\ninspect"),
+    meta=CommandMeta(Lang.entari_plugin_inspect.description.cast(), example="inspect @user\ninspect #channel\ninspect"),
 )
 
 

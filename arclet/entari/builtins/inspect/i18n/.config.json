@@ -2,5 +2,5 @@
   "default": "zh-CN",
   "frozen": [],
   "require": [],
-  "name": "entari::plugin_inspect"
+  "name": "entari::plugin/inspect"
 }
