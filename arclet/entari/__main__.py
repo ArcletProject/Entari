@@ -33,22 +33,30 @@ alc = Alconna(
             Option("-P|--plugins", Args["names/", MultiVar(str)], help_text="指定增加哪些插件"),
             help_text="新建一个 Entari 配置文件",
         ),
-        Option("current", help_text="查看当前配置文件"),
+        Subcommand("current", help_text="查看当前配置文件"),
         help_text="配置文件操作",
     ),
     Subcommand(
-        "plugin",
+        "new",
         Args["name/?", str],
-        Subcommand(
-            "new",
-            Option("-S|--static", help_text="是否为静态插件"),
-            Option("-A|--application", help_text="是否为应用插件"),
-            Option("-f|--file", help_text="是否为单文件插件"),
-            help_text="新建一个 Entari 插件",
-        ),
-        Subcommand("test", help_text="测试 Entari 插件是否可用"),
-        help_text="插件操作",
+        Option("-S|--static", help_text="是否为静态插件"),
+        Option("-A|--application", help_text="是否为应用插件"),
+        Option("-f|--file", help_text="是否为单文件插件"),
+        Option("-D|--disabled", help_text="是否插件初始禁用"),
+        Option("-O|--optional", help_text="是否仅存储插件配置而不加载插件"),
+        Option("-p|--priority", Args["num/", int], help_text="插件加载优先级"),
+        help_text="新建一个 Entari 插件",
     ),
+    Subcommand(
+        "add",
+        Args["name/?", str],
+        Option("-D|--disabled", help_text="是否插件初始禁用"),
+        Option("-O|--optional", help_text="是否仅存储插件配置而不加载插件"),
+        Option("-p|--priority", Args["num/", int], help_text="插件加载优先级"),
+        help_text="添加一个 Entari 插件到配置文件中",
+    ),
+    Subcommand("remove", Args["name/?", str], help_text="从配置文件中移除一个 Entari 插件"),
+    Subcommand("test", Args["name/?", str], help_text="测试 Entari 插件是否可用"),
     Subcommand("run", help_text="运行 Entari"),
     Subcommand("gen_main", help_text="生成一个 Entari 主程序文件"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径", dest="cfg_path"),
@@ -263,93 +271,131 @@ def main():
             cfg = EntariConfig.load()
             print(f"Current config file:\n{Fore.BLUE}{cfg.path.resolve()!s}")
             return
-    if res.find("plugin"):
-        name = res.query[str]("plugin.name")
-        if res.find("plugin.new"):
-            if not name:
-                print(f"{Fore.BLUE}Please specify a plugin name:")
-                name = input(f"{Fore.RESET}>>> ").strip()
-            is_application = res.find("plugin.new.application")
-            if not name.startswith("entari_plugin_") and not is_application:
-                print(f"{Fore.RED}Plugin will be corrected to 'entari_plugin_{name}' automatically.")
-                print(f"{Fore.RESET}If you want to keep the name, please use option {Fore.MAGENTA}-A|--application.")
-                name = f"entari_plugin_{name}"
-            is_file = res.find("plugin.new.file")
-            is_static = res.find("plugin.new.static")
-            if name.startswith("entari_plugin_") and find_spec(name):
-                print(f"'{name}' already installed, please use another name.")
-                return
-            path = Path.cwd() / ("plugins" if is_application else "src")
-            path.mkdir(parents=True, exist_ok=True)
-            if is_file:
-                path = path.joinpath(f"{name}.py")
-            else:
-                path = path.joinpath(name, "__init__.py")
-                path.parent.mkdir(exist_ok=True)
-            with path.open("w+", encoding="utf-8") as f:
-                f.write((PLUGIN_STATIC_TEMPLATE if is_static else PLUGIN_DEFAULT_TEMPLATE).format(name=name))
-            cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
-            if name in cfg.plugin:
-                return
-            if f"entari_plugin_{name}" in cfg.plugin:
-                return
-            if name.removeprefix("entari_plugin_") in cfg.plugin:
-                return
+    if res.find("new"):
+        name = res.query[str]("new.name")
+        if not name:
+            print(f"{Fore.BLUE}Please specify a plugin name:")
+            name = input(f"{Fore.RESET}>>> ").strip()
+        is_application = res.find("new.application")
+        if not name.startswith("entari_plugin_") and not is_application:
+            print(f"{Fore.RED}Plugin will be corrected to 'entari_plugin_{name}' automatically.")
+            print(f"{Fore.RESET}If you want to keep the name, please use option {Fore.MAGENTA}-A|--application.")
+            name = f"entari_plugin_{name}"
+        is_file = res.find("new.file")
+        is_static = res.find("new.static")
+        if name.startswith("entari_plugin_") and find_spec(name):
+            print(f"'{name}' already installed, please use another name.")
+            return
+        path = Path.cwd() / ("plugins" if is_application else "src")
+        path.mkdir(parents=True, exist_ok=True)
+        if is_file:
+            path = path.joinpath(f"{name}.py")
+        else:
+            path = path.joinpath(name, "__init__.py")
+            path.parent.mkdir(exist_ok=True)
+        with path.open("w+", encoding="utf-8") as f:
+            f.write((PLUGIN_STATIC_TEMPLATE if is_static else PLUGIN_DEFAULT_TEMPLATE).format(name=name))
+        cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
+        if name in cfg.plugin:
+            return
+        if f"entari_plugin_{name}" in cfg.plugin:
+            return
+        if name.removeprefix("entari_plugin_") in cfg.plugin:
+            return
+        cfg.plugin[name] = {}
+        if res.find("new.disabled"):
+            cfg.plugin[name]["$disable"] = True
+        if res.find("new.optional"):
+            cfg.plugin[name]["$optional"] = True
+        if res.find("new.priority"):
+            cfg.plugin[name]["priority"] = res.query[int]("new.priority.num", 16)
+        if is_application:
+            cfg._origin_data["basic"].setdefault("external_dirs", []).append("plugins")
+        cfg.save()
+        return
+    if res.find("add"):
+        name = res.query[str]("add.name")
+        if not name:
+            print(f"{Fore.BLUE}Please specify a plugin name:")
+            name = input(f"{Fore.RESET}>>> ").strip()
+        cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
+        name_ = name.replace("::", "arclet.entari.builtins.")
+        if find_spec(name_):
+            pass
+        elif not name_.count(".") and find_spec(f"entari_plugin_{name_}"):
+            pass
+        else:
+            print(
+                f"{Fore.BLUE}{name_!r}{Fore.RED} not found.\nYou should installed it, or run {Fore.GREEN}`entari new {name_}`{Fore.RESET}"  # noqa: E501
+            )
+            return
+        cfg.plugin[name] = {}
+        if res.find("add.disabled"):
+            cfg.plugin[name]["$disable"] = True
+        if res.find("add.optional"):
+            cfg.plugin[name]["$optional"] = True
+        if res.find("add.priority"):
+            cfg.plugin[name]["priority"] = res.query[int]("add.priority.num", 16)
+        cfg.save()
+        return
+    if res.find("remove"):
+        name = res.query[str]("add.name")
+        if not name:
+            print(f"{Fore.BLUE}Please specify a plugin name:")
+            name = input(f"{Fore.RESET}>>> ").strip()
+        cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
+        cfg.plugin.pop(name, None)
+        cfg.save()
+        return
+    if res.find("test"):
+        name = res.query[str]("test.name")
+        if not name:
+            print(f"{Fore.BLUE}Please specify a plugin name:")
+            name = input(f"{Fore.RESET}>>> ").strip()
+        cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
+        cfg.basic.network = []
+        for k in list(cfg.plugin.keys()):
+            if k.startswith("."):
+                continue
+            if k in {name, f"entari_plugin_{name}", name.removeprefix("entari_plugin_")}:
+                continue
+            del cfg.plugin[k]
+        if not (
+            name in cfg.plugin
+            or f"entari_plugin_{name}" in cfg.plugin
+            or name.removeprefix("entari_plugin_") in cfg.plugin
+        ):
             cfg.plugin[name] = {}
-            if is_application:
-                cfg._origin_data["basic"].setdefault("external_dirs", []).append("plugins")
-            cfg.save()
-            return
-        if res.find("plugin.test"):
-            if not name:
-                print(f"{Fore.BLUE}Please specify a plugin name:")
-                name = input(f"{Fore.RESET}>>> ").strip()
-            cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
-            cfg.basic.network = []
-            for k in list(cfg.plugin.keys()):
-                if k.startswith("."):
-                    continue
-                if k in {name, f"entari_plugin_{name}", name.removeprefix("entari_plugin_")}:
-                    continue
-                del cfg.plugin[k]
-            if not (
-                name in cfg.plugin
-                or f"entari_plugin_{name}" in cfg.plugin
-                or name.removeprefix("entari_plugin_") in cfg.plugin
-            ):
-                cfg.plugin[name] = {}
-            entari = Entari.from_config(cfg)
+        entari = Entari.from_config(cfg)
 
-            @listen(PluginLoadedFailed)
-            async def _():
-                print(f"{Fore.RED}Plugin {Fore.YELLOW}{name}{Fore.RED} failed to load, please check the plugin.")
-                raise_signal(SIGTERM)
+        @listen(PluginLoadedFailed)
+        async def _():
+            print(f"{Fore.RED}Plugin {Fore.YELLOW}{name}{Fore.RED} failed to load, please check the plugin.")
+            raise_signal(SIGTERM)
 
-            @listen(Ready)
-            async def _():
-                print(f"{Fore.BLUE}Please send a message to test the plugin (you can type the element tag):")
-                text = input(f"{Fore.RESET}>>> ").strip()
-                lg = Login(
-                    0, LoginStatus.ONLINE, "test", "@console", User("@bot", "Bot", is_bot=True), ["message.guild"]
-                )
-                ev = MessageCreatedEvent(
-                    Account(lg, ApiInfo(), [], protocol_cls=TestProtocol),
-                    Event(
-                        "message-created",
-                        datetime.now(),
-                        lg,
-                        user=User("@user", "User"),
-                        channel=Channel("@console", ChannelType.DIRECT, "Console"),
-                        guild=Guild("@console", "Console"),
-                        message=MessageObject(str(id(text)), text),
-                    ),
-                )
-                await publish(ev)
-                await asyncio.sleep(1)
-                raise_signal(SIGINT)
+        @listen(Ready)
+        async def _():
+            print(f"{Fore.BLUE}Please send a message to test the plugin (you can type the element tag):")
+            text = input(f"{Fore.RESET}>>> ").strip()
+            lg = Login(0, LoginStatus.ONLINE, "test", "@console", User("@bot", "Bot", is_bot=True), ["message.guild"])
+            ev = MessageCreatedEvent(
+                Account(lg, ApiInfo(), [], protocol_cls=TestProtocol),
+                Event(
+                    "message-created",
+                    datetime.now(),
+                    lg,
+                    user=User("@user", "User"),
+                    channel=Channel("@console", ChannelType.DIRECT, "Console"),
+                    guild=Guild("@console", "Console"),
+                    message=MessageObject(str(id(text)), text),
+                ),
+            )
+            await publish(ev)
+            await asyncio.sleep(1)
+            raise_signal(SIGINT)
 
-            entari.run()
-            return
+        entari.run()
+        return
     if res.find("run"):
         command_manager.delete(alc)
         entari = Entari.load(res.query[str]("cfg_path.path", None))
