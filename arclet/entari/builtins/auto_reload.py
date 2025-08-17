@@ -33,7 +33,7 @@ class Config(BasicConfModel):
 
 metadata(
     "AutoReload",
-    author=["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+    author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Auto reload plugins when files changed",
     config=Config,
 )

@@ -26,30 +26,32 @@ SceneNames = {
     "VOICE": Lang.entari_plugin_inspect.scene.voice,
     "CATEGORY": Lang.entari_plugin_inspect.scene.category,
 }
+TP = "{platform}\n{self}\n{scene}\n{guild}\n{channel}\n{user}"
 
 
 @command.on(inspect_cmd)
 async def inspect(session: Session[MessageEvent], target: Match["At | Sharp"]):
     event = session.event
-    texts = [
-        Lang.entari_plugin_inspect.platform(platform=session.account.platform),
-        Lang.entari_plugin_inspect.self(self_id=session.account.self_id),
-        Lang.entari_plugin_inspect.scene.name(scene=SceneNames[session.channel.type.name]()),
-        Lang.entari_plugin_inspect.guild(guild_id=event.guild.id if event.guild else None),
-        Lang.entari_plugin_inspect.channel(channel_id=session.channel.id),
-    ]
-    if event.quote and (authors := select(event.quote, Author)):
-        texts.append(Lang.entari_plugin_inspect.user(user_id=authors[0].id))
-        await session.send_message("\n".join(texts))
-        return
+    texts = {
+        "platform": Lang.entari_plugin_inspect.platform(platform=session.account.platform),
+        "self": Lang.entari_plugin_inspect.self(self_id=session.account.self_id),
+        "scene": Lang.entari_plugin_inspect.scene.name(scene=SceneNames[session.channel.type.name]()),
+        "guild": Lang.entari_plugin_inspect.guild(guild_id=event.guild.id if event.guild else None),
+        "channel": Lang.entari_plugin_inspect.channel(channel_id=session.channel.id),
+    }
     if target.available:
         if isinstance(target.result, At) and target.result.id:
-            await session.send_message(Lang.entari_plugin_inspect.user(user_id=target.result.id))
+            texts["user"] = Lang.entari_plugin_inspect.user(user_id=target.result.id)
         elif isinstance(target.result, Sharp) and target.result.id:
-            await session.send_message(Lang.entari_plugin_inspect.channel(channel_id=target.result.id))
+            texts["channel"] = Lang.entari_plugin_inspect.channel(channel_id=target.result.id)
         else:
             await session.send_message(Lang.entari_plugin_inspect.invalid())
-        return
-    texts.append(Lang.entari_plugin_inspect.user(user_id=session.user.id))
-    await session.send_message("\n".join(texts))
+            return
+    if "user" not in texts:
+        if event.quote and (authors := select(event.quote, Author)):
+            texts["user"] = Lang.entari_plugin_inspect.user(user_id=authors[0].id)
+        else:
+            texts["user"] = Lang.entari_plugin_inspect.user(user_id=session.user.id)
+
+    await session.send_message(TP.format(**texts))
     return

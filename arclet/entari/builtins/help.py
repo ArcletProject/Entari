@@ -36,7 +36,7 @@ config = plugin_config(Config)
 
 metadata(
     "help",
-    ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+    author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="展示所有命令帮助",
     config=Config,
 )
