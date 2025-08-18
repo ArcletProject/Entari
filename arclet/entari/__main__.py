@@ -1,31 +1,17 @@
-import asyncio
-from datetime import datetime
 from importlib.util import find_spec
 from pathlib import Path
 import re
 import shutil
-from signal import SIGINT, SIGTERM, raise_signal
 import subprocess
 import sys
-from typing import Union
 
 from arclet.alconna import Alconna, Args, CommandMeta, MultiVar, Option, Subcommand, command_manager
 from arclet.alconna.exceptions import SpecialOptionTriggered
 from arclet.alconna.tools.formatter import RichConsoleFormatter
-from arclet.letoderea import publish
 from colorama.ansi import Fore, Style
-from satori import Api
-from satori.client import Account, ApiInfo
-from satori.event import Event
-from satori.exception import ActionFailed
-from satori.model import Channel, ChannelType, Guild, Login, LoginStatus, MessageObject, User
 
-from arclet.entari import Entari, __version__, listen
+from arclet.entari import Entari, __version__
 from arclet.entari.config import EntariConfig
-from arclet.entari.event.base import MessageCreatedEvent
-from arclet.entari.event.lifespan import Ready
-from arclet.entari.event.plugin import PluginLoadedFailed
-from arclet.entari.session import EntariProtocol
 
 alc = Alconna(
     "entari",
@@ -60,7 +46,6 @@ alc = Alconna(
         help_text="添加一个 Entari 插件到配置文件中",
     ),
     Subcommand("remove", Args["name/?", str], help_text="从配置文件中移除一个 Entari 插件"),
-    Subcommand("test", Args["name/?", str], help_text="测试 Entari 插件是否可用"),
     Subcommand("run", help_text="运行 Entari"),
     Subcommand("gen_main", help_text="生成一个 Entari 主程序文件"),
     Option("-c|--config", Args["path/", str], help_text="指定配置文件路径", dest="cfg_path"),
@@ -70,30 +55,6 @@ alc = Alconna(
     ),
     formatter_type=RichConsoleFormatter,
 )
-
-
-class TestProtocol(EntariProtocol):
-
-    async def call_api(
-        self, action: Union[str, Api], params: Union[dict, None] = None, multipart: bool = False, method: str = "POST"
-    ):
-        if action is Api.MESSAGE_CREATE and params:
-            print(params["content"])
-            return [MessageObject(str(id(params["content"])), params["content"]).dump()]
-        if action is Api.GUILD_GET:
-            return Guild("@console", "Console").dump()
-        if action is Api.GUILD_LIST:
-            return {"data": [Guild("@console", "Console").dump()]}
-        if action is Api.CHANNEL_GET:
-            return Channel("@console", ChannelType.DIRECT, "Console").dump()
-        if action is Api.CHANNEL_LIST:
-            return {"data": [Channel("@console", ChannelType.DIRECT, "Console").dump()]}
-        if action is Api.USER_GET:
-            return User("@user", "User").dump()
-        if action is Api.FRIEND_LIST:
-            return {"data": [User("@user", "User").dump()]}
-        raise ActionFailed("Unsupported action")
-
 
 JSON_BASIC_TEMPLATE = """\
 {
@@ -482,55 +443,6 @@ def main():
         cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
         cfg.plugin.pop(name, None)
         cfg.save()
-        return
-    if res.find("test"):
-        name = res.query[str]("test.name")
-        if not name:
-            print(f"{Fore.BLUE}Please specify a plugin name:")
-            name = input(f"{Fore.RESET}>>> ").strip()
-        cfg = EntariConfig.load(res.query[str]("cfg_path.path", None))
-        cfg.basic.network = []
-        for k in list(cfg.plugin.keys()):
-            if k.startswith("."):
-                continue
-            if k in {name, f"entari_plugin_{name}", name.removeprefix("entari_plugin_")}:
-                continue
-            del cfg.plugin[k]
-        if not (
-            name in cfg.plugin
-            or f"entari_plugin_{name}" in cfg.plugin
-            or name.removeprefix("entari_plugin_") in cfg.plugin
-        ):
-            cfg.plugin[name] = {}
-        entari = Entari.from_config(cfg)
-
-        @listen(PluginLoadedFailed)
-        async def _():
-            print(f"{Fore.RED}Plugin {Fore.YELLOW}{name}{Fore.RED} failed to load, please check the plugin.")
-            raise_signal(SIGTERM)
-
-        @listen(Ready)
-        async def _():
-            print(f"{Fore.BLUE}Please send a message to test the plugin (you can type the element tag):")
-            text = input(f"{Fore.RESET}>>> ").strip()
-            lg = Login(0, LoginStatus.ONLINE, "test", "@console", User("@bot", "Bot", is_bot=True), ["message.guild"])
-            ev = MessageCreatedEvent(
-                Account(lg, ApiInfo(), [], protocol_cls=TestProtocol),
-                Event(
-                    "message-created",
-                    datetime.now(),
-                    lg,
-                    user=User("@user", "User"),
-                    channel=Channel("@console", ChannelType.DIRECT, "Console"),
-                    guild=Guild("@console", "Console"),
-                    message=MessageObject(str(id(text)), text),
-                ),
-            )
-            await publish(ev)
-            await asyncio.sleep(1)
-            raise_signal(SIGINT)
-
-        entari.run()
         return
     if res.find("run"):
         command_manager.delete(alc)
