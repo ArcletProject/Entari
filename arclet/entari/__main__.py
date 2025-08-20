@@ -1,17 +1,44 @@
 from importlib.util import find_spec
+import json
+import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
+from typing import Union
 
 from arclet.alconna import Alconna, Args, CommandMeta, MultiVar, Option, Subcommand, command_manager
 from arclet.alconna.exceptions import SpecialOptionTriggered
 from arclet.alconna.tools.formatter import RichConsoleFormatter
 from colorama.ansi import Fore, Style
+from loguru import logger
 
-from arclet.entari import Entari, __version__
+from arclet.entari import __version__
 from arclet.entari.config import EntariConfig
+
+
+def _run_process(
+    *args: Union[str, bytes, "os.PathLike[str]", "os.PathLike[bytes]"],
+    cwd: Union[Path, None] = None,
+) -> int:
+    """Run command in a subprocess and return the exit code."""
+
+    def forward_signal(signum: int, frame) -> None:
+        if sys.platform == "win32" and signum == signal.SIGINT:
+            signum = signal.SIGTERM
+        p.send_signal(signum)
+
+    handle_term = signal.signal(signal.SIGTERM, forward_signal)
+    handle_int = signal.signal(signal.SIGINT, forward_signal)
+    p = subprocess.Popen(args, cwd=cwd, bufsize=0, close_fds=False)
+    logger.patch(lambda r: r.update(name="[core]")).info(f"Running App in process [{p.pid}] (not necessarily correct)")
+    retcode = p.wait()
+    signal.signal(signal.SIGTERM, handle_term)
+    signal.signal(signal.SIGINT, handle_int)
+    return retcode
+
 
 alc = Alconna(
     "entari",
@@ -445,10 +472,24 @@ def main():
         cfg.save()
         return
     if res.find("run"):
+        executable = json.loads(json.dumps(sys.executable).splitlines()[-1].strip())
         command_manager.delete(alc)
-        entari = Entari.load(res.query[str]("cfg_path.path", None))
-        entari.run()
-        return
+        cwd = Path.cwd()
+        if (cwd / "main.py").exists():
+            ret_code = _run_process(
+                executable,
+                Path("main.py"),
+                cwd=cwd,
+            )
+        else:
+            path = res.query[str]("cfg_path.path", "")
+            ret_code = _run_process(
+                executable,
+                "-c",
+                MAIN_SCRIPT.format(path=f'"{path}"'),
+                cwd=cwd,
+            )
+        sys.exit(ret_code)
     if res.find("gen_main"):
         file = Path.cwd() / "main.py"
         path = res.query[str]("cfg_path.path", "")
