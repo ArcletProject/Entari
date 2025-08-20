@@ -148,4 +148,24 @@ def _hidden_upsteam(record: Record):
 logger.configure(patcher=_hidden_upsteam)
 
 
-__all__ = ["log", "logger_id"]
+def apply_log_save(
+    rotation: str = "00:00",
+    compression: str | None = "zip",
+    colorize: bool = False,
+):
+    log_id = logger.add(
+        "logs/latest.log",
+        level=0,
+        enqueue=False,
+        rotation=rotation,
+        compression=compression,
+        colorize=colorize,
+        diagnose=True,
+        backtrace=True,
+        filter=default_filter,
+        format=_custom_format,
+    )
+    return lambda: logger.remove(log_id)
+
+
+__all__ = ["log", "logger_id", "apply_log_save"]

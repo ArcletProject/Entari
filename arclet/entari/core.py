@@ -24,11 +24,13 @@ from satori.model import Event
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
 from .config import EntariConfig
+from .config.file import LogInfo
+from .config.model import config_model_validate
 from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
 from .event.send import SendResponse
-from .logger import log
+from .logger import apply_log_save, log
 from .plugin import load_plugin, plugin_config, requires
 from .plugin.model import RootlessPlugin
 from .plugin.service import plugin_service
@@ -118,7 +120,7 @@ class Entari(App):
         if not config:
             config = EntariConfig.instance
         ignore_self_message = config.basic.ignore_self_message
-        log_level = config.basic.log_level
+        log_level = config.basic.log.level
         skip_req_missing = config.basic.skip_req_missing
         external_dirs = config.basic.external_dirs
         configs = []
@@ -152,7 +154,17 @@ class Entari(App):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
-        log.ignores.update(EntariConfig.instance.basic.log_ignores)
+        self._log_save_dispose = lambda: None
+        if EntariConfig.instance.basic.log.save:
+            if EntariConfig.instance.basic.log.save is True:
+                self._log_save_dispose = apply_log_save()
+            else:
+                self._log_save_dispose = apply_log_save(
+                    rotation=EntariConfig.instance.basic.log.save.rotation,
+                    compression=EntariConfig.instance.basic.log.save.compression,
+                    colorize=EntariConfig.instance.basic.log.save.colorize,
+                )
+        log.ignores.update(EntariConfig.instance.basic.log.ignores)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
         log.core.debug(f"Config loaded from <m>{EntariConfig.instance.path}</m>: <w>{EntariConfig.instance.data}</w>")
         self.ignore_self_message = ignore_self_message
@@ -179,6 +191,20 @@ class Entari(App):
         if key == "log_level":
             log.set_level(value)
             log.core.debug(f"Log level set to <y><c>{value}</c></y>")
+        elif key == "log":
+            new_conf = config_model_validate(LogInfo, value)
+            log.set_level(new_conf.level)
+            log.core.debug(f"Log level set to <y><c>{new_conf.level}</c></y>")
+            log.ignores.clear()
+            log.ignores.update(new_conf.ignores)
+            self._log_save_dispose()
+            if new_conf.save:
+                if new_conf.save is True:
+                    self._log_save_dispose = apply_log_save()
+                else:
+                    self._log_save_dispose = apply_log_save(
+                        new_conf.save.rotation, new_conf.save.compression, new_conf.save.colorize
+                    )
         elif key == "ignore_self_message":
             self.ignore_self_message = value
         elif key == "network":

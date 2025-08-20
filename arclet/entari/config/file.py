@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from importlib import import_module
 from io import StringIO
@@ -7,7 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Callable, ClassVar, TypeVar
+from typing import Any, Callable, ClassVar, TypeVar, Union
 import warnings
 
 from tarina.tools import nest_dict_update
@@ -25,15 +23,43 @@ ENV_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}['\"]
 T = TypeVar("T")
 
 
+class LogSaveInfo(BasicConfModel):
+    rotation: str = model_field(default="00:00", description="Log rotation time, e.g., '00:00' for daily rotation")
+    compression: Union[str, None] = model_field(
+        default=None, description="Compression format for log saving, e.g., 'zip'"
+    )
+    colorize: bool = model_field(default=True, description="Whether to colorize the log output")
+
+
+class LogInfo(BasicConfModel):
+    level: Union[int, str] = model_field(default="INFO", description="Log level for the application")
+    ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
+    save: Union[LogSaveInfo, bool, None] = model_field(
+        default=None,
+        description="Log saving configuration, if None or False, logs will not be saved",
+    )
+
+
 class BasicConfig(BasicConfModel):
     network: list[dict[str, Any]] = model_field(default_factory=list, description="Network configuration")
     ignore_self_message: bool = model_field(default=True, description="Ignore self message")
     skip_req_missing: bool = model_field(default=False, description="Skip Event Handler if requirement is missing")
-    log_level: int | str = model_field(default="INFO", description="Log level for the application")
-    log_ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
+    log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
+    log_level: Union[int, str, None] = model_field(
+        default=None, description="[Deprecated] Log level for the application"
+    )
+    log_ignores: Union[list[str], None] = model_field(
+        default=None, description="[Deprecated] Log ignores for the application"
+    )
     prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
     cmd_count: int = model_field(default=4096, description="Command count limit for the application")
     external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")
+
+    def __post_init__(self):
+        if self.log_level is not None:
+            self.log.level = self.log_level
+        if self.log_ignores is not None:
+            self.log.ignores = self.log_ignores
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
@@ -50,7 +76,7 @@ class EntariConfig:
     save_flag: bool = field(default=False)
     _origin_data: dict[str, Any] = field(init=False)
 
-    instance: ClassVar[EntariConfig]
+    instance: ClassVar["EntariConfig"]
 
     @classmethod
     def loader(cls, path: Path):
@@ -139,6 +165,13 @@ class EntariConfig:
         return True
 
     def dump(self, indent: int = 2):
+        basic = self._origin_data.get("basic", {})
+        if "log" not in basic and ("log_level" in basic or "log_ignores" in basic):
+            basic["log"] = {}
+            if "log_level" in basic:
+                basic["log"]["level"] = basic.pop("log_level")
+            if "log_ignores" in basic:
+                basic["log"]["ignores"] = basic.pop("log_ignores")
 
         def _clean(value: dict):
             return {k: v for k, v in value.items() if k not in {"$path", "$static"}}
@@ -165,12 +198,12 @@ class EntariConfig:
             self.plugin[key] = _clean(value)
         return self._origin_data
 
-    def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):
+    def save(self, path: Union[str, os.PathLike[str], None] = None, indent: int = 2):
         self.save_flag = True
         self.dumper(self.path, Path(path or self.path), self.dump(indent), indent)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[str] | None = None) -> EntariConfig:
+    def load(cls, path: Union[str, os.PathLike[str], None] = None) -> "EntariConfig":
         try:
             import dotenv
 
