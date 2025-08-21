@@ -57,9 +57,6 @@ toml = [
     "tomlkit>=0.13.3",
 ]
 
-[project.scripts]
-entari = "arclet.entari.__main__:main"
-
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"

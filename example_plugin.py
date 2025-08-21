@@ -42,8 +42,13 @@ async def _(session: Session):
 disp_message = plug.dispatch(MessageCreatedEvent)
 
 
+@filter_.public.append(filter_.to_me).append
+def filter_content(session: Session):
+    return str(session.content) == "aaa"
+
+
 @disp_message.on()
-@filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) == "aaa")
+@filter_content
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
