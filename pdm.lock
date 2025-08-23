@@ -2,10 +2,10 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "toml", "yaml"]
+groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:dd15eee7f5d2f2a1a7bab127ce0030bb720ef52d6540f3b6146069423849196f"
+content_hash = "sha256:4ce5a3c97094ce500fd4659d55671bd5581eae50a55a0a1d589b3a3848026a48"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -163,33 +163,33 @@ files = [
 
 [[package]]
 name = "arclet-alconna"
-version = "1.8.42"
+version = "1.8.43"
 requires_python = ">=3.9"
 summary = "A High-performance, Generality, Humane Command Line Arguments Parser Library."
-groups = ["default"]
+groups = ["default", "cli"]
 dependencies = [
     "nepattern<1.0.0,>=0.7.7",
     "tarina<0.8.0,>=0.7.0",
     "typing-extensions>=4.5.0",
 ]
 files = [
-    {file = "arclet_alconna-1.8.42-py3-none-any.whl", hash = "sha256:dc9115f778b2f33830edb7aafc77d1109ca6466546083959f6c3ba7e0e098823"},
-    {file = "arclet_alconna-1.8.42.tar.gz", hash = "sha256:87d4708f923439515aec8c13b7024aa37bfdd50ada9a60f581e7fc11691da5b7"},
+    {file = "arclet_alconna-1.8.43-py3-none-any.whl", hash = "sha256:fd38ee4ca6404f7b698be8d9ec47248f9a95008d4d80c824375811ef5183d2c6"},
+    {file = "arclet_alconna-1.8.43.tar.gz", hash = "sha256:23c89d334f4d44e2130f1abc63d8641ac39be9009be023ebd08c2739bbef42c9"},
 ]
 
 [[package]]
 name = "arclet-alconna-tools"
-version = "0.7.10"
+version = "0.7.11"
 requires_python = ">=3.9"
 summary = "Builtin Tools for Alconna"
-groups = ["default"]
+groups = ["default", "cli"]
 dependencies = [
     "arclet-alconna>=1.8.31",
     "nepattern<1.0.0,>=0.7.3",
 ]
 files = [
-    {file = "arclet_alconna_tools-0.7.10-py3-none-any.whl", hash = "sha256:50e8b2f433fbc612dc8b99f4f5410006dcb1ef406c971c795071117a4eab8e20"},
-    {file = "arclet_alconna_tools-0.7.10.tar.gz", hash = "sha256:446a63a9c56886c23fb44548bb9a18655e0ba5b5dd80cc87915b858dfb02554c"},
+    {file = "arclet_alconna_tools-0.7.11-py3-none-any.whl", hash = "sha256:ffc8d1596fbfcdb2ad09a42668aa7a134b542e6f81fa75ee8188107e758f80b9"},
+    {file = "arclet_alconna_tools-0.7.11.tar.gz", hash = "sha256:d9c6e40e885e579ef5f3962f84b389b60e83e57241ec950e48a70e51cac3feed"},
 ]
 
 [[package]]
@@ -270,6 +270,22 @@ files = [
 ]
 
 [[package]]
+name = "cli-lite"
+version = "0.11.1"
+requires_python = ">=3.9"
+summary = "A simple framework to build a cli tool, base on Alconna"
+groups = ["cli"]
+dependencies = [
+    "arclet-alconna-tools>=0.7.11",
+    "arclet-alconna>=1.8.43",
+    "importlib-metadata>=3.6.0",
+]
+files = [
+    {file = "cli_lite-0.11.1-py3-none-any.whl", hash = "sha256:f928feca704ab0ef57b37e9cf22cf989bba84ae12352f2d438399cbae1f469d6"},
+    {file = "cli_lite-0.11.1.tar.gz", hash = "sha256:a92f561948c8ee0bd425f99bf8533fbb5420fb6a63e6d8905ecf3694d86b8652"},
+]
+
+[[package]]
 name = "click"
 version = "8.1.8"
 requires_python = ">=3.7"
@@ -289,8 +305,7 @@ name = "colorama"
 version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
-groups = ["default", "dev"]
-marker = "platform_system == \"Windows\" or sys_platform == \"win32\""
+groups = ["default", "cli", "dev"]
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -326,6 +341,26 @@ files = [
 ]
 
 [[package]]
+name = "entari-cli"
+version = "0.1.0"
+requires_python = ">=3.9"
+summary = "Entari Command Line Tool, extract from arclet.entari.__main__"
+groups = ["cli"]
+dependencies = [
+    "cli-lite>=0.11.0",
+    "colorama>=0.4.6",
+    "findpython>=0.7.0",
+    "packaging>=25.0",
+    "python-dotenv>=1.1.1",
+    "ruamel-yaml>=0.18.15",
+    "tomlkit>=0.13.3",
+]
+files = [
+    {file = "entari_cli-0.1.0-py3-none-any.whl", hash = "sha256:49f04247dd2ebaf081b6630820d7e35b2304977624d4064611000cc36da2f89a"},
+    {file = "entari_cli-0.1.0.tar.gz", hash = "sha256:1e048b92c1c48d325bd9ce484ead74b0278992afb8ec90ff9ed95bc52b58089e"},
+]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.2.2"
 requires_python = ">=3.7"
@@ -335,6 +370,21 @@ marker = "python_version < \"3.11\""
 files = [
     {file = "exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b"},
     {file = "exceptiongroup-1.2.2.tar.gz", hash = "sha256:47c2edf7c6738fafb49fd34290706d1a1a2f4d1c6df275526b62cbb4aa5393cc"},
+]
+
+[[package]]
+name = "findpython"
+version = "0.7.0"
+requires_python = ">=3.8"
+summary = "A utility to find python versions on your system"
+groups = ["cli"]
+dependencies = [
+    "packaging>=20",
+    "platformdirs>=4.3.6",
+]
+files = [
+    {file = "findpython-0.7.0-py3-none-any.whl", hash = "sha256:f53cfcc29536f5b83c962cf922bba8ff6d6a3c2a05fda6a45aa58a47d005d8fc"},
+    {file = "findpython-0.7.0.tar.gz", hash = "sha256:8b31647c76352779a3c1a0806699b68e6a7bdc0b5c2ddd9af2a07a0d40c673dc"},
 ]
 
 [[package]]
@@ -469,7 +519,7 @@ name = "importlib-metadata"
 version = "8.6.1"
 requires_python = ">=3.9"
 summary = "Read metadata from Python packages"
-groups = ["default"]
+groups = ["default", "cli"]
 dependencies = [
     "typing-extensions>=3.6.4; python_version < \"3.8\"",
     "zipp>=3.20",
@@ -672,7 +722,7 @@ name = "nepattern"
 version = "0.7.7"
 requires_python = ">=3.8"
 summary = "a complex pattern, support typing"
-groups = ["default"]
+groups = ["default", "cli"]
 dependencies = [
     "tarina>=0.5.1",
     "typing-extensions>=4.5.0",
@@ -695,13 +745,13 @@ files = [
 
 [[package]]
 name = "packaging"
-version = "24.2"
+version = "25.0"
 requires_python = ">=3.8"
 summary = "Core utilities for Python packages"
-groups = ["dev"]
+groups = ["cli", "dev"]
 files = [
-    {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
-    {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
+    {file = "packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484"},
+    {file = "packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f"},
 ]
 
 [[package]]
@@ -720,7 +770,7 @@ name = "platformdirs"
 version = "4.3.6"
 requires_python = ">=3.8"
 summary = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
-groups = ["dev"]
+groups = ["cli", "dev"]
 files = [
     {file = "platformdirs-4.3.6-py3-none-any.whl", hash = "sha256:73e575e1408ab8103900836b97580d5307456908a03e92031bab39e4554cc3fb"},
     {file = "platformdirs-4.3.6.tar.gz", hash = "sha256:357fb2acbc885b0419afd3ce3ed34564c13c9b95c89360cd9563f73aa5e2b907"},
@@ -948,13 +998,13 @@ files = [
 
 [[package]]
 name = "python-dotenv"
-version = "1.0.1"
-requires_python = ">=3.8"
+version = "1.1.1"
+requires_python = ">=3.9"
 summary = "Read key-value pairs from a .env file and set them as environment variables"
-groups = ["dev", "dotenv", "full"]
+groups = ["cli", "dev", "dotenv", "full"]
 files = [
-    {file = "python-dotenv-1.0.1.tar.gz", hash = "sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca"},
-    {file = "python_dotenv-1.0.1-py3-none-any.whl", hash = "sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a"},
+    {file = "python_dotenv-1.1.1-py3-none-any.whl", hash = "sha256:31f23644fe2602f88ff55e1f5c79ba497e01224ee7737937930c448e4d0e24dc"},
+    {file = "python_dotenv-1.1.1.tar.gz", hash = "sha256:a8a6399716257f45be6a007360200409fce5cda2661e3dec71d23dc15f6189ab"},
 ]
 
 [[package]]
@@ -969,16 +1019,16 @@ files = [
 
 [[package]]
 name = "ruamel-yaml"
-version = "0.18.10"
-requires_python = ">=3.7"
+version = "0.18.15"
+requires_python = ">=3.8"
 summary = "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order"
-groups = ["dev", "full", "yaml"]
+groups = ["cli", "dev", "full", "yaml"]
 dependencies = [
-    "ruamel-yaml-clib>=0.2.7; platform_python_implementation == \"CPython\" and python_version < \"3.13\"",
+    "ruamel-yaml-clib>=0.2.7; platform_python_implementation == \"CPython\" and python_version < \"3.14\"",
 ]
 files = [
-    {file = "ruamel.yaml-0.18.10-py3-none-any.whl", hash = "sha256:30f22513ab2301b3d2b577adc121c6471f28734d3d9728581245f1e76468b4f1"},
-    {file = "ruamel.yaml-0.18.10.tar.gz", hash = "sha256:20c86ab29ac2153f80a428e1254a8adf686d3383df04490514ca3b79a362db58"},
+    {file = "ruamel.yaml-0.18.15-py3-none-any.whl", hash = "sha256:148f6488d698b7a5eded5ea793a025308b25eca97208181b6a026037f391f701"},
+    {file = "ruamel.yaml-0.18.15.tar.gz", hash = "sha256:dbfca74b018c4c3fba0b9cc9ee33e53c371194a9000e694995e620490fd40700"},
 ]
 
 [[package]]
@@ -986,8 +1036,8 @@ name = "ruamel-yaml-clib"
 version = "0.2.12"
 requires_python = ">=3.9"
 summary = "C version of reader, parser and emitter for ruamel.yaml derived from libyaml"
-groups = ["dev", "full", "yaml"]
-marker = "platform_python_implementation == \"CPython\" and python_version < \"3.13\""
+groups = ["cli", "dev", "full", "yaml"]
+marker = "platform_python_implementation == \"CPython\" and python_version < \"3.14\""
 files = [
     {file = "ruamel.yaml.clib-0.2.12-cp310-cp310-macosx_13_0_arm64.whl", hash = "sha256:11f891336688faf5156a36293a9c362bdc7c88f03a8a027c2c1d8e0bcde998e5"},
     {file = "ruamel.yaml.clib-0.2.12-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:a606ef75a60ecf3d924613892cc603b154178ee25abb3055db5062da811fd969"},
@@ -1135,7 +1185,7 @@ name = "tarina"
 version = "0.7.0"
 requires_python = ">=3.9"
 summary = "A collection of common utils for Arclet"
-groups = ["default"]
+groups = ["default", "cli"]
 dependencies = [
     "typing-extensions>=4.4.0",
 ]
@@ -1310,7 +1360,7 @@ name = "tomlkit"
 version = "0.13.3"
 requires_python = ">=3.8"
 summary = "Style preserving TOML library"
-groups = ["dev", "toml"]
+groups = ["cli", "dev", "toml"]
 files = [
     {file = "tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0"},
     {file = "tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1"},
@@ -1321,7 +1371,7 @@ name = "typing-extensions"
 version = "4.12.2"
 requires_python = ">=3.8"
 summary = "Backported and Experimental Type Hints for Python 3.8+"
-groups = ["default", "dev", "full", "pydantic", "reload"]
+groups = ["default", "cli", "dev", "full", "pydantic", "reload"]
 files = [
     {file = "typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d"},
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
@@ -1523,7 +1573,7 @@ name = "zipp"
 version = "3.21.0"
 requires_python = ">=3.9"
 summary = "Backport of pathlib-compatible object wrapper for zip files"
-groups = ["default"]
+groups = ["default", "cli"]
 files = [
     {file = "zipp-3.21.0-py3-none-any.whl", hash = "sha256:ac1bbe05fd2991f160ebce24ffbac5f6d11d83dc90891255885223d42b3cd931"},
     {file = "zipp-3.21.0.tar.gz", hash = "sha256:2c9958f6430a2040341a52eb608ed6dd93ef4392e02ffe219417c1b28b5dd1f4"},

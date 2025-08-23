@@ -46,6 +46,7 @@ full = [
     "watchfiles>=1.0.3",
     "python-dotenv>=1.0.1",
     "ruamel-yaml>=0.18.10",
+    "entari-cli>=0.1.0",
 ]
 pydantic = [
     "pydantic>=2.10.6",
@@ -55,6 +56,9 @@ msgspec = [
 ]
 toml = [
     "tomlkit>=0.13.3",
+]
+cli = [
+    "entari-cli>=0.1.0",
 ]
 
 [build-system]
