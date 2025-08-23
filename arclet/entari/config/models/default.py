@@ -52,7 +52,7 @@ class BasicConfModel:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        dataclass(**({k: v for k, v in kwargs.items() if k in _available_dc_attrs} | {"kw_only": True}))(cls)
+        dataclass(**({k: v for k, v in (kwargs | {"kw_only": True}).items() if k in _available_dc_attrs}))(cls)
 
 
 def _resolve_type(field_type: Any, types_namespace: dict[str, Any]) -> Any:

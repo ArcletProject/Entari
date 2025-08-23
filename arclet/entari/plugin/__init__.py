@@ -121,6 +121,7 @@ def load_plugin(
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
     if path in plugin_service._apply:
+        log.plugin.trace(f"loaded rootless plugin <y>{path!r}</y>")
         return plugin_service._apply[path][0](config)
     if plug := find_plugin(path):
         plugin_service._direct_plugins.add(plug.id)
