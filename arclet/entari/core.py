@@ -52,15 +52,15 @@ class SessionProviderFactory(ProviderFactory):
         async def __call__(self, context: Contexts):
             if self.target_type and not generic_isinstance(context["$event"], self.target_type):
                 return
-            if "session" in context and isinstance(context["session"], Session):
-                return context["session"]
+            if "$session" in context and isinstance(context["$session"], Session):
+                return context["$session"]
             if "$origin_event" in context and "account" in context:
                 session = Session(context["account"], context["$event"])
                 if "$message_content" in context:
                     session.elements = context["$message_content"]
                 if "$message_reply" in context:
                     session.reply = context["$message_reply"]
-                context["session"] = session
+                context["$session"] = session
                 return session
 
     def validate(self, param: Param):

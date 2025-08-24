@@ -1,4 +1,6 @@
+from arclet.letoderea import Depends as Depends
 from arclet.letoderea import bind as bind
+from arclet.letoderea import depends as depends
 from arclet.letoderea import propagate as propagate
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
@@ -66,8 +68,9 @@ from .plugin import plugin_config as plugin_config
 from .plugin import unload_plugin as unload_plugin
 from .plugin.model import inject as inject
 from .session import Session as Session
+from .util import Param as Param
 
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.15.0"
+__version__ = "0.15.1"
