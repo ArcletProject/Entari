@@ -56,13 +56,13 @@ class Proxy:
 
     def __getattr__(self, item):
         res = getattr(self.__origin, item)
-        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):
+        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):  # noqa: UP038
             return Proxy(res, self.__updater)
         return res
 
     def __getitem__(self, item):
         res = self.__origin[item]
-        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):
+        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):  # noqa: UP038
             return Proxy(res, self.__updater)
         return res
 

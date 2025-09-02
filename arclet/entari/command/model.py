@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Generic, Optional, TypeVar, Union
+from typing import Generic, TypeVar
 
 from arclet.alconna import Alconna, Arparma
 from tarina import Empty
@@ -35,7 +35,7 @@ class Query(Generic[T]):
     available: bool
     path: str
 
-    def __init__(self, path: str, default: Union[T, type[Empty]] = Empty):
+    def __init__(self, path: str, default: T | type[Empty] = Empty):
         self.path = path
         self.result = default  # type: ignore
         self.available = False
@@ -48,7 +48,7 @@ class Query(Generic[T]):
 class CommandResult:
     source: Alconna
     result: Arparma
-    output: Optional[str] = field(default=None)
+    output: str | None = field(default=None)
 
     @property
     def matched(self) -> bool:

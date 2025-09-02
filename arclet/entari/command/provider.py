@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Literal, Optional, Union, get_args
+from typing import Any, Literal, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
@@ -61,11 +61,10 @@ class AlconnaSuppiler(Propagator):
     def __init__(self, cmd: Alconna):
         self.cmd = cmd
 
-    async def before_supply(
-        self, message: MessageChain, session: Optional[Session] = None, reply: Optional[Reply] = None
-    ):
-        if session and (recv := await post(CommandReceive(session, self.cmd, message, reply))):
-            message = recv.value.copy()
+    async def before_supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
+        if session:
+            recv = await post(ev := CommandReceive(session, self.cmd, message, reply))
+            message = (recv.value or ev.content).copy()
         return {"_message": message}
 
     async def supply(self, ctx: Contexts):
@@ -79,34 +78,35 @@ class AlconnaSuppiler(Propagator):
                 _res = self.cmd.parse(_message)
             except Exception as e:
                 _res = Arparma(self.cmd._hash, _message, False, error_info=e)
-            may_help_text: Optional[str] = cap.get("output", None)
+            may_help_text: str | None = cap.get("output", None)
         return {"_result": CommandResult(self.cmd, _res, may_help_text)}
 
-    async def after_supply(self, ctx: Contexts, session: Optional[Session] = None):
+    async def after_supply(self, ctx: Contexts, session: Session | None = None):
         try:
             alc_result: CommandResult = ctx.pop("_result")
         except KeyError:
             raise ProviderUnsatisfied("_result") from None
         _res = alc_result.result
-        if session and (pres := await post(CommandParse(session, self.cmd, _res))):
+        if session:
+            pres = await post(ev := CommandParse(session, self.cmd, _res))
             if isinstance(pres.value, Arparma):
                 _res = pres.value
-            elif not pres.value:
+            elif pres.value is False:
                 return STOP
+            else:
+                _res = ev.result
         if _res.matched:
             return {"alc_result": CommandResult(self.cmd, _res, alc_result.output)}
         if alc_result.output:
             if session:
                 _t = str(_res.error_info) if isinstance(_res.error_info, SpecialOptionTriggered) else "error"
-                if ores := await post(CommandOutput(session, self.cmd, _t, alc_result.output)):
-                    if not ores.value:
-                        return STOP
-                    elif ores.value is True:
-                        msg = MessageChain(alc_result.output)
-                    else:
-                        msg = MessageChain(ores.value)
+                ores = await post(ev := CommandOutput(session, self.cmd, _t, alc_result.output))
+                if ores.value is False:
+                    return STOP
+                elif isinstance(ores.value, str | MessageChain):
+                    msg = MessageChain(ores.value)
                 else:
-                    msg = MessageChain(alc_result.output)
+                    msg = MessageChain(ev.content)
                 await session.send(msg)
                 return STOP
             return {"alc_result": alc_result}
@@ -119,7 +119,7 @@ class AlconnaSuppiler(Propagator):
 
 
 class AlconnaProvider(Provider[Any]):
-    def __init__(self, type_: str, extra: Optional[dict] = None):
+    def __init__(self, type_: str, extra: dict | None = None):
         super().__init__()
         self.type = type_
         self.extra = extra or {}

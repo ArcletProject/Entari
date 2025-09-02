@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Generic, TypeVar
@@ -59,15 +57,15 @@ class Attr(Generic[T]):
     def __init__(self, key: str | None = None):
         self.key = key
 
-    def __set_name__(self, owner: type[SatoriEvent], name: str):
+    def __set_name__(self, owner: type["SatoriEvent"], name: str):
         self.key = self.key or name
         if name not in ("id", "timestamp"):
             owner._attrs.add(name)
 
-    def __get__(self, instance: SatoriEvent, owner: type[SatoriEvent]) -> T:
+    def __get__(self, instance: "SatoriEvent", owner: type["SatoriEvent"]) -> T:
         return getattr(instance._origin, self.key, None)  # type: ignore
 
-    def __set__(self, instance: SatoriEvent, value):
+    def __set__(self, instance: "SatoriEvent", value):
         raise AttributeError("can't set attribute")
 
 

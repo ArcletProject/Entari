@@ -5,10 +5,10 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:4ce5a3c97094ce500fd4659d55671bd5581eae50a55a0a1d589b3a3848026a48"
+content_hash = "sha256:c75ba9f3af16ebad8307199c93cf0cf2c6e4474c91eddeda82d8fa059a3e8294"
 
 [[metadata.targets]]
-requires_python = ">=3.9"
+requires_python = ">=3.10"
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -166,7 +166,7 @@ name = "arclet-alconna"
 version = "1.8.43"
 requires_python = ">=3.9"
 summary = "A High-performance, Generality, Humane Command Line Arguments Parser Library."
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 dependencies = [
     "nepattern<1.0.0,>=0.7.7",
     "tarina<0.8.0,>=0.7.0",
@@ -182,7 +182,7 @@ name = "arclet-alconna-tools"
 version = "0.7.11"
 requires_python = ">=3.9"
 summary = "Builtin Tools for Alconna"
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 dependencies = [
     "arclet-alconna>=1.8.31",
     "nepattern<1.0.0,>=0.7.3",
@@ -194,16 +194,17 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.18.1"
-requires_python = ">=3.9"
+version = "0.19.1"
+requires_python = "<4.0,>=3.10"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 groups = ["default"]
 dependencies = [
     "tarina<0.8.0,>=0.7.0",
+    "typing-extensions>=4.12.0",
 ]
 files = [
-    {file = "arclet_letoderea-0.18.1-py3-none-any.whl", hash = "sha256:7f08d8faf6bf1d731a54ecceb5c89c6fa2eee671c5882f674d4785021f91ab68"},
-    {file = "arclet_letoderea-0.18.1.tar.gz", hash = "sha256:82f86da136b97fc533dac9b2d0aef87da338c2f9007f3e8c6af47bc37877bcdb"},
+    {file = "arclet_letoderea-0.19.1-py3-none-any.whl", hash = "sha256:dd1146b81b90a8c6bb56739f8e3a98771895f6ce7c489bef9129fc8a52df1e12"},
+    {file = "arclet_letoderea-0.19.1.tar.gz", hash = "sha256:a65d5a191b0a77f433d886d29cdcc1a48c4b0b41a8a247e876723f3e74db2fd0"},
 ]
 
 [[package]]
@@ -274,7 +275,7 @@ name = "cli-lite"
 version = "0.11.1"
 requires_python = ">=3.9"
 summary = "A simple framework to build a cli tool, base on Alconna"
-groups = ["cli"]
+groups = ["cli", "full"]
 dependencies = [
     "arclet-alconna-tools>=0.7.11",
     "arclet-alconna>=1.8.43",
@@ -305,7 +306,7 @@ name = "colorama"
 version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
-groups = ["default", "cli", "dev"]
+groups = ["default", "cli", "dev", "full"]
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -345,7 +346,7 @@ name = "entari-cli"
 version = "0.1.0"
 requires_python = ">=3.9"
 summary = "Entari Command Line Tool, extract from arclet.entari.__main__"
-groups = ["cli"]
+groups = ["cli", "full"]
 dependencies = [
     "cli-lite>=0.11.0",
     "colorama>=0.4.6",
@@ -377,7 +378,7 @@ name = "findpython"
 version = "0.7.0"
 requires_python = ">=3.8"
 summary = "A utility to find python versions on your system"
-groups = ["cli"]
+groups = ["cli", "full"]
 dependencies = [
     "packaging>=20",
     "platformdirs>=4.3.6",
@@ -519,7 +520,7 @@ name = "importlib-metadata"
 version = "8.6.1"
 requires_python = ">=3.9"
 summary = "Read metadata from Python packages"
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 dependencies = [
     "typing-extensions>=3.6.4; python_version < \"3.8\"",
     "zipp>=3.20",
@@ -722,7 +723,7 @@ name = "nepattern"
 version = "0.7.7"
 requires_python = ">=3.8"
 summary = "a complex pattern, support typing"
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 dependencies = [
     "tarina>=0.5.1",
     "typing-extensions>=4.5.0",
@@ -748,7 +749,7 @@ name = "packaging"
 version = "25.0"
 requires_python = ">=3.8"
 summary = "Core utilities for Python packages"
-groups = ["cli", "dev"]
+groups = ["cli", "dev", "full"]
 files = [
     {file = "packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484"},
     {file = "packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f"},
@@ -770,7 +771,7 @@ name = "platformdirs"
 version = "4.3.6"
 requires_python = ">=3.8"
 summary = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
-groups = ["cli", "dev"]
+groups = ["cli", "dev", "full"]
 files = [
     {file = "platformdirs-4.3.6-py3-none-any.whl", hash = "sha256:73e575e1408ab8103900836b97580d5307456908a03e92031bab39e4554cc3fb"},
     {file = "platformdirs-4.3.6.tar.gz", hash = "sha256:357fb2acbc885b0419afd3ce3ed34564c13c9b95c89360cd9563f73aa5e2b907"},
@@ -1185,7 +1186,7 @@ name = "tarina"
 version = "0.7.0"
 requires_python = ">=3.9"
 summary = "A collection of common utils for Arclet"
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 dependencies = [
     "typing-extensions>=4.4.0",
 ]
@@ -1360,7 +1361,7 @@ name = "tomlkit"
 version = "0.13.3"
 requires_python = ">=3.8"
 summary = "Style preserving TOML library"
-groups = ["cli", "dev", "toml"]
+groups = ["cli", "dev", "full", "toml"]
 files = [
     {file = "tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0"},
     {file = "tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1"},
@@ -1573,7 +1574,7 @@ name = "zipp"
 version = "3.21.0"
 requires_python = ">=3.9"
 summary = "Backport of pathlib-compatible object wrapper for zip files"
-groups = ["default", "cli"]
+groups = ["default", "cli", "full"]
 files = [
     {file = "zipp-3.21.0-py3-none-any.whl", hash = "sha256:ac1bbe05fd2991f160ebce24ffbac5f6d11d83dc90891255885223d42b3cd931"},
     {file = "zipp-3.21.0.tar.gz", hash = "sha256:2c9958f6430a2040341a52eb608ed6dd93ef4392e02ffe219417c1b28b5dd1f4"},

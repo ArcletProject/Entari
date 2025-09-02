@@ -1,10 +1,9 @@
-from __future__ import annotations
-
+from collections.abc import Callable
 import inspect
 import itertools
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
 from tarina import init_spec

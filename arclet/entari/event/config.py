@@ -1,6 +1,6 @@
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
-from arclet.letoderea import make_event
+from arclet.letoderea import Result, make_event
 
 
 @make_event(name="entari.event/config/reload")
@@ -8,9 +8,11 @@ class ConfigReload:
     scope: Literal["basic", "plugin"]
     key: str
     value: Any
-    old: Optional[Any] = None
+    old: Any = None
 
     def __post_init__(self):
         self.key = self.key.lstrip("~")
 
-    __result_type__: type[bool] = bool
+    def check_result(self, value) -> Result[bool] | None:
+        if isinstance(value, bool):
+            return Result(value)

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Callable, Literal, TypedDict, TypeVar, cast, overload
+from typing import Any, Literal, TypedDict, TypeVar, cast, overload
 from typing_extensions import NotRequired
 from weakref import finalize, proxy
 

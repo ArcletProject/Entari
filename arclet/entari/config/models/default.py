@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from dataclasses import MISSING, Field, asdict, dataclass
 from dataclasses import field as _field
 from dataclasses import fields, is_dataclass
 from inspect import Signature
-from typing import Any, Callable, ForwardRef, Optional, TypeVar, get_args, overload
+from typing import Any, ForwardRef, TypeVar, get_args, overload
 from typing_extensions import dataclass_transform
 
 from tarina import generic_isinstance
@@ -22,15 +23,15 @@ _T = TypeVar("_T")
 
 
 @overload
-def field(*, default: _T, init: bool = True, repr: bool = True, description: Optional[str] = None, hash: Optional[bool] = None, compare: bool = True, metadata: Optional[dict[str, Any]] = None) -> _T: ...  # noqa: E501
+def field(*, default: _T, init: bool = True, repr: bool = True, description: str | None = None, hash: bool | None = None, compare: bool = True, metadata: dict[str, Any] | None = None) -> _T: ...  # noqa: E501
 
 
 @overload
-def field(*, default_factory: Callable[[], _T], init: bool = True, repr: bool = True, description: Optional[str] = None, hash: Optional[bool] = None, compare: bool = True, metadata: Optional[dict[str, Any]] = None) -> _T: ...  # noqa: E501
+def field(*, default_factory: Callable[[], _T], init: bool = True, repr: bool = True, description: str | None = None, hash: bool | None = None, compare: bool = True, metadata: dict[str, Any] | None = None) -> _T: ...  # noqa: E501
 
 
 @overload
-def field(*, init: bool = True, repr: bool = True, description: Optional[str] = None, hash: Optional[bool] = None, compare: bool = True, metadata: Optional[dict[str, Any]] = None) -> Any: ...  # noqa: E501
+def field(*, init: bool = True, repr: bool = True, description: str | None = None, hash: bool | None = None, compare: bool = True, metadata: dict[str, Any] | None = None) -> Any: ...  # noqa: E501
 
 
 def field(*, default=MISSING, default_factory=MISSING, init=True, repr=True, description=None, hash=None, compare=True, metadata=None):  # noqa: E501  # type: ignore
@@ -105,7 +106,7 @@ def _validate_complex_type(value: Any, tp: Any) -> Any:
             return [_validate_single_value(d, args[0]) for d in value]
         return value
 
-    elif orig_tp is set and isinstance(value, (set, list)):
+    elif orig_tp is set and isinstance(value, set | list):
         args = get_args(tp)
         if args and is_dataclass(args[0]):
             return {_nested_validate(d, args[0]) for d in value}
@@ -121,7 +122,7 @@ def _validate_complex_type(value: Any, tp: Any) -> Any:
             return {k: _validate_single_value(v, args[1]) for k, v in value.items()}
         return value
 
-    elif orig_tp is tuple and isinstance(value, (tuple, list)):
+    elif orig_tp is tuple and isinstance(value, tuple | list):
         args = get_args(tp)
         if args:
             result = []

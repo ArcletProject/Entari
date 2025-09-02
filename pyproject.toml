@@ -6,14 +6,14 @@ authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
 ]
 dependencies = [
-    "arclet-letoderea<0.19.0,>=0.18.1",
+    "arclet-letoderea<0.20.0,>=0.19.0",
     "arclet-alconna<2.0.0,>=1.8.42",
     "satori-python-core>=0.15.2",
     "satori-python-client>=0.15.2",
     "arclet-alconna-tools>=0.7.3",
     "nonestorage>=0.1.0",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
@@ -88,7 +88,7 @@ dev = [
 ]
 [tool.black]
 line-length = 120
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312", "py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 '''
@@ -102,7 +102,7 @@ extra_standard_library = ["typing_extensions"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py310"
 include = ["arclet/**.py"]
 
 [tool.ruff.lint]
@@ -110,7 +110,7 @@ select = ["E", "W", "F", "UP", "C", "T", "PYI", "PT", "Q"]
 ignore = ["C901", "T201", "E731", "E402", "PYI055"]
 
 [tool.pyright]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "basic"
 

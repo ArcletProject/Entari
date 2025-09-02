@@ -1,7 +1,5 @@
-from __future__ import annotations
-
-from collections.abc import Awaitable, Iterable
-from typing import Callable, Generic, NoReturn, TypeVar, cast, overload
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Generic, NoReturn, TypeVar, cast, overload
 
 from arclet.letoderea import STOP, es, step_out
 from satori import ChannelType
@@ -75,18 +73,18 @@ class EntariProtocol(ApiProtocol):
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
-        msg = MessageChain(content)
+        msg = MessageChain.of(content) if isinstance(content, str) else MessageChain(content)
         sess = None
         if source:
             sess = Session(self.account, source)
             sess.elements = msg
-        if res := await es.post(SendRequest(self.account, channel_id, msg, sess)):
-            if not res.value:
-                return []
-            elif res.value is True:
-                pass
-            else:
-                msg = res.value
+        res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
+        if res.value is False:
+            return []
+        elif isinstance(res.value, MessageChain):
+            msg = res.value
+        else:
+            msg = sess.elements if sess else ev.message
         send = str(msg)
         res = await self.call_api(
             Api.MESSAGE_CREATE,
@@ -118,6 +116,7 @@ class Session(Generic[TEvent]):
         *,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
+        block: bool = True,
     ) -> MessageChain | None:
         """等待当前会话的下一次输入并返回
 
@@ -125,6 +124,7 @@ class Session(Generic[TEvent]):
             message: 等待前用于提示的消息
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
+            block: 是否阻塞后续的消息传递
 
         Returns:
             MessageChain | None: 回复的消息，若超时则返回 None
@@ -140,6 +140,7 @@ class Session(Generic[TEvent]):
         *,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
+        block: bool = True,
     ) -> T | None:
         """处理当前会话的下一次输入并返回
 
@@ -148,6 +149,7 @@ class Session(Generic[TEvent]):
             message: 等待前用于提示的消息
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
+            block: 是否阻塞后续的消息传递
 
         Returns:
             T | None: 回复的内容，若超时则返回 None
@@ -159,6 +161,7 @@ class Session(Generic[TEvent]):
         *args,
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
+        block: bool = True,
     ):
         if not args:
             handler, message = None, None
@@ -173,7 +176,7 @@ class Session(Generic[TEvent]):
             await self.send(message)
 
         if handler:
-            step = step_out(MessageCreatedEvent, handler)
+            step = step_out(MessageCreatedEvent, handler, block=block)
         else:
 
             async def waiter(content: MessageChain, session: Session[MessageCreatedEvent]):
@@ -185,7 +188,7 @@ class Session(Generic[TEvent]):
 
             waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
 
-            step = step_out(MessageCreatedEvent, waiter)
+            step = step_out(MessageCreatedEvent, waiter, block=block)
 
         result = await step.wait(timeout=timeout)
         if result is None:

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union, overload
-from typing_extensions import Self, SupportsIndex, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
+from typing_extensions import Self, SupportsIndex
 
 from satori import select as satori_select
 from satori.element import At, Element, Link, Sharp, Style, Text, transform
@@ -13,13 +13,13 @@ T = TypeVar("T")
 TE = TypeVar("TE", bound=Element)
 TE1 = TypeVar("TE1", bound=Element)
 
-Fragment: TypeAlias = Union[Element, Iterable[Element]]
+Fragment: TypeAlias = Element | Iterable[Element]
 Visit: TypeAlias = Callable[[Element], T]
 Render: TypeAlias = Callable[[dict[str, Any], list[Element]], T]
-SyncTransformer: TypeAlias = Union[bool, Fragment, Render[Union[bool, Fragment]]]
-AsyncTransformer: TypeAlias = Union[bool, Fragment, Render[Awaitable[Union[bool, Fragment]]]]
-SyncVisitor: TypeAlias = Union[dict[str, SyncTransformer], Visit[Union[bool, Fragment]]]
-AsyncVisitor: TypeAlias = Union[dict[str, AsyncTransformer], Visit[Awaitable[Union[bool, Fragment]]]]
+SyncTransformer: TypeAlias = bool | Fragment | Render[bool | Fragment]
+AsyncTransformer: TypeAlias = bool | Fragment | Render[Awaitable[bool | Fragment]]
+SyncVisitor: TypeAlias = dict[str, SyncTransformer] | Visit[bool | Fragment]
+AsyncVisitor: TypeAlias = dict[str, AsyncTransformer] | Visit[Awaitable[bool | Fragment]]
 
 MessageContainer = Union[str, Element, Sequence["MessageContainer"], "MessageChain[Element]"]
 
@@ -198,7 +198,7 @@ class MessageChain(list[TE]):
         if isinstance(arg1, slice) and arg2 is None:
             return MessageChain(super().__getitem__(arg1))  # type: ignore
         if TYPE_CHECKING:
-            assert not isinstance(arg1, (slice, int))
+            assert not isinstance(arg1, slice | int)
         if issubclass(arg1, Element) and arg2 is None:
             return MessageChain(elem for elem in self if isinstance(elem, arg1))  # type: ignore
         if issubclass(arg1, Element) and isinstance(arg2, int):
@@ -385,7 +385,7 @@ class MessageChain(list[TE]):
         if not isinstance(rules, dict):
             return rules(elem)
         result = rules.get(_type, True)
-        if not isinstance(result, (bool, Element, Iterable)):
+        if not isinstance(result, bool | Element | Iterable):
             result = result(data, children)
         return result
 
@@ -395,7 +395,7 @@ class MessageChain(list[TE]):
         if not isinstance(rules, dict):
             return await rules(elem)
         result = rules.get(_type, True)
-        if not isinstance(result, (bool, Element, Iterable)):
+        if not isinstance(result, bool | Element | Iterable):
             result = await result(data, children)
         return result
 
@@ -614,7 +614,8 @@ class MessageChain(list[TE]):
 
     def display(self):
         return "".join(
-            str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link)) else elem.__class__.__name__ for elem in self
+            str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link)) else elem.__class__.__name__  # noqa: UP038
+            for elem in self
         )
 
     @staticmethod

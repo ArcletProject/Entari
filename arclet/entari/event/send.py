@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
-from arclet.letoderea import Contexts, es, provide
+from arclet.letoderea import Contexts, Result, define, provide
 from satori.client import Account
 from satori.model import MessageReceipt
 
@@ -16,12 +16,14 @@ class SendRequest:
     account: Account
     channel: str
     message: MessageChain
-    session: Union["Session", None] = None
+    session: "Session | None" = None
 
-    __result_type__: "type[bool | MessageChain]" = Union[bool, MessageChain]
+    def check_result(self, value) -> Result[bool | MessageChain] | None:
+        if isinstance(value, bool | MessageChain):
+            return Result(value)
 
 
-before_send_pub = es.define(SendRequest, name="entari.event/before_send")
+before_send_pub = define(SendRequest, name="entari.event/before_send")
 before_send_pub.bind(provide(MessageChain, target="message"))
 
 
@@ -40,10 +42,10 @@ class SendResponse:
     channel: str
     message: MessageChain
     result: list[MessageReceipt]
-    session: Union["Session", None] = None
+    session: "Session | None" = None
 
 
-send_pub = es.define(SendResponse, name="entari.event/after_send")
+send_pub = define(SendResponse, name="entari.event/after_send")
 send_pub.bind(provide(MessageChain, target="message"))
 send_pub.bind(provide(list, target="result"))
 

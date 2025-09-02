@@ -1,6 +1,5 @@
 from dataclasses import field
 import random
-from typing import Optional
 
 from arclet.alconna import (
     Alconna,
@@ -27,7 +26,7 @@ class Config(BasicConfModel):
     """帮助指令的别名"""
     help_all_alias: list[str] = field(default_factory=lambda: ["所有帮助", "所有命令帮助"])
     """帮助指令的'所有帮助'别名"""
-    page_size: Optional[int] = None
+    page_size: int | None = None
     """帮助结果每页显示的命令数量"""
 
 

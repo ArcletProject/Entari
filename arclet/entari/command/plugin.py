@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from arclet.alconna import Alconna, command_manager

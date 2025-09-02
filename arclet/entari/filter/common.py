@@ -1,6 +1,5 @@
-from collections.abc import Awaitable
-from typing import Callable, Optional, Union
-from typing_extensions import TypeAlias
+from collections.abc import Awaitable, Callable
+from typing import TypeAlias, Union
 
 from arclet.letoderea import STOP, Propagator
 from tarina.tools import run_sync
@@ -84,7 +83,7 @@ class _Filter(Propagator):
         self.mess = mess
         self.ops = ops
 
-    async def check(self, session: Optional[Session] = None, is_reply_me: bool = False, is_notice_me: bool = False):
+    async def check(self, session: Session | None = None, is_reply_me: bool = False, is_notice_me: bool = False):
         res = True
         if session and self.steps:
             res = all([await step(session) for step in self.steps])

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib import import_module
 from io import StringIO
@@ -5,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Callable, ClassVar, TypeVar, Union
+from typing import Any, ClassVar, TypeVar
 import warnings
 
 from tarina.tools import nest_dict_update
@@ -25,16 +26,14 @@ T = TypeVar("T")
 
 class LogSaveInfo(BasicConfModel):
     rotation: str = model_field(default="00:00", description="Log rotation time, e.g., '00:00' for daily rotation")
-    compression: Union[str, None] = model_field(
-        default=None, description="Compression format for log saving, e.g., 'zip'"
-    )
+    compression: str | None = model_field(default=None, description="Compression format for log saving, e.g., 'zip'")
     colorize: bool = model_field(default=True, description="Whether to colorize the log output")
 
 
 class LogInfo(BasicConfModel):
-    level: Union[int, str] = model_field(default="INFO", description="Log level for the application")
+    level: int | str = model_field(default="INFO", description="Log level for the application")
     ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
-    save: Union[LogSaveInfo, bool, None] = model_field(
+    save: LogSaveInfo | bool | None = model_field(
         default=None,
         description="Log saving configuration, if None or False, logs will not be saved",
     )
@@ -45,10 +44,8 @@ class BasicConfig(BasicConfModel):
     ignore_self_message: bool = model_field(default=True, description="Ignore self message")
     skip_req_missing: bool = model_field(default=False, description="Skip Event Handler if requirement is missing")
     log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
-    log_level: Union[int, str, None] = model_field(
-        default=None, description="[Deprecated] Log level for the application"
-    )
-    log_ignores: Union[list[str], None] = model_field(
+    log_level: int | str | None = model_field(default=None, description="[Deprecated] Log level for the application")
+    log_ignores: list[str] | None = model_field(
         default=None, description="[Deprecated] Log ignores for the application"
     )
     prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
@@ -198,12 +195,12 @@ class EntariConfig:
             self.plugin[key] = _clean(value)
         return self._origin_data
 
-    def save(self, path: Union[str, os.PathLike[str], None] = None, indent: int = 2):
+    def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):
         self.save_flag = True
         self.dumper(self.path, Path(path or self.path), self.dump(indent), indent)
 
     @classmethod
-    def load(cls, path: Union[str, os.PathLike[str], None] = None) -> "EntariConfig":
+    def load(cls, path: str | os.PathLike[str] | None = None) -> "EntariConfig":
         try:
             import dotenv
 

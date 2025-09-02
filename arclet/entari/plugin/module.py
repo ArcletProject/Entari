@@ -9,7 +9,6 @@ import re
 import sys
 import tokenize
 from types import ModuleType
-from typing import Optional
 
 from arclet.letoderea import publish
 from arclet.letoderea.scope import scope_ctx
@@ -125,7 +124,7 @@ class _Visitor(ast.NodeVisitor):
 
 
 class PluginLoader(SourceFileLoader):
-    def __init__(self, fullname: str, path: str, parent_plugin_id: Optional[str] = None) -> None:
+    def __init__(self, fullname: str, path: str, parent_plugin_id: str | None = None) -> None:
         self.loaded = False
         self.parent_plugin_id = parent_plugin_id
         super().__init__(fullname, path)
@@ -176,13 +175,13 @@ class PluginLoader(SourceFileLoader):
             compile, nodes, path, "exec", dont_inherit=True, optimize=-1
         )
 
-    def create_module(self, spec) -> Optional[ModuleType]:
+    def create_module(self, spec) -> ModuleType | None:
         if self.name in plugin_service.plugins:
             self.loaded = True
             return plugin_service.plugins[self.name].proxy()
         return super().create_module(spec)
 
-    def exec_module(self, module: ModuleType, config: Optional[dict[str, str]] = None) -> None:
+    def exec_module(self, module: ModuleType, config: dict[str, str] | None = None) -> None:
         is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             plugin.subplugins.add(module.__name__)
@@ -232,7 +231,7 @@ class PluginLoader(SourceFileLoader):
             _current_plugin.reset(token)
 
         # get plugin metadata
-        metadata: Optional[PluginMetadata] = getattr(module, "__plugin_metadata__", None)
+        metadata: PluginMetadata | None = getattr(module, "__plugin_metadata__", None)
         if metadata and not plugin.metadata:
             plugin.metadata = metadata
         plugin._apply = getattr(module, "__plugin_apply__", None)
@@ -290,8 +289,8 @@ class _PluginFinder(MetaPathFinder):
     def find_spec(
         cls,
         fullname: str,
-        path: Optional[Sequence[str]],
-        target: Optional[ModuleType] = None,
+        path: Sequence[str] | None,
+        target: ModuleType | None = None,
     ):
         module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
@@ -396,7 +395,7 @@ def find_spec(name, package=None):
     return module_spec
 
 
-def import_plugin(name, package=None, config: Optional[dict] = None):
+def import_plugin(name, package=None, config: dict | None = None):
     spec = find_spec(name, package)
     if spec:
         mod = module_from_spec(spec)

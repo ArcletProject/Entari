@@ -1,7 +1,5 @@
-from typing import Optional, Union
-
 from arclet.alconna import Alconna, Arparma
-from arclet.letoderea import Contexts, Provider, make_event
+from arclet.letoderea import Contexts, Provider, Result, make_event
 
 from ..message import MessageChain
 from ..session import Session
@@ -10,7 +8,7 @@ from .base import Reply
 
 @make_event(name="entari.event/command/execute")
 class CommandExecute:
-    message: Union[str, MessageChain]
+    message: str | MessageChain
 
     async def gather(self, context: Contexts):
         if isinstance(self.message, str):
@@ -22,7 +20,9 @@ class CommandExecute:
         async def __call__(self, context: Contexts):
             return context.get("message")
 
-    __result_type__: "type[str | MessageChain]" = Union[str, MessageChain]
+    def check_result(self, value) -> Result[str | MessageChain] | None:
+        if isinstance(value, str | MessageChain):
+            return Result(value)
 
 
 @make_event(name="entari.event/command/output")
@@ -34,7 +34,9 @@ class CommandOutput:
     type: str
     content: str
 
-    __result_type__: "type[bool | str | MessageChain]" = Union[bool, str, MessageChain]
+    def check_result(self, value) -> Result[str | bool | MessageChain | None] | None:
+        if isinstance(value, str | bool | MessageChain):
+            return Result(value)
 
 
 @make_event(name="entari.event/command/before_parse")
@@ -44,9 +46,11 @@ class CommandReceive:
     session: Session
     command: Alconna
     content: MessageChain
-    reply: Optional[Reply] = None
+    reply: Reply | None = None
 
-    __result_type__: "type[MessageChain]" = MessageChain
+    def check_result(self, value) -> Result[MessageChain | None] | None:
+        if isinstance(value, MessageChain):
+            return Result(value)
 
 
 @make_event(name="entari.event/command/after_parse")
@@ -57,4 +61,6 @@ class CommandParse:
     command: Alconna
     result: Arparma
 
-    __result_type__: "type[Arparma | bool]" = Union[Arparma, bool]
+    def check_result(self, value) -> Result[Arparma | bool | None] | None:
+        if isinstance(value, Arparma | bool):
+            return Result(value)

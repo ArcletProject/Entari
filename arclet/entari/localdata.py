@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Callable, Optional
 from typing_extensions import ParamSpec
 from weakref import finalize
 
@@ -33,7 +33,7 @@ class LocalData:
     def __init__(self):
         self.global_path: bool = False
         self.app_name = "entari"
-        self.base_dir: Optional[str] = None
+        self.base_dir: str | None = None
         self._temp_dir = TemporaryDirectory(prefix=f"{self.app_name}_")
         finalize(self, lambda obj: obj._temp_dir.cleanup(), self)
 
@@ -50,19 +50,19 @@ class LocalData:
         return Path.cwd() / name / "data"
 
     @_auto_create_dir
-    def get_cache_dir(self, name: Optional[str]) -> Path:
+    def get_cache_dir(self, name: str | None) -> Path:
         dir_ = self._get_base_cache_dir()
         return (dir_ / name) if name else dir_
 
-    def get_cache_file(self, name: Optional[str], filename: str) -> Path:
+    def get_cache_file(self, name: str | None, filename: str) -> Path:
         return self.get_cache_dir(name) / filename
 
     @_auto_create_dir
-    def get_data_dir(self, plugin_name: Optional[str]) -> Path:
+    def get_data_dir(self, plugin_name: str | None) -> Path:
         dir_ = self._get_base_data_dir()
         return (dir_ / plugin_name) if plugin_name else dir_
 
-    def get_data_file(self, plugin_name: Optional[str], filename: str) -> Path:
+    def get_data_file(self, plugin_name: str | None, filename: str) -> Path:
         return self.get_data_dir(plugin_name) / filename
 
     @_auto_create_dir
@@ -79,9 +79,7 @@ local_data = LocalData()
 class Config(BasicConfModel):
     use_global: bool = model_field(default=False, description="是否使用全局数据目录")
     app_name: str = model_field(default="entari", description="应用名称")
-    base_dir: Optional[str] = model_field(
-        default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，"
-    )
+    base_dir: str | None = model_field(default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，")
 
 
 @RootlessPlugin.apply("localdata", default=True)

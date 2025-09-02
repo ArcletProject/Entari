@@ -1,5 +1,3 @@
-from typing import Optional
-
 from arclet.letoderea import make_event
 
 
@@ -11,7 +9,7 @@ class PluginLoadedSuccess:
 @make_event(name="entari.event/plugin/loaded_failed")
 class PluginLoadedFailed:
     name: str
-    error: Optional[Exception] = None
+    error: Exception | None = None
     """若没有异常信息，说明该插件加载失败的原因是插件不存在。"""
 
 

@@ -1,8 +1,9 @@
 import asyncio
 from asyncio.events import _get_running_loop  # type: ignore
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from traceback import print_exc
-from typing import Callable, Literal
+from typing import Literal
 
 from arclet.letoderea import Scope, Subscriber, make_event
 from arclet.letoderea.typing import Contexts

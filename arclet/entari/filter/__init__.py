@@ -1,8 +1,8 @@
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Callable, Final, Optional, Union
-from typing_extensions import ParamSpec, TypeAlias
+from typing import Final, TypeAlias
+from typing_extensions import ParamSpec
 
 from arclet.letoderea import STOP, Propagator, enter_if
 from tarina import get_signature
@@ -12,7 +12,7 @@ from ..message import MessageChain
 from ..session import Session
 from .common import parse as parse
 
-_SessionFilter: TypeAlias = Union[Callable[[Session], bool], Callable[[Session], Awaitable[bool]]]
+_SessionFilter: TypeAlias = Callable[[Session], bool] | Callable[[Session], Awaitable[bool]]
 
 
 P = ParamSpec("P")
@@ -52,13 +52,13 @@ F = filter_
 
 
 class Interval(Propagator):
-    def __init__(self, interval: float, limit_prompt: Optional[Union[str, MessageChain]] = None):
+    def __init__(self, interval: float, limit_prompt: str | MessageChain | None = None):
         self.success = True
         self.last_time = None
         self.interval = interval
         self.limit_prompt = limit_prompt
 
-    async def before(self, session: Optional[Session] = None):
+    async def before(self, session: Session | None = None):
         if not self.last_time:
             return
         self.success = (datetime.now() - self.last_time).total_seconds() > self.interval
@@ -76,12 +76,12 @@ class Interval(Propagator):
 
 
 class Semaphore(Propagator):
-    def __init__(self, count: int, limit_prompt: Optional[Union[str, MessageChain]] = None):
+    def __init__(self, count: int, limit_prompt: str | MessageChain | None = None):
         self.count = count
         self.limit_prompt = limit_prompt
         self.semaphore = asyncio.Semaphore(count)
 
-    async def before(self, session: Optional[Session] = None):
+    async def before(self, session: Session | None = None):
         if not await self.semaphore.acquire():
             if session and self.limit_prompt:
                 await session.send(self.limit_prompt)

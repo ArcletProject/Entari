@@ -1,9 +1,8 @@
 import asyncio
 from dataclasses import asdict
 from pathlib import Path
-from typing import Union
 
-from arclet.letoderea import es
+from arclet.letoderea import on, post, publish
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 from loguru import logger as loguru_logger
@@ -24,7 +23,7 @@ loguru_logger.disable("watchfiles.main")
 
 
 class Config(BasicConfModel):
-    watch_dirs: list[Union[str, Path]] = model_field(
+    watch_dirs: list[str | Path] = model_field(
         default_factory=lambda: ["."],
         description="需要监视的目录列表，支持相对路径和绝对路径",
     )
@@ -53,7 +52,7 @@ class Watcher(Service):
     def stages(self) -> set[Phase]:
         return {"blocking", "cleanup"}
 
-    def __init__(self, dirs: list[Union[str, Path]], is_watch_config: bool):
+    def __init__(self, dirs: list[str | Path], is_watch_config: bool):
         self.dirs = dirs
         self.is_watch_config = is_watch_config
         self.fail: dict[str, tuple[str, dict]] = {}
@@ -111,10 +110,10 @@ class Watcher(Service):
                             f"Basic config <y>{key!r}</y> changed from <r>{old_basic[key]!r}</r> "
                             f"to <g>{new_basic[key]!r}</g>",
                         )
-                        await es.publish(ConfigReload("basic", key, new_basic[key], old_basic[key]))
+                        await publish(ConfigReload("basic", key, new_basic[key], old_basic[key]))
                 for key in set(new_basic) - set(old_basic):
                     logger.debug(f"Basic config <y>{key!r}</y> appended")
-                    await es.publish(ConfigReload("basic", key, new_basic[key]))
+                    await publish(ConfigReload("basic", key, new_basic[key]))
                 for plugin_name in old_plugin:
                     if plugin_name.startswith("$"):
                         continue
@@ -150,10 +149,10 @@ class Watcher(Service):
                                     continue
                             if not changes:
                                 continue
-                            res = await es.post(
+                            res = await post(
                                 ConfigReload("plugin", plugin_name, new_conf, old_conf),
                             )
-                            if res and res.value:
+                            if res.value:
                                 logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
                             if plugin.is_static:
@@ -202,7 +201,7 @@ conf = plugin_config(Config)
 add_service(Watcher(conf.watch_dirs, conf.watch_config))
 
 
-@es.on(ConfigReload)
+@on(ConfigReload)
 def handle_config_reload(event: ConfigReload, serv: Watcher):
     if event.scope != "plugin":
         return None
