@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any, Literal, TypedDict, TypeVar, cast, overload
-from typing_extensions import NotRequired
+from typing import Any, Generic, TypeVar, cast, overload
 from weakref import finalize, proxy
 
 from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, Subscriber, define, enter_if, publish
@@ -23,10 +22,9 @@ from ..filter import parse
 from ..logger import log
 from .service import plugin_service
 
-_current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
+current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
 
 T = TypeVar("T")
-TE = TypeVar("TE")
 TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
 
@@ -39,8 +37,8 @@ class StaticPluginDispatchError(Exception):
     pass
 
 
-class PluginDispatcher:
-    def __init__(self, plugin: Plugin, event: type[TE], name: str | None = None):
+class PluginDispatcher(Generic[T]):
+    def __init__(self, plugin: Plugin, event: type, name: str | None = None):
         self.publisher = define(event, name=name)
         self.plugin = plugin
         self._event = event
@@ -59,13 +57,7 @@ class PluginDispatcher:
 
         return step_out(event, providers=providers, priority=priority, block=block)
 
-    @overload
-    def register(self, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None, once: bool = False) -> Subscriber: ...  # noqa: E501
-
-    @overload
-    def register(self, *, priority: int = 16, providers: TProviders | None = None, once: bool = False) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
-
-    def register(self, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None, once: bool = False):  # noqa: E501
+    def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, once: bool = False):  # noqa: E501
         _providers = providers or []
         wrapper = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # noqa: E501 # type: ignore
 
@@ -79,13 +71,7 @@ class PluginDispatcher:
             return decorator(func)
         return decorator
 
-    @overload
-    def once(self, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None) -> Subscriber: ...  # noqa: E501
-
-    @overload
-    def once(self, *, priority: int = 16, providers: TProviders | None = None) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
-
-    def once(self, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
+    def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if func:
             return self.register(func, priority=priority, providers=providers, once=True)
         return self.register(priority=priority, providers=providers, once=True)
@@ -98,25 +84,11 @@ class PluginDispatcher:
         return self.register()(func)
 
 
-class Author(TypedDict):
-    name: str
-    """作者名称"""
-    email: NotRequired[str]
-    """作者邮箱"""
-
-
-class DependService(TypedDict):
-    id: str | type[Service]
-    """服务名称"""
-    stage: NotRequired[Literal["preparing", "prepared", "blocking"]]
-    """服务阶段"""
-
-
 @dataclass
 class PluginMetadata:
     name: str
     """插件名称"""
-    author: list[str | Author] = field(default_factory=list)
+    author: list[str | dict] = field(default_factory=list)
     """插件作者"""
     version: str | None = None
     """插件版本"""
@@ -132,7 +104,7 @@ class PluginMetadata:
     """插件分类"""
     requirements: list[str] = field(default_factory=list)
     """插件依赖"""
-    depend_services: list[type[Service] | str | DependService] = field(default_factory=list)
+    depend_services: list[type[Service] | str | dict] = field(default_factory=list)
     """插件依赖的服务"""
     config: Any | None = None
     """插件配置模型"""
@@ -147,7 +119,7 @@ class PluginMetadata:
         return config_model_schema(self.config)
 
 
-def inject(*services: type[Service] | str | DependService):
+def inject(*services: type[Service] | str | dict):
 
     async def wrapper(launart: Launart):
         for service in services:
@@ -190,7 +162,7 @@ class Plugin:
     @staticmethod
     def current() -> Plugin:
         try:
-            return _current_plugin.get()  # type: ignore
+            return current_plugin.get()  # type: ignore
         except LookupError:
             raise LookupError("no plugin context found") from None
 
@@ -207,7 +179,7 @@ class Plugin:
     def exec_apply(self):
         if self._apply:
             log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
-            token = _current_plugin.set(self)
+            token = current_plugin.set(self)
             try:
                 self._apply(self)
                 log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
@@ -222,7 +194,7 @@ class Plugin:
                 publish(PluginLoadedFailed(self.id, e))
                 raise
             finally:
-                _current_plugin.reset(token)
+                current_plugin.reset(token)
 
     @property
     def is_available(self) -> bool:
@@ -372,7 +344,7 @@ class Plugin:
         del plugin_service.plugins[self.id]
         del self.module
 
-    def dispatch(self, event: type[TE], name: str | None = None):
+    def dispatch(self, event, name: str | None = None):
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot dispatch events")
         return PluginDispatcher(self, event, name=name)
@@ -471,17 +443,17 @@ class RootlessPlugin(Plugin):
         setattr(self.module, "__file__", func.__code__.co_filename)
         self.func = func
         setattr(self.func, "__plugin__", self)
-        token = _current_plugin.set(self)
+        token = current_plugin.set(self)
         try:
             func(self)
         finally:
-            _current_plugin.reset(token)
+            current_plugin.reset(token)
 
     def validate(self, func):
         pass
 
 
-class KeepingVariable:
+class KeepingVariable(Generic[T]):
     def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
         self.obj = obj
         self._dispose = dispose
@@ -509,7 +481,7 @@ def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], No
 # fmt: off
 def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | None = None) -> T:  # noqa: E501
 # fmt: on
-    if not (plug := _current_plugin.get(None)):
+    if not (plug := current_plugin.get(None)):
         raise LookupError("no plugin context found")
     if id_ not in plugin_service._keep_values[plug.id]:
         if obj is None and obj_factory is None:

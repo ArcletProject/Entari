@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from typing import TypeAlias, TypeVar, cast, overload
@@ -207,7 +209,7 @@ on = _commands.on
 
 async def execute(message: str | MessageChain):
     res = await le.post(CommandExecute(message))
-    return res.value
+    return res.value if res else None
 
 
 class CommandsConfig(BasicConfModel):
@@ -233,7 +235,7 @@ def _(plg: RootlessPlugin):
 
     plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
 
-    @plg.dispatch(ConfigReload)
+    @plg.dispatch(ConfigReload).handle
     def update(event: ConfigReload):
         if event.scope != "plugin":
             return

@@ -89,16 +89,16 @@ print(Plugin.current().subplugins)
 print(local_data.get_temp_dir())
 print(plug.config)
 
-
-@plug.use("::before_send")
-async def send_hook1(event):
-    event.message += "的说"
-
-
-@plug.use("::before_send")
-async def send_hook2(message: MessageChain):
-    # return message + "喵"
-    message += "喵"
+#
+# @plug.use("::before_send")
+# async def send_hook1(event):
+#     event.message += "的说"
+#
+#
+# @plug.use("::before_send")
+# async def send_hook2(message: MessageChain):
+#     # return message + "喵"
+#     message += "喵"
 
 
 @plug.use("::config/reload")

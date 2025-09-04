@@ -152,7 +152,7 @@ class Watcher(Service):
                             res = await post(
                                 ConfigReload("plugin", plugin_name, new_conf, old_conf),
                             )
-                            if res.value:
+                            if res and res.value:
                                 logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
                             if plugin.is_static:

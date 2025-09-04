@@ -17,7 +17,7 @@ from ..config import EntariConfig
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..logger import log
-from .model import Plugin, PluginMetadata, RegisterNotInPluginError, StaticPluginDispatchError, _current_plugin
+from .model import Plugin, PluginMetadata, RegisterNotInPluginError, StaticPluginDispatchError, current_plugin
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -30,7 +30,7 @@ SUBPLUGIN_PAT = re.compile(r"entari:\s*(?:package|subplugin)")
 
 def package(*names: str):
     """手动指定特定模块作为插件的子模块"""
-    if not (plugin := _current_plugin.get(None)):
+    if not (plugin := current_plugin.get(None)):
         raise LookupError("no plugin context found")
     _SUBMODULE_WAITLIST.setdefault(plugin.module.__name__, set()).update(names)
 
@@ -208,7 +208,7 @@ class PluginLoader(SourceFileLoader):
         setattr(module, "__plugin__", plugin)
 
         # enter plugin context
-        token = _current_plugin.set(plugin)
+        token = current_plugin.set(plugin)
         if not plugin.is_static:
             token1 = scope_ctx.set(plugin._scope)
         try:
@@ -228,7 +228,7 @@ class PluginLoader(SourceFileLoader):
             delattr(module, "__cached__")
             if not plugin.is_static:
                 scope_ctx.reset(token1)  # type: ignore
-            _current_plugin.reset(token)
+            current_plugin.reset(token)
 
         # get plugin metadata
         metadata: PluginMetadata | None = getattr(module, "__plugin_metadata__", None)
@@ -300,7 +300,7 @@ class _PluginFinder(MetaPathFinder):
             return
         if isinstance(module_spec.loader, ExtensionFileLoader):
             return
-        if plug := _current_plugin.get(None):
+        if plug := current_plugin.get(None):
             if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
                 return plug.module.__spec__
             if module_spec.parent and module_spec.parent == plug.module.__name__:

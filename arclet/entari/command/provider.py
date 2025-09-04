@@ -28,7 +28,6 @@ def _remove_config_prefix(message: MessageChain):
             if not prefix:
                 return message
             if text.startswith(prefix):
-                message = message.copy()
                 message[0] = Text(text[len(prefix) :])
                 return message
     return MessageChain()
@@ -41,6 +40,7 @@ class MessageJudges(Propagator):
         self.use_config_prefix = use_config_prefix
 
     async def judge(self, ctx: Contexts, message: MessageChain, is_reply_me: bool = False, is_notice_me: bool = False):
+        message = message.fork()
         if self.need_reply_me and not is_reply_me:
             return STOP
         if self.need_notice_me and not is_notice_me:
@@ -64,7 +64,7 @@ class AlconnaSuppiler(Propagator):
     async def before_supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
         if session:
             recv = await post(ev := CommandReceive(session, self.cmd, message, reply))
-            message = (recv.value or ev.content).copy()
+            message = recv.value if recv else ev.content
         return {"_message": message}
 
     async def supply(self, ctx: Contexts):
@@ -89,24 +89,24 @@ class AlconnaSuppiler(Propagator):
         _res = alc_result.result
         if session:
             pres = await post(ev := CommandParse(session, self.cmd, _res))
-            if isinstance(pres.value, Arparma):
-                _res = pres.value
-            elif pres.value is False:
-                return STOP
-            else:
-                _res = ev.result
+            _res = ev.result
+            if pres:
+                if isinstance(pres.value, Arparma):
+                    _res = pres.value
+                elif pres.value is False:
+                    return STOP
         if _res.matched:
             return {"alc_result": CommandResult(self.cmd, _res, alc_result.output)}
         if alc_result.output:
             if session:
                 _t = str(_res.error_info) if isinstance(_res.error_info, SpecialOptionTriggered) else "error"
                 ores = await post(ev := CommandOutput(session, self.cmd, _t, alc_result.output))
-                if ores.value is False:
-                    return STOP
-                elif isinstance(ores.value, str | MessageChain):
-                    msg = MessageChain(ores.value)
-                else:
-                    msg = MessageChain(ev.content)
+                msg = MessageChain(ev.content)
+                if ores:
+                    if ores.value is False:
+                        return STOP
+                    elif isinstance(ores.value, str | MessageChain):
+                        msg = MessageChain(ores.value)
                 await session.send(msg)
                 return STOP
             return {"alc_result": alc_result}

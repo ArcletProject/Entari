@@ -2,42 +2,41 @@ from collections.abc import Awaitable, Callable
 from typing import TypeAlias, Union
 
 from arclet.letoderea import STOP, Propagator
-from tarina.tools import run_sync
 
 from ..session import Session
 from .message import direct_message, notice_me, public_message, reply_me, to_me
 
 
 def user(*ids: str):
-    def check_user(session: Session):
+    async def check_user(session: Session):
         return (session.user.id in ids) if ids else True
 
     return check_user
 
 
 def channel(*ids: str):
-    def check_channel(session: Session):
+    async def check_channel(session: Session):
         return (session.channel.id in ids) if ids else True
 
     return check_channel
 
 
 def guild(*ids: str):
-    def check_guild(session: Session):
+    async def check_guild(session: Session):
         return (session.guild.id in ids) if ids else True
 
     return check_guild
 
 
 def account(*ids: str):
-    def check_account(session: Session):
+    async def check_account(session: Session):
         return (session.account.self_id in ids) if ids else True
 
     return check_account
 
 
 def platform(*ids: str):
-    def check_platform(session: Session):
+    async def check_platform(session: Session):
         return (session.account.platform in ids) if ids else True
 
     return check_platform
@@ -109,9 +108,7 @@ def parse(patterns: PATTERNS):
 
     for key, value in patterns.items():
         if key in _keys:
-            step[_keys[key][1]] = run_sync(
-                _keys[key][0](*map(str, value)) if isinstance(value, list) else _keys[key][0]()
-            )
+            step[_keys[key][1]] = _keys[key][0](*map(str, value)) if isinstance(value, list) else _keys[key][0]()
         elif key in _mess_keys:
             if key == "reply_me":
                 mess[_mess_keys[key][1]] = lambda is_reply_me, is_notice_me: (

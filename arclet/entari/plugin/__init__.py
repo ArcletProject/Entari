@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
+from arclet.letoderea.typing import Resultable
 from tarina import init_spec
 from tarina.tools import nest_obj_update
 
@@ -16,13 +17,15 @@ from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
-from .model import StaticPluginDispatchError, _current_plugin
-from .model import TE, TS, Plugin
+from .model import StaticPluginDispatchError, current_plugin
+from .model import TS, Plugin, PluginDispatcher
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
 from .module import requires as requires
 from .service import plugin_service
+
+T = TypeVar("T")
 
 
 @overload
@@ -45,7 +48,7 @@ def get_plugin(depth: int = 0, *, optional: bool = False) -> Plugin | None:
     Returns:
         Plugin | None: 当前插件上下文，如果没有找到且optional为True则返回None
     """
-    if plugin := _current_plugin.get(None):
+    if plugin := current_plugin.get(None):
         return plugin
     current_frame = inspect.currentframe()
     if current_frame is None:
@@ -92,7 +95,13 @@ def get_all_subscribers():
     return list(itertools.chain.from_iterable(get_plugin_subscribers(plug) for plug in plugin_service.plugins.values()))
 
 
-def dispatch(event: type[TE], name: str | None = None):
+@overload
+def dispatch(event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
+@overload
+def dispatch(event: type[Any], name: str | None = None) -> PluginDispatcher[Any]: ...
+
+
+def dispatch(event: type, name: str | None = None) -> PluginDispatcher:
     """对当前插件创建一个事件分发"""
     return get_plugin(1).dispatch(event, name=name)
 

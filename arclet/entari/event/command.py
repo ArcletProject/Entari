@@ -34,7 +34,7 @@ class CommandOutput:
     type: str
     content: str
 
-    def check_result(self, value) -> Result[str | bool | MessageChain | None] | None:
+    def check_result(self, value) -> Result[str | bool | MessageChain] | None:
         if isinstance(value, str | bool | MessageChain):
             return Result(value)
 
@@ -48,7 +48,7 @@ class CommandReceive:
     content: MessageChain
     reply: Reply | None = None
 
-    def check_result(self, value) -> Result[MessageChain | None] | None:
+    def check_result(self, value) -> Result[MessageChain] | None:
         if isinstance(value, MessageChain):
             return Result(value)
 
@@ -61,6 +61,6 @@ class CommandParse:
     command: Alconna
     result: Arparma
 
-    def check_result(self, value) -> Result[Arparma | bool | None] | None:
+    def check_result(self, value) -> Result[Arparma | bool] | None:
         if isinstance(value, Arparma | bool):
             return Result(value)

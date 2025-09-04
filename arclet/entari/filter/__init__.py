@@ -5,7 +5,7 @@ from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
 from arclet.letoderea import STOP, Propagator, enter_if
-from tarina import get_signature
+from tarina import get_signature, is_coroutinefunction
 
 from . import common, message
 from ..message import MessageChain
@@ -43,6 +43,13 @@ class _Filter:
     def __call__(self, func: _SessionFilter):
         params = get_signature(func)
         name = next(iter(params)).name
+
+        if not is_coroutinefunction(func):
+
+            async def _(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            func = _
         func.__annotations__ = {name: Session}
         return enter_if(func)
 

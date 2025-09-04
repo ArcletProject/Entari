@@ -246,7 +246,7 @@ class Entari(App):
             ev = event_parse(account, event)
             if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
                 return
-            le.publish(ev)
+            await le.publish(ev)
             return
 
         log.core.warning(f"received unsupported event {event.type}: {event}")

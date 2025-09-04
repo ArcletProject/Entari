@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -38,14 +40,14 @@ class ServiceWaiters:
 class PluginManagerService(Service):
     id = "entari.plugin.manager"
 
-    plugins: dict[str, "Plugin"]
-    _keep_values: dict[str, dict[str, "KeepingVariable"]]
+    plugins: dict[str, Plugin]
+    _keep_values: dict[str, dict[str, KeepingVariable]]
     referents: dict[str, set[str]]
     references: dict[str, set[str]]
     _direct_plugins: set[str]
     _unloaded: set[str]
     _subplugined: dict[str, str]
-    _apply: dict[str, tuple[Callable[[dict[str, Any]], "RootlessPlugin"], bool]]
+    _apply: dict[str, tuple[Callable[[dict[str, Any]], RootlessPlugin], bool]]
 
     def __init__(self):
         super().__init__()

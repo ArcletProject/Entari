@@ -322,6 +322,12 @@ class MessageChain(list[TE]):
         """深拷贝消息"""
         return deepcopy(self)
 
+    def fork(self) -> MessageChain[TE]:
+        """浅拷贝消息"""
+        new = self.__class__()
+        list.extend(new, self)
+        return new
+
     def include(self, *types: type[Element]) -> MessageChain:
         """过滤消息
 

@@ -79,12 +79,12 @@ class EntariProtocol(ApiProtocol):
             sess = Session(self.account, source)
             sess.elements = msg
         res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
-        if res.value is False:
-            return []
-        elif isinstance(res.value, MessageChain):
-            msg = res.value
-        else:
-            msg = sess.elements if sess else ev.message
+        msg = sess.elements if sess else ev.message
+        if res:
+            if res.value is False:
+                return []
+            elif isinstance(res.value, MessageChain):
+                msg = res.value
         send = str(msg)
         res = await self.call_api(
             Api.MESSAGE_CREATE,

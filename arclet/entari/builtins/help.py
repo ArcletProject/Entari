@@ -188,7 +188,7 @@ async def help_exec(arp: Arparma):
     return help_cmd_handle(arp)
 
 
-@disp.handle()
+@disp.handle
 async def help_handle(arp: Arparma, session: Session):
     resp = help_cmd_handle(arp, True)
     if isinstance(resp, str):
