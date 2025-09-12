@@ -11,7 +11,6 @@ from arclet.alconna import (
     Subcommand,
     SubcommandResult,
     command_manager,
-    namespace,
     store_true,
 )
 from tarina import lang
@@ -41,44 +40,41 @@ metadata(
 )
 
 
-with namespace("builtin/help") as ns:
-    ns.disable_builtin_options = {"shortcut"}
+help_cmd = Alconna(
+    config.help_command,
+    Args[
+        "query#选择某条命令的id或者名称查看具体帮助;/?",
+        str,
+        Field(
+            "-1",
+            completion=lambda: f"试试 {random.randint(0, len(command_manager.get_commands()))}",
+            unmatch_tips=lambda x: f"预期输入为某个命令的id或者名称，而不是 {x}\n例如：/帮助 0",
+        ),
+    ],
+    Option(
+        "--page",
+        Args["index", int],
+        help_text="查看指定页数的命令帮助",
+    ),
+    Subcommand(
+        "--namespace",
+        Args["target?;#指定的命名空间", str],
+        Option("--list", help_text="列出所有命名空间", action=store_true, default=False),
+        alias=["-N", "命名空间"],
+        help_text="是否列出命令所属命名空间",
+    ),
+    Option("--hide", alias=["-H", "隐藏"], help_text="是否列出隐藏命令", action=store_true, default=False),
+    meta=CommandMeta(
+        description="显示所有命令帮助",
+        usage="可以使用 --hide 参数来显示隐藏命令，使用 -P 参数来显示命令所属插件名称",
+        example=f"${config.help_command} 1",
+    ),
+)
 
-    help_cmd = Alconna(
-        config.help_command,
-        Args[
-            "query#选择某条命令的id或者名称查看具体帮助;/?",
-            str,
-            Field(
-                "-1",
-                completion=lambda: f"试试 {random.randint(0, len(command_manager.get_commands()))}",
-                unmatch_tips=lambda x: f"预期输入为某个命令的id或者名称，而不是 {x}\n例如：/帮助 0",
-            ),
-        ],
-        Option(
-            "--page",
-            Args["index", int],
-            help_text="查看指定页数的命令帮助",
-        ),
-        Subcommand(
-            "--namespace",
-            Args["target?;#指定的命名空间", str],
-            Option("--list", help_text="列出所有命名空间", action=store_true, default=False),
-            alias=["-N", "命名空间"],
-            help_text="是否列出命令所属命名空间",
-        ),
-        Option("--hide", alias=["-H", "隐藏"], help_text="是否列出隐藏命令", action=store_true, default=False),
-        meta=CommandMeta(
-            description="显示所有命令帮助",
-            usage="可以使用 --hide 参数来显示隐藏命令，使用 -P 参数来显示命令所属插件名称",
-            example=f"${config.help_command} 1",
-        ),
-    )
-
-    for alias in set(config.help_alias):
-        help_cmd.shortcut(alias, {"prefix": True, "fuzzy": False})
-    for alias in set(config.help_all_alias):
-        help_cmd.shortcut(alias, {"args": ["--hide"], "prefix": True, "fuzzy": False})
+for alias in set(config.help_alias):
+    help_cmd.shortcut(alias, {"prefix": True, "fuzzy": False})
+for alias in set(config.help_all_alias):
+    help_cmd.shortcut(alias, {"args": ["--hide"], "prefix": True, "fuzzy": False})
 
 
 def help_cmd_handle(arp: Arparma, interactive: bool = False):

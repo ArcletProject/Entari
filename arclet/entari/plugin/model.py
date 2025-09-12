@@ -258,7 +258,7 @@ class Plugin:
 
     def __post_init__(self):
         self._scope = Scope.of(self.id)
-        plugin_service.plugins[self.id] = self
+        plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.get("$path", self.id)
         allow = self.config.get("$allow", {})
         deny = self.config.get("$deny", {})
@@ -430,7 +430,7 @@ class RootlessPlugin(Plugin):
                 plugin_service._apply.pop(id, None)
 
         def wrapper(func: Callable[[RootlessPlugin], Any]):
-            plugin_service._apply[id] = (lambda config: cls(id, func, config), default)
+            plugin_service._apply[id] = (lambda config: cls(id, func, config), default)  # type: ignore
             return dispose
 
         if func:
@@ -487,5 +487,5 @@ def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None 
         if obj is None and obj_factory is None:
             raise ValueError("Either `obj` or `obj_factory` must be provided")
         _obj = obj_factory() if obj_factory else obj
-        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)
+        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)  # type: ignore
     return plugin_service._keep_values[plug.id][id_].obj  # type: ignore
