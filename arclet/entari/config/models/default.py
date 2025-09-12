@@ -2,7 +2,9 @@ from collections.abc import Callable
 from dataclasses import MISSING, Field, asdict, dataclass
 from dataclasses import field as _field
 from dataclasses import fields, is_dataclass
+from datetime import date, datetime
 from inspect import Signature
+from pathlib import Path
 from typing import Any, ForwardRef, TypeVar, get_args, overload
 from typing_extensions import dataclass_transform
 
@@ -12,6 +14,7 @@ from tarina.signature import merge_cls_and_parent_ns
 
 from ..dc_schema import SchemaGenerator
 from ..model import ConfigModelAction
+from ..util import store_field_description
 
 _available_dc_attrs = set(Signature.from_callable(dataclass).parameters.keys())
 _available_field_attrs = set(Signature.from_callable(Field).parameters.keys())
@@ -54,6 +57,7 @@ class BasicConfModel:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         dataclass(**({k: v for k, v in (kwargs | {"kw_only": True}).items() if k in _available_dc_attrs}))(cls)
+        store_field_description(cls, cls.__dataclass_fields__)  # type: ignore
 
 
 def _resolve_type(field_type: Any, types_namespace: dict[str, Any]) -> Any:
@@ -149,6 +153,16 @@ def _validate_single_value(value: Any, tp: Any) -> Any:
         if isinstance(value, dict):
             return _nested_validate(value, tp)
         return value
+    elif tp is Path:
+        return Path(value)
+    elif tp is datetime:
+        if isinstance(value, (int, float)):  # noqa: UP038
+            return datetime.fromtimestamp(value)
+        return datetime.fromisoformat(value)
+    elif tp is date:
+        if isinstance(value, (int, float)):  # noqa: UP038
+            return date.fromtimestamp(value)
+        return date.fromisoformat(value)
     elif generic_isinstance(value, tp):
         return value
     else:
@@ -197,8 +211,8 @@ class BasicConfModelAction(ConfigModelAction[BasicConfModel]):
         return [field_.name for field_ in fields(obj)]  # type: ignore
 
     @classmethod
-    def schema(cls, t: type[BasicConfModel]) -> dict[str, Any]:
-        return SchemaGenerator(t).create_dc_schema(t)  # type: ignore
+    def schema(cls, t: type[BasicConfModel], ref_root: str = "/") -> dict[str, Any]:
+        return SchemaGenerator.from_dc(t, ref_root)  # type: ignore
 
 
 __all__ = ["BasicConfModel", "field"]

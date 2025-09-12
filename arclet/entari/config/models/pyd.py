@@ -1,6 +1,6 @@
 from typing import Any
 
-from arclet.entari.config import ConfigModelAction
+from arclet.entari.config.model import ConfigModelAction
 
 try:
     from pydantic import BaseModel, Field, TypeAdapter, json_schema
@@ -21,8 +21,8 @@ try:
             return list(obj.model_fields.keys())
 
         @classmethod
-        def schema(cls, t: type[BaseModel]):  # type: ignore
-            return json_schema.model_json_schema(t)
+        def schema(cls, t: type[BaseModel], ref_root: str = "/"):  # type: ignore
+            return json_schema.model_json_schema(t, ref_template=f"#{ref_root}$defs/{{model}}")
 
 except ImportError:
     BaseModel = None

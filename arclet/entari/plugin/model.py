@@ -8,13 +8,14 @@ from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Provider, ProviderFactory, Scope, Subscriber, define, enter_if, publish
+from arclet.letoderea import Propagator, Scope, Subscriber, define, enter_if, propagate, publish
 from arclet.letoderea.breakpoint import StepOut, step_out
-from arclet.letoderea.provider import TProviders
+from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
+from tarina.tools import TCallable
 
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
@@ -119,9 +120,9 @@ class PluginMetadata:
         return config_model_schema(self.config)
 
 
-def inject(*services: type[Service] | str | dict):
+def inject(*services: type[Service] | str | dict, _is_global: bool = False):
 
-    async def wrapper(launart: Launart):
+    async def checker(launart: Launart):
         for service in services:
             if isinstance(service, dict):
                 serv_id = service["id"] if isinstance(service["id"], str) else service["id"].id
@@ -135,7 +136,22 @@ def inject(*services: type[Service] | str | dict):
                 await serv.status.wait_for(stage)
         return True
 
-    return enter_if(wrapper)
+    if _is_global:
+        return enter_if(checker)
+
+    def wrapper(func: TCallable) -> TCallable:
+        try:
+            plg = current_plugin.get()
+        except LookupError:
+            plg = func.__globals__.get("__plugin__", None)
+        if not plg or not isinstance(plg, Plugin):
+            raise LookupError("no plugin context found")
+        plg._extra.setdefault("local_injected_services", []).append(
+            (func.__qualname__, [s.id if isinstance(s, type) else s for s in services])
+        )
+        return propagate(enter_if(checker))(func)
+
+    return wrapper
 
 
 @dataclass
@@ -174,7 +190,8 @@ class Plugin:
     def metadata(self, value: PluginMetadata):
         self._metadata = value
         if value and value.depend_services:
-            self._scope.propagators.append(inject(*value.depend_services))
+            self._scope.propagators.append(inject(*value.depend_services, _is_global=True))  # type: ignore
+            self._extra["injected_services"] = [s.id if isinstance(s, type) else s for s in value.depend_services]
 
     def exec_apply(self):
         if self._apply:
@@ -270,7 +287,10 @@ class Plugin:
         if pat:
             self._scope.propagators.append(parse(pat))
         if self._metadata and self._metadata.depend_services:
-            self._scope.propagators.append(inject(*self._metadata.depend_services))
+            self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
+            self._extra["injected_services"] = [
+                s.id if isinstance(s, type) else s for s in self._metadata.depend_services
+            ]
         if "$static" in self.config:
             self.is_static = True
         if self.id not in plugin_service._keep_values:

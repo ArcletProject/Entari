@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, AsyncGenerator, Awaitable, Generator, Generic, Literal, TypedDict, TypeVar, overload
-from typing_extensions import NotRequired, Self, TypeAlias
+from typing_extensions import NotRequired, Self
 
 from arclet.letoderea import ExitState, Propagator, Provider, ProviderFactory, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut
@@ -10,7 +10,7 @@ from arclet.letoderea.decorate import _Check
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
 from arclet.letoderea.scope import _Wrapper
-from arclet.letoderea.typing import Resultable
+from arclet.letoderea.typing import Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
 
@@ -142,7 +142,10 @@ class PluginMetadata:
 
     def get_config_schema(self) -> dict[str, Any]: ...
 
-def inject(*services: type[Service] | str | DependService) -> _Check: ...
+@overload
+def inject(*services: type[Service] | str | DependService) -> Callable[[TCallable], TCallable]: ...
+@overload
+def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> _Check: ...
 @dataclass
 class Plugin:
     id: str

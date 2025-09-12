@@ -41,11 +41,7 @@ class LoggerManager:
     def wrapper(self, name: str, color: str = "blue"):
         if name in self.loggers:
             raise ValueError(f"Logger {name} already exists.")
-        patched = logger.patch(
-            lambda r: r.update(
-                name=name, extra=r["extra"] | {"entari_plugin_color": color}
-            )
-        )
+        patched = logger.patch(lambda r: r.update(name=name, extra=r["extra"] | {"entari_plugin_color": color}))
         patched = patched.bind(name=f"plugins.{name}")
         self.loggers[name] = patched
         return patched
@@ -108,9 +104,7 @@ def _custom_format(record: Record):
         name = f"<{record['extra']['entari_plugin_color']}><u>{{name}}</u></{record['extra']['entari_plugin_color']}>"
     else:
         name = "<m><u>{name}</u></m>"
-    res = (
-        f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level:<7}}</lvl> | {name} <lvl>{{message}}</lvl>\n"
-    )
+    res = f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level:<7}}</lvl> | {name} <lvl>{{message}}</lvl>\n"
     if record["exception"]:
         res += "{exception}\n"
     return res

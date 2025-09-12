@@ -32,6 +32,7 @@ import datetime
 import enum
 import inspect
 import numbers
+import pathlib
 import re
 import typing as t
 import typing_extensions as t_e
@@ -109,27 +110,28 @@ class ContainerSchema(Schema):
 
 
 class SchemaGenerator:
-    def __init__(self, dc: type[DataClass] | None = None) -> None:
+    def __init__(self, dc: type[DataClass] | None = None, ref_root: str = "/") -> None:
         self.root = dc
         self.seen_root = False
+        self.ref_root = ref_root
         self.defs = {}
 
     def format_docstring_description(self, field: dataclasses.Field, description: str) -> str | None:
         return description
 
     @classmethod
-    def from_dc(cls, dc: type[DataClass]) -> dict[str, t.Any]:
-        generator = cls(dc)
+    def from_dc(cls, dc: type[DataClass], ref_root: str = "/") -> dict[str, t.Any]:
+        generator = cls(dc, ref_root)
         schema = generator.get_dc_schema(dc)
         if generator.defs:
             schema["$defs"] = generator.defs
 
-        return {"$schema": "https://json-schema.org/draft/2020-12/schema", **schema}
+        return schema
 
     def get_dc_schema(self, dc: type[DataClass]) -> dict[str, t.Any]:
         if dc == self.root:
             if self.seen_root:
-                return {"$ref": "#"}
+                return {"$ref": f"#{self.ref_root}/"}
             self.seen_root = True
             return self.create_dc_schema(dc)
         else:
@@ -137,7 +139,7 @@ class SchemaGenerator:
             if name not in self.defs:
                 schema = self.create_dc_schema(dc)
                 self.defs[name] = schema
-            return {"$ref": f"#/$defs/{name}"}
+            return {"$ref": f"#{self.ref_root}$defs/{name}"}
 
     def create_dc_schema(self, dc: type[DataClass]):
         schema = {"type": "object", "title": dc.__qualname__, "properties": {}, "required": []}
@@ -153,8 +155,18 @@ class SchemaGenerator:
             typ: t.Any = type_hints[field.name]
             field.type = typ  # type: ignore[assignment]
             default_ = field.default_factory() if field.default_factory is not _MISSING else field.default
+            if (f_description := field.metadata.get("description")) is not None:
+                f_a: Schema
+                base, f_a = t.get_args(typ) if t.get_origin(typ) == t.Annotated else (typ, Schema())
+                if f_a.description is None:
+                    object.__setattr__(
+                        f_a,
+                        "description",
+                        self.format_docstring_description(field, f_description),
+                    )
+                typ = t.Annotated[base, f_a]
             schema["properties"][field.name] = self.get_field_schema(typ, default_)
-            schema["properties"][field.name]["title"] = field.name.title()
+            schema["properties"][field.name]["title"] = field.name.title().replace("_", " ")
             field_is_optional = field.default is not _MISSING or field.default_factory is not _MISSING
             if not field_is_optional:
                 schema["required"].append(field.name)
@@ -183,6 +195,8 @@ class SchemaGenerator:
             return self.get_date_schema()
         elif is_sub_type(typ, re.Pattern):
             return self.get_regex_schema()
+        elif is_sub_type(typ, pathlib.Path):
+            return self.get_str_schema(default)
 
     def get_complex_schema(self, typ: type, default: t.Any):
         if dataclasses.is_dataclass(typ):
@@ -216,6 +230,10 @@ class SchemaGenerator:
 
     def get_union_schema(self, typ: type, default: t.Any):
         args = t.get_args(typ)
+        if str in args and pathlib.Path in args:
+            args = tuple(i for i in args if i is not pathlib.Path)
+        if len(args) == 1:
+            return self.get_field_schema(args[0], default)
         if default is _MISSING:
             return {"anyOf": [self.get_field_schema(arg, _MISSING) for arg in args]}
         else:

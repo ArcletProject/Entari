@@ -75,8 +75,15 @@ def get_plugin(depth: int = 0, *, optional: bool = False) -> Plugin | None:
     raise LookupError("no plugin context found")
 
 
-def get_plugins():
-    return list(plugin_service.plugins.values())
+def get_plugins(subplugged: bool = False):
+    """获取所有插件
+
+    Args:
+        subplugged (bool, optional): 是否包含子插件. Defaults to False.
+    """
+    if subplugged:
+        return list(plugin_service.plugins.values())
+    return [p for pid, p in plugin_service.plugins.items() if pid not in plugin_service._subplugined]
 
 
 def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]:

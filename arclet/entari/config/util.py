@@ -14,6 +14,8 @@ def cleanup_src(src: str) -> str:
 
 
 def store_field_description(cls: type, fields: dict[str, Field]) -> None:
+    if hasattr(cls, "__field_description_stored__"):
+        return
     try:
         node: ast.ClassDef = cast(ast.ClassDef, ast.parse(cleanup_src(inspect.getsource(cls))).body[0])
     except (TypeError, OSError):  # NOTE: for REPL.
@@ -31,3 +33,4 @@ def store_field_description(cls: type, fields: dict[str, Field]) -> None:
             and "description" not in (field := fields[name]).metadata
         ):
             field.metadata = MappingProxyType({**field.metadata.copy(), "description": inspect.cleandoc(doc_string)})
+    setattr(cls, "__field_description_stored__", True)

@@ -41,7 +41,7 @@ class LogInfo(BasicConfModel):
 
 class BasicConfig(BasicConfModel):
     network: list[dict[str, Any]] = model_field(default_factory=list, description="Network configuration")
-    ignore_self_message: bool = model_field(default=True, description="Ignore self message")
+    ignore_self_message: bool = model_field(default=True, description="Ignore self-send message event")
     skip_req_missing: bool = model_field(default=False, description="Skip Event Handler if requirement is missing")
     log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
     log_level: int | str | None = model_field(default=None, description="[Deprecated] Log level for the application")

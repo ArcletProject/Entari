@@ -1,10 +1,10 @@
 from typing import Any
 
-from arclet.entari.config import ConfigModelAction
+from arclet.entari.config.model import ConfigModelAction
 
 try:
     from msgspec import Struct, convert, field, structs
-    from msgspec.json import schema
+    from msgspec.json import schema_components
 
     class MsgspecConfigAction(ConfigModelAction[Struct]):
         """Msgspec Config Model Action"""
@@ -22,8 +22,11 @@ try:
             return [field.name for field in structs.fields(obj)]
 
         @classmethod
-        def schema(cls, t: type[Struct]):  # type: ignore
-            return schema(t)
+        def schema(cls, t: type[Struct], ref_root: str = "/"):  # type: ignore
+            (out,), components = schema_components((t,), ref_template=f"#{ref_root}$defs/{{name}}")
+            if components:
+                out["$defs"] = components
+            return out
 
 except ImportError:
     Struct = None
