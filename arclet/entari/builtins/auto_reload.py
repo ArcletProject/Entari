@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import asdict
 from pathlib import Path
 
-from arclet.letoderea import on, post, publish
+from arclet.letoderea import post, publish
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 from loguru import logger as loguru_logger
@@ -12,13 +12,13 @@ try:
 except ModuleNotFoundError:
     raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
-from arclet.entari import add_service, declare_static, load_plugin, metadata, plugin_config, unload_plugin
-from arclet.entari.config import BasicConfModel, EntariConfig, config_model_validate, model_field
+from arclet.entari import add_service, load_plugin, metadata, plugin_config
+from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
-from arclet.entari.plugin import find_plugin, find_plugin_by_file
+from arclet.entari.plugin import find_plugin, find_plugin_by_file, unload_plugin_async
 
-declare_static()
+# declare_static()
 loguru_logger.disable("watchfiles.main")
 
 
@@ -50,7 +50,7 @@ class Watcher(Service):
 
     @property
     def stages(self) -> set[Phase]:
-        return {"blocking", "cleanup"}
+        return {"preparing", "blocking", "cleanup"}
 
     def __init__(self, dirs: list[str | Path], is_watch_config: bool):
         self.dirs = dirs
@@ -69,7 +69,7 @@ class Watcher(Service):
                     pid = plugin.id
                     _conf = plugin.config.copy()
                     del plugin
-                    unload_plugin(pid)
+                    await unload_plugin_async(pid)
                     if plugin := load_plugin(pid, _conf):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
@@ -124,16 +124,17 @@ class Watcher(Service):
                                 logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                             else:
                                 del plugin
-                                unload_plugin(pid)
+                                await unload_plugin_async(pid)
                                 logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
-                    if old_plugin[plugin_name] != EntariConfig.instance.plugin[plugin_name]:
+                    old_conf = EntariConfig._clean(old_plugin[plugin_name])
+                    new_conf = EntariConfig.instance.plugin[plugin_name]
+                    if old_conf != new_conf:
                         logger.debug(
-                            f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_plugin[plugin_name]!r}</r> "
-                            f"to <g>{EntariConfig.instance.plugin[plugin_name]!r}</g>",
+                            f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_conf!r}</r> "
+                            f"to <g>{new_conf!r}</g>",
                         )
-                        old_conf = old_plugin[plugin_name]
-                        new_conf = EntariConfig.instance.plugin[plugin_name]
+
                         if plugin := find_plugin(pid):
                             added = set(new_conf) - set(old_conf)
                             removed = set(old_conf) - set(new_conf)
@@ -161,13 +162,17 @@ class Watcher(Service):
                             logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
                             plugin_file = str(plugin.module.__file__)
                             _conf = plugin.config.copy()
-                            unload_plugin(pid)
-                            if plugin := load_plugin(plugin_name, new_conf):
-                                logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
-                                del plugin
-                            else:
-                                logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
-                                self.fail[plugin_file] = (pid, _conf)
+
+                            async def _():
+                                await unload_plugin_async(pid)
+                                if plugin := load_plugin(plugin_name, new_conf):
+                                    logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
+                                    del plugin
+                                else:
+                                    logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
+                                    self.fail[plugin_file] = (pid, _conf)
+
+                            await asyncio.shield(_())
                         else:
                             logger.info(f"Detected <blue>{pid!r}</blue> appended, loading...")
                             load_plugin(plugin_name, new_conf)
@@ -180,6 +185,10 @@ class Watcher(Service):
                         del plugin
 
     async def launch(self, manager: Launart):
+        async with self.stage("preparing"):
+            logger.info(f"Watching directories: {', '.join(repr(d) for d in self.dirs)}")
+            if self.is_watch_config:
+                logger.info("Watching config file changes")
         async with self.stage("blocking"):
             watch_task = asyncio.create_task(self.watch())
             sigexit_task = asyncio.create_task(manager.status.wait_for_sigexit())
@@ -199,15 +208,3 @@ class Watcher(Service):
 conf = plugin_config(Config)
 
 add_service(Watcher(conf.watch_dirs, conf.watch_config))
-
-
-@on(ConfigReload)
-def handle_config_reload(event: ConfigReload, serv: Watcher):
-    if event.scope != "plugin":
-        return None
-    if event.key not in ("::auto_reload", "arclet.entari.builtins.auto_reload"):
-        return None
-    new_conf = config_model_validate(Config, event.value)
-    serv.dirs = new_conf.watch_dirs
-    serv.is_watch_config = new_conf.watch_config
-    return True

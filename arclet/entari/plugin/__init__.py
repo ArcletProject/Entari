@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 import inspect
 import itertools
@@ -13,7 +14,7 @@ from tarina.tools import nest_obj_update
 from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
-from ..event.plugin import PluginLoadedFailed, PluginUnloaded
+from ..event.plugin import PluginLoadedFailed
 from ..logger import log
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
@@ -293,30 +294,42 @@ def unload_plugin(plugin: str):
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
-    publish(PluginUnloaded(_plugin.id))
     _plugin.dispose()
     return True
 
 
-def enable_plugin(plugin: str):
+async def unload_plugin_async(plugin: str):
+    plugin = plugin.replace("::", "arclet.entari.builtins.")
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
+    if not (_plugin := find_plugin(plugin)):
+        return False
+    if tasks := _plugin.dispose():
+        await asyncio.wait(tasks)
+    return True
+
+
+async def enable_plugin(plugin: str):
     """启用指定插件"""
     plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
-    _plugin.enable()
+    if tasks := _plugin.enable():
+        await asyncio.wait(tasks)
     return True
 
 
-def disable_plugin(plugin: str):
+async def disable_plugin(plugin: str):
     """禁用指定插件"""
     plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
-    _plugin.disable()
+    if tasks := _plugin.disable():
+        await asyncio.wait(tasks)
     return True
 
 

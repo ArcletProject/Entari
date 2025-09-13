@@ -161,6 +161,10 @@ class EntariConfig:
                 self.plugin[path.stem] = self.loader(path)
         return True
 
+    @staticmethod
+    def _clean(value: dict):
+        return {k: v for k, v in value.items() if k not in {"$path", "$static"}}
+
     def dump(self, indent: int = 2):
         basic = self._origin_data.get("basic", {})
         if "log" not in basic and ("log_level" in basic or "log_ignores" in basic):
@@ -170,18 +174,15 @@ class EntariConfig:
             if "log_ignores" in basic:
                 basic["log"]["ignores"] = basic.pop("log_ignores")
 
-        def _clean(value: dict):
-            return {k: v for k, v in value.items() if k not in {"$path", "$static"}}
-
         if self.plugin_extra_files:
             for file in self.plugin_extra_files:
                 path = Path(file)
                 if path.is_file():
-                    self.dumper(path, path, _clean(self.plugin.pop(path.stem)), indent)
+                    self.dumper(path, path, self._clean(self.plugin.pop(path.stem)), indent)
                 else:
                     for _path in path.iterdir():
                         if _path.is_file():
-                            self.dumper(_path, _path, _clean(self.plugin.pop(_path.stem)), indent)
+                            self.dumper(_path, _path, self._clean(self.plugin.pop(_path.stem)), indent)
         for key in list(self.plugin.keys()):
             if key.startswith("$"):
                 continue
@@ -192,7 +193,7 @@ class EntariConfig:
             if "$optional" in value:
                 key = f"?{key}" if value["$optional"] else key
                 value.pop("$optional", None)
-            self.plugin[key] = _clean(value)
+            self.plugin[key] = self._clean(value)
         return self._origin_data
 
     def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):

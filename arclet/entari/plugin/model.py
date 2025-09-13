@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -85,7 +86,7 @@ class PluginDispatcher(Generic[T]):
         return self.register()(func)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PluginMetadata:
     name: str
     """插件名称"""
@@ -233,12 +234,17 @@ class Plugin:
                 continue
             plugin_service.plugins[ret].enable()
         if plugin_service.status.blocking:
+            tasks = set()
             for serv in self._services.values():
                 plugin_service.service_waiter.assign(serv.id)
                 try:
                     it(Launart).add_component(serv)
+                    t = asyncio.create_task(serv.status.wait_for("prepared"))
+                    t.add_done_callback(tasks.discard)
+                    tasks.add(t)
                 except ValueError:
                     pass
+            return tasks
 
     def disable(self):
         if self.subplugins:
@@ -253,14 +259,19 @@ class Plugin:
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].disable()
+        tasks = set()
         for serv in self._services.values():
             plugin_service.service_waiter.clear(serv.id)
             try:
                 it(Launart).remove_component(serv)
+                t = asyncio.create_task(serv.status.wait_for("finished"))
+                t.add_done_callback(tasks.discard)
+                tasks.add(t)
             except ValueError:
                 pass
         self._scope.disable()
         self.config["$disable"] = True
+        return tasks
 
     def collect(self, *disposes: Callable[[], None]):
         """收集副作用回收函数"""
@@ -311,10 +322,14 @@ class Plugin:
         if not self.id.startswith(".") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
+        tasks = set()
         for serv in self._services.values():
             plugin_service.service_waiter.clear(serv.id)
             try:
                 it(Launart).remove_component(serv)
+                t = asyncio.create_task(serv.status.wait_for("finished"))
+                t.add_done_callback(tasks.discard)
+                tasks.add(t)
             except ValueError:
                 pass
         self._services.clear()
@@ -331,7 +346,7 @@ class Plugin:
                 if subplug not in plugin_service.plugins:
                     continue
                 try:
-                    plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup)
+                    tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
                 except Exception as e:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
@@ -351,18 +366,19 @@ class Plugin:
                 if not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins:
                     # if no more referents, remove it
                     try:
-                        plugin_service.plugins[ref].dispose(is_cleanup=is_cleanup)
+                        tasks.update(plugin_service.plugins[ref].dispose(is_cleanup=is_cleanup))
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
             for ret in plugin_service.referents[self.id].copy():
                 if ret not in plugin_service.plugins:
                     continue
-                plugin_service.plugins[ret].disable()
+                tasks.update(plugin_service.plugins[ret].disable())
         self._scope.dispose()
         self._scope.propagators.clear()
         del plugin_service.plugins[self.id]
         del self.module
+        return tasks
 
     def dispatch(self, event, name: str | None = None):
         if self.is_static:
