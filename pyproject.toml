@@ -8,8 +8,8 @@ authors = [
 dependencies = [
     "arclet-letoderea<0.20.0,>=0.19.2",
     "arclet-alconna<2.0.0,>=1.8.42",
-    "satori-python-core>=0.15.2",
-    "satori-python-client>=0.15.2",
+    "satori-python-core>=0.17.0",
+    "satori-python-client>=0.17.0",
     "arclet-alconna-tools>=0.7.3",
     "nonestorage>=0.1.0",
 ]

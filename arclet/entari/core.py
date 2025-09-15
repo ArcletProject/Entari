@@ -1,6 +1,5 @@
 import asyncio
 from collections.abc import Iterable, Sequence
-from contextlib import suppress
 import os
 from pathlib import Path
 import signal
@@ -108,6 +107,10 @@ def record(plg: RootlessPlugin):
 
 class Entari(App):
     id = "entari.service"
+
+    @property
+    def main_plugin(self):
+        return RootlessPlugin.apply("main", default=True)
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None):
@@ -234,22 +237,20 @@ class Entari(App):
         plugins = EntariConfig.instance.plugin_names
         requires(*plugins)
         for apply, slot in plugin_service._apply.items():
-            if f"~{apply}" in EntariConfig.instance.plugin:
-                continue
             if slot[1] and apply not in EntariConfig.instance.plugin:
                 plugins.append(apply)
         for plug in plugins:
             load_plugin(plug)
 
     async def handle_event(self, account: Account, event: Event):
-        with suppress(NotImplementedError):
+        try:
             ev = event_parse(account, event)
             if self.ignore_self_message and isinstance(ev, MessageCreatedEvent) and ev.user.id == account.self_id:
                 return
             await le.publish(ev)
             return
-
-        log.core.warning(f"received unsupported event {event.type}: {event}")
+        except NotImplementedError:
+            log.core.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
         le.publish(AccountUpdate(account, state))

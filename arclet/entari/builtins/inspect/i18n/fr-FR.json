@@ -1,19 +1,19 @@
 {
   "$schema": ".lang.schema.json",
   "entari::plugin_inspect": {
-    "description": "View details of users, groups or channels",
-    "platform": "Platform Name: {platform}",
-    "self": "Self ID: {self_id}",
-    "user": "User ID: {user_id}",
-    "channel": "Channel ID: {channel_id}",
-    "guild": "Guild ID: {guild_id}",
-    "invalid": "Could not parse arguments.",
+    "description": "Afficher les détails des utilisateurs, des groupes ou des canaux",
+    "platform": "Nom de la plate-forme: {platform}",
+    "self": "ID de Bot: {self_id}",
+    "user": "ID de l'utilisateur: {user_id}",
+    "channel": "ID de canal: {channel_id}",
+    "guild": "ID de guilde: {guild_id}",
+    "invalid": "Impossible d'analyser les arguments d'entrée.",
     "scene": {
-      "name": "Current Scene: {scene}",
-      "direct": "Private",
-      "text": "Text Channel",
-      "category": "Channel Category",
-      "voice": "Voice Channel"
+      "name": "Scène actuelle: {scene}",
+      "direct": "Individuel",
+      "text": "Canal de texte",
+      "category": "Catégorie de canal",
+      "voice": "Canal de vocal"
     }
   }
 }
