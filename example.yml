@@ -14,3 +14,9 @@ plugins:
   example_plugin: {}
   .record_message: {}
   .scheduler: {}
+  example_reusable@1:
+    input: hello
+    output: world!
+  example_reusable@2:
+    input: foo
+    output: bar!

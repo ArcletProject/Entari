@@ -39,6 +39,10 @@ class StaticPluginDispatchError(Exception):
     pass
 
 
+class ReusablePluginServiceError(Exception):
+    pass
+
+
 class PluginDispatcher(Generic[T]):
     def __init__(self, plugin: Plugin, event: type, name: str | None = None):
         self.publisher = define(event, name=name)
@@ -163,6 +167,8 @@ class Plugin:
     subplugins: set[str] = field(default_factory=set)
     config: dict[str, Any] = field(default_factory=dict)
     is_static: bool = False
+    path: str = field(init=False)
+    uid: str | None = None
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
@@ -171,6 +177,10 @@ class Plugin:
     _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
+
+    @property
+    def reusable(self) -> bool:
+        return self.uid is not None and self.uid != ""
 
     @property
     def available(self) -> bool:
@@ -201,7 +211,7 @@ class Plugin:
             try:
                 self._apply(self)
                 log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
-            except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
+            except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
                 self.dispose()
                 log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
                 publish(PluginLoadedFailed(self.id, e))
@@ -229,7 +239,7 @@ class Plugin:
                 if subplug not in plugin_service.plugins:
                     continue
                 plugin_service.plugins[subplug].enable()
-        for ret in plugin_service.referents[self.id].copy():
+        for ret in plugin_service.referents[self.path].copy():
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].enable()
@@ -255,7 +265,7 @@ class Plugin:
                 if subplug not in plugin_service.plugins:
                     continue
                 plugin_service.plugins[subplug].disable()
-        for ret in plugin_service.referents[self.id].copy():
+        for ret in plugin_service.referents[self.path].copy():
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].disable()
@@ -285,6 +295,9 @@ class Plugin:
         self._dispose_callbacks.clear()
 
     def __post_init__(self):
+        uid_index = self.id.rfind("@")
+        self.path = self.id[:uid_index] if uid_index != -1 else self.id
+        self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
         self._scope = Scope.of(self.id)
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.get("$path", self.id)
@@ -306,10 +319,10 @@ class Plugin:
             self.is_static = True
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
-        if self.id not in plugin_service.referents:
-            plugin_service.referents[self.id] = set()
-        if self.id not in plugin_service.references:
-            plugin_service.references[self.id] = set()
+        if self.path not in plugin_service.referents:
+            plugin_service.referents[self.path] = set()
+        if self.path not in plugin_service.references:
+            plugin_service.references[self.path] = set()
         plugin_service._unloaded.discard(self.id)
         finalize(self, self.dispose, is_cleanup=True)
 
@@ -353,7 +366,7 @@ class Plugin:
             self.subplugins.clear()
         if not is_cleanup:
             publish(PluginUnloaded(self.id))
-            for ref in plugin_service.references.pop(self.id):
+            for ref in plugin_service.references.pop(self.path):
                 if ref not in plugin_service.plugins:
                     continue
                 if ref not in plugin_service.referents:
@@ -362,7 +375,7 @@ class Plugin:
                     continue
                 if self.id not in plugin_service.referents[ref]:
                     continue
-                plugin_service.referents[ref].remove(self.id)
+                plugin_service.referents[ref].remove(self.path)
                 if not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins:
                     # if no more referents, remove it
                     try:
@@ -370,7 +383,7 @@ class Plugin:
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
-            for ret in plugin_service.referents[self.id].copy():
+            for ret in plugin_service.referents[self.path].copy():
                 if ret not in plugin_service.plugins:
                     continue
                 tasks.update(plugin_service.plugins[ret].disable())
@@ -434,6 +447,8 @@ class Plugin:
         return proxy(plugin_service.plugins[sub_id].module)
 
     def service(self, serv: TS | type[TS]) -> TS:
+        if self.reusable:
+            raise ReusablePluginServiceError("reusable plugin cannot provide services")
         if isinstance(serv, type):
             serv = serv()
         self._services[serv.id] = serv

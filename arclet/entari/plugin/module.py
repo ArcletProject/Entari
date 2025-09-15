@@ -17,7 +17,14 @@ from ..config import EntariConfig
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..logger import log
-from .model import Plugin, PluginMetadata, RegisterNotInPluginError, StaticPluginDispatchError, current_plugin
+from .model import (
+    Plugin,
+    PluginMetadata,
+    RegisterNotInPluginError,
+    ReusablePluginServiceError,
+    StaticPluginDispatchError,
+    current_plugin,
+)
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -124,8 +131,9 @@ class _Visitor(ast.NodeVisitor):
 
 
 class PluginLoader(SourceFileLoader):
-    def __init__(self, fullname: str, path: str, parent_plugin_id: str | None = None) -> None:
+    def __init__(self, fullname: str, path: str, plugin_id: str, parent_plugin_id: str | None = None) -> None:
         self.loaded = False
+        self.plugin_id = plugin_id
         self.parent_plugin_id = parent_plugin_id
         super().__init__(fullname, path)
 
@@ -202,7 +210,7 @@ class PluginLoader(SourceFileLoader):
             if key in EntariConfig.instance.prelude_plugin:
                 config["$static"] = True  # type: ignore
         # create plugin before executing
-        plugin = Plugin(module.__name__, module, config=config)
+        plugin = Plugin(self.plugin_id, module, config=config)
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         setattr(module, "__plugin__", plugin)
@@ -213,14 +221,14 @@ class PluginLoader(SourceFileLoader):
             token1 = scope_ctx.set(plugin._scope)
         try:
             super().exec_module(module)
-        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError) as e:
+        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
             plugin.dispose()
-            log.plugin.error(f"failed to load plugin <blue>{module.__name__!r}</blue>: {e.args[0]}")
+            log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>: {e.args[0]}")
             publish(PluginLoadedFailed(module.__name__, e))
             raise
         except Exception as e:
             plugin.dispose()
-            log.plugin.exception(f"failed to load plugin <blue>{module.__name__!r}</blue> caused by {e!r}", exc_info=e)
+            log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             publish(PluginLoadedFailed(module.__name__, e))
             raise
         finally:
@@ -237,9 +245,9 @@ class PluginLoader(SourceFileLoader):
         plugin._apply = getattr(module, "__plugin_apply__", None)
         if not is_sub:
             if plugin._apply:
-                log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue> partially applied")
+                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")
             else:
-                log.plugin.success(f"loaded plugin <blue>{self.name!r}</blue>")
+                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue>")
         else:
             log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
         if plugin_service.status.blocking:
@@ -291,6 +299,7 @@ class _PluginFinder(MetaPathFinder):
         fullname: str,
         path: Sequence[str] | None,
         target: ModuleType | None = None,
+        origin_id_: str | None = None,
     ):
         module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
@@ -304,10 +313,10 @@ class _PluginFinder(MetaPathFinder):
             if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
                 return plug.module.__spec__
             if module_spec.parent and module_spec.parent == plug.module.__name__:
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
                 return module_spec
             elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
-                module_spec.loader = PluginLoader(fullname, module_origin, plug.id)
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
                 # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec
@@ -316,29 +325,35 @@ class _PluginFinder(MetaPathFinder):
                 or module_spec.name.startswith("arclet.entari.builtins.")
                 or module_spec.name.startswith("entari_plugin")
             ):
-                module_spec.loader = PluginLoader(fullname, module_origin)
-                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
+                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.path)
                 return module_spec
 
         if module_spec.name in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin)
+            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
             return module_spec
         if module_spec.name in _ENSURE_IS_PLUGIN:
-            module_spec.loader = PluginLoader(fullname, module_origin)
+            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
             return module_spec
         if module_spec.name in plugin_service._subplugined:
-            module_spec.loader = PluginLoader(fullname, module_origin, plugin_service._subplugined[module_spec.name])
+            module_spec.loader = PluginLoader(
+                fullname, module_origin, origin_id_ or fullname, plugin_service._subplugined[module_spec.name]
+            )
             return module_spec
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, module_spec.parent)
+            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, module_spec.parent)
             return module_spec
         if module_spec.name.rpartition(".")[0] in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, module_spec.name.rpartition(".")[0])
+            module_spec.loader = PluginLoader(
+                fullname, module_origin, origin_id_ or fullname, module_spec.name.rpartition(".")[0]
+            )
             return module_spec
         return
 
 
-def find_spec(name, package=None):
+def find_spec(id_, package=None):
+    uid_index = id_.rfind("@")
+    name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
     if parent_name:
@@ -381,7 +396,7 @@ def find_spec(name, package=None):
             ) from e
     else:
         parent_path = None
-    if spec := _PluginFinder.find_spec(fullname, parent_path):
+    if spec := _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_):
         return spec
     module_spec = _path_find_spec(fullname, parent_path, None)
     if not module_spec:
@@ -391,12 +406,12 @@ def find_spec(name, package=None):
         return
     if isinstance(module_spec.loader, ExtensionFileLoader):
         return
-    module_spec.loader = PluginLoader(fullname, module_origin)
+    module_spec.loader = PluginLoader(fullname, module_origin, id_)
     return module_spec
 
 
-def import_plugin(name, package=None, config: dict | None = None):
-    spec = find_spec(name, package)
+def import_plugin(id_, package=None, config: dict | None = None):
+    spec = find_spec(id_, package)
     if spec:
         mod = module_from_spec(spec)
         if spec.loader:

@@ -1,11 +1,12 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime
+import inspect
 from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
 from arclet.letoderea import STOP, Propagator, enter_if
-from tarina import get_signature, is_coroutinefunction
+from tarina import is_coroutinefunction
 
 from . import common, message
 from ..message import MessageChain
@@ -41,16 +42,20 @@ class _Filter:
     to_me = enter_if(message.to_me)
 
     def __call__(self, func: _SessionFilter):
-        params = get_signature(func)
-        name = next(iter(params)).name
+        sig = inspect.signature(func)
+        name = next(iter(sig.parameters.values())).name
 
         if not is_coroutinefunction(func):
 
-            async def _(*args, **kwargs):
-                return func(*args, **kwargs)
+            async def _(*args, _func=func, **kwargs):
+                return _func(*args, **kwargs)
 
             func = _
-        func.__annotations__ = {name: Session}
+        func.__signature__ = sig.replace(
+            parameters=[
+                param.replace(annotation=Session) if param.name == name else param for param in sig.parameters.values()
+            ]
+        )
         return enter_if(func)
 
 

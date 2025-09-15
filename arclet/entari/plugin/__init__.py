@@ -140,7 +140,7 @@ def load_plugin(
         log.plugin.trace(f"loaded rootless plugin <y>{path!r}</y>")
         return plugin_service._apply[path][0](config)
     if plug := find_plugin(path):
-        plugin_service._direct_plugins.add(plug.id)
+        plugin_service._direct_plugins.add(plug.path)
         return plug
     try:
         if pref := config.get("$prefix"):
