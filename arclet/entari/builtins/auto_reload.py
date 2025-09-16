@@ -28,6 +28,8 @@ class Config(BasicConfModel):
         description="需要监视的目录列表，支持相对路径和绝对路径",
     )
     watch_config: bool = model_field(default=False, description="是否监视配置文件的变化，默认为 False")
+    debounce: int = model_field(default=1600, description="防抖时间，单位为毫秒，防止频繁变动导致的重复加载，默认为 1600 毫秒")
+    step: int = model_field(default=50, description="轮询间隔，单位为毫秒，默认为 50 毫秒")
 
 
 metadata(
@@ -52,14 +54,13 @@ class Watcher(Service):
     def stages(self) -> set[Phase]:
         return {"preparing", "blocking", "cleanup"}
 
-    def __init__(self, dirs: list[str | Path], is_watch_config: bool):
-        self.dirs = dirs
-        self.is_watch_config = is_watch_config
+    def __init__(self, config: Config):
+        self.config = config
         self.fail: dict[str, tuple[str, dict]] = {}
         super().__init__()
 
     async def watch(self):
-        async for event in awatch(*self.dirs, watch_filter=PythonFilter()):
+        async for event in awatch(*self.config.watch_dirs, debounce=self.config.debounce, step=self.config.step, watch_filter=PythonFilter()):
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
                     if plugin.is_static:
@@ -88,9 +89,9 @@ class Watcher(Service):
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
         extra = [file.parent.joinpath(path) for path in EntariConfig.instance.plugin_extra_files]
-        async for event in awatch(file.absolute(), *(dir_.absolute() for dir_ in extra), recursive=False):
+        async for event in awatch(file.absolute(), *(dir_.absolute() for dir_ in extra), debounce=self.config.debounce, step=self.config.step, recursive=False):
             for change in event:
-                if not self.is_watch_config:
+                if not self.config.watch_config:
                     continue
                 if not (
                     (change[0].name == "modified" and Path(change[1]).resolve() == file)
@@ -186,8 +187,8 @@ class Watcher(Service):
 
     async def launch(self, manager: Launart):
         async with self.stage("preparing"):
-            logger.info(f"Watching directories: {', '.join(repr(d) for d in self.dirs)}")
-            if self.is_watch_config:
+            logger.info(f"Watching directories: {', '.join(repr(d) for d in self.config.watch_dirs)}")
+            if self.config.watch_config:
                 logger.info("Watching config file changes")
         async with self.stage("blocking"):
             watch_task = asyncio.create_task(self.watch())
@@ -206,5 +207,4 @@ class Watcher(Service):
 
 
 conf = plugin_config(Config)
-
-add_service(Watcher(conf.watch_dirs, conf.watch_config))
+add_service(Watcher(conf))

@@ -15,7 +15,7 @@ from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
-from ..logger import log
+from ..logger import log, escape_tag
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
 from .model import StaticPluginDispatchError, current_plugin
@@ -161,7 +161,7 @@ def load_plugin(
                 if referent in recursive_guard:
                     continue
                 if referent in plugin_service.plugins:
-                    log.plugin.debug(f"reloading <y>{mod.__name__}</y>'s referent <y>{referent!r}</y>")
+                    log.plugin.debug(f"reloading <y>{escape_tag(mod.__name__)}</y>'s referent <y>{referent!r}</y>")
                     unload_plugin(referent)
                 if not (plug := load_plugin(referent)):
                     plugin_service.referents[mod.__name__].add(referent)

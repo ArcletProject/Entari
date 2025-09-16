@@ -89,7 +89,7 @@ def record(plg: RootlessPlugin):
             return
         log.message.info(
             f"[{event.channel.name or event.channel.id}] "
-            f"{event.member.nick if event.member else (event.user.name or event.user.id)}"
+            f"{event.member.nick if event.member and event.member.nick else (event.user.name or event.user.id)}"
             f"({event.user.id}) -> {event.message.content!r}"
         )
 
@@ -149,12 +149,12 @@ class Entari(App):
         from . import __version__
 
         configure(skip_req_missing=skip_req_missing)
-        log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         super().__init__(*configs, default_api_cls=EntariProtocol)
         if not hasattr(EntariConfig, "instance"):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
+        log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         self._log_save_dispose = lambda: None
         if EntariConfig.instance.basic.log.save:
             if EntariConfig.instance.basic.log.save is True:

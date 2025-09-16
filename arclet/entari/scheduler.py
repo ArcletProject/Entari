@@ -10,7 +10,7 @@ from arclet.letoderea.typing import Contexts
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
-from .plugin import RootlessPlugin, get_plugin
+from .plugin import RootlessPlugin, get_plugin, metadata
 
 
 @make_event(name="entari.event/internal/schedule")
@@ -119,6 +119,8 @@ schedule = scheduler.schedule
 
 @RootlessPlugin.apply("scheduler", default=True)
 def _(plg: RootlessPlugin):
+    metadata("Simple Scheduler with interval / crontab task", ["RF-Tar-Railt <rf_tar_railt@qq.com>"])
+
     plg.service(service)
 
 

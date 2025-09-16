@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 import sys
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,21 @@ if TYPE_CHECKING:
     from loguru import Logger, Record
 
 
+TRACE_NO = logger.level("TRACE").no
+DEBUG_NO = logger.level("DEBUG").no
+
+
+def escape_tag(s: str) -> str:
+    """用于记录带颜色日志时转义 `<tag>` 类型特殊标签
+
+    参考: [loguru color 标签](https://loguru.readthedocs.io/en/stable/api/logger.html#color)
+
+    参数:
+        s: 需要转义的字符串
+    """
+    return re.sub(r"</?((?:[fb]g\s)?[^<>\s]*)>", r"\\\g<0>", s)
+
+
 class LoggerManager:
     def __init__(self):
         self.loggers: dict[str, Logger] = {}
@@ -18,6 +34,7 @@ class LoggerManager:
         self.fork("[plugin]")
         self.fork("[message]")
         self.log_level = "INFO"
+        self.levelno = logger.level("INFO").no
         self.ignores = set()
 
     def fork(self, child_name: str):
@@ -39,8 +56,8 @@ class LoggerManager:
         return self.loggers["[message]"]
 
     def wrapper(self, name: str, color: str = "blue"):
-        patched = logger.patch(lambda r: r.update(name=name, extra=r["extra"] | {"entari_plugin_color": color}))
-        patched = patched.bind(name=f"plugins.{name}")
+        patched = logger.patch(lambda r: r.update(name=escape_tag(name), extra=r["extra"] | {"entari_plugin_color": color}))
+        patched = patched.bind(name=f"plugins.{escape_tag(name)}")
         self.loggers[name] = patched
         return patched
 
@@ -54,6 +71,7 @@ class LoggerManager:
             force=True,
         )
         self.log_level = level
+        self.levelno = logger.level(level).no if isinstance(level, str) else level
 
 
 class LoguruHandler(logging.Handler):  # pragma: no cover
@@ -86,15 +104,14 @@ log = LoggerManager()
 def default_filter(record):
     if record["name"] in log.ignores:
         return False
-    levelno = logger.level(log.log_level).no if isinstance(log.log_level, str) else log.log_level
     if record["name"].startswith("launart"):
-        if levelno <= logger.level("TRACE").no:
+        if log.levelno <= TRACE_NO:
             return record["level"].no >= logger.level("TRACE").no
-        elif levelno <= logger.level("DEBUG").no:
+        elif log.levelno <= DEBUG_NO:
             return record["level"].no >= logger.level("SUCCESS").no
         else:
             return record["level"].no > logger.level("SUCCESS").no
-    return record["level"].no >= levelno
+    return record["level"].no >= log.levelno
 
 
 def _custom_format(record: Record):
@@ -102,7 +119,13 @@ def _custom_format(record: Record):
         name = f"<{record['extra']['entari_plugin_color']}><u>{{name}}</u></{record['extra']['entari_plugin_color']}>"
     else:
         name = "<m><u>{name}</u></m>"
-    res = f"<lk>{{time:YYYY-MM-DD HH:mm:ss}}</lk> <lvl>{{level:<7}}</lvl> | {name} <lvl>{{message}}</lvl>\n"
+    if log.levelno <= TRACE_NO:
+        time = "<lk>{time:YYYY-MM-DD HH:mm:ss.SSS}</lk>"
+    elif log.levelno <= DEBUG_NO:
+        time = "<lk>{time:YYYY-MM-DD HH:mm:ss}</lk>"
+    else:
+        time = "<lk>{time:MM-DD HH:mm:ss}</lk>"
+    res = f"{time} <lvl>{{level:<7}}</lvl> | {name} <lvl>{{message}}</lvl>\n"
     if record["exception"]:
         res += "{exception}\n"
     return res
@@ -157,4 +180,4 @@ def apply_log_save(
     return lambda: logger.remove(log_id)
 
 
-__all__ = ["log", "logger_id", "apply_log_save"]
+__all__ = ["log", "logger_id", "apply_log_save", "escape_tag"]

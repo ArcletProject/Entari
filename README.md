@@ -3,41 +3,53 @@
 # Entari
 
   > _lí no etheclim, nann ze entám rish._
-  
-</div>
 
+![Entari](https://img.shields.io/badge/Arclet-Entari-2564c2.svg)
 [![Licence](https://img.shields.io/github/license/ArcletProject/Entari)](https://github.com/ArcletProject/Entari/blob/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/arclet-entari)](https://pypi.org/project/arclet-entari)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/arclet-entari)](https://www.python.org/)
-![Entari](https://img.shields.io/badge/Arclet-Entari-2564c2.svg)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ArcletProject/Entari)
+[![Docs](https://img.shields.io/badge/docs-arclet.top-28d178)](https://arclet.top/tutorial/entari/)
+[![QQ 群](https://img.shields.io/badge/QQ-654490750-yellow.svg)](https://jq.qq.com/?_wv=1027&k=PUPOnCSH)
 
-一个基于 `Satori` 协议的简易 IM framework
+</div>
+
+
+一个基于 `Satori` 协议的灵活、高效的 IM framework
 
 ## 特性
 
 - 基于 Satori 协议，一份代码即可对接多种平台
-- 异步并发，基于 Python 的异步特性，即使有大量的事件传入，也能吞吐自如
+- 异步并发，基于 Python 的异步特性，即使有大量的事件传入，也能吞吐自如。在常规使用下能达到1000+ RPS
 - 易上手的开发体验，没有过多的冗余代码，可以让开发者专注于业务逻辑
 - 既可集成式也可分布式的配置文件，内建且可拓展的配置模型
-- 可热重载的插件机制与服务机制，同时还能提供自定义事件
+- 即插即拔，可热重载、可重用的插件机制
+- 自定义服务、自定义事件等高度可拓展的功能
 - 高度可拓展的事件响应器，能够依托强大的、符合直觉依赖注入进行会话控制
-- 内置强大的命令系统、定时任务系统、数据库与多种插件
+- 内置强大的命令系统、定时任务系统与多种插件
 
 ## 示例
 
-使用命令行:
+使用 `entari-cli` 命令行:
 ```shell
-# 生成配置文件
-$ entari config new
+# 创建新的 entari 项目
+$ entari init
+是否创建新的虚拟环境? (Y/n): Y
+请输入要选择的 Python 解释器路径
+ 0. cpython@3.11 (...)
+ 1. ...
+请选择 (0): 0
+虚拟环境将创建在 ...
+...
 ```
 ```shell
 # 运行
 $ entari run
 ```
 
-使用配置文件:
+使用的配置文件:
 ```yaml
-# config.yml
+# entari.yml
 basic:
   network:
     - type: ws
@@ -45,7 +57,8 @@ basic:
       port: 5140
       path: "satori"
   ignore_self_message: true
-  log_level: INFO
+  log:
+    level: INFO
   prefix: ["/"]
 plugins:
   $prelude:
@@ -53,17 +66,10 @@ plugins:
   .record_message: {}
   ::auto_reload:
     watch_dirs: ["."]
+  ::help: {}
   ::echo: {}
   ::inspect: {}
 ```
-
-```python
-from arclet.entari import Entari
-
-app = Entari.load("config.yml")
-app.run()
-```
-
 
 复读:
 
@@ -122,18 +128,21 @@ async def _(session: Session):
 
 加载插件:
 
-```python
-from arclet.entari import Entari, WS, load_plugin
-
-app = Entari(WS(port=5140, path="satori"))
-load_plugin("example_plugin", {"name": "Entari"})
-load_plugin("::echo")
-load_plugin("::auto_reload", {"watch_dirs": ["plugins"]})
-
-app.run()
+```diff
+# entari.yml
+plugins:
+  $prelude:
+    - ::auto_reload
+  .record_message: {}
+  ::auto_reload:
+    watch_dirs: ["."]
+  ::help: {}
+  ::echo: {}
+  ::inspect: {}
+++ example_plugin: {}  # 加载 example_plugin 插件
 ```
 
-导入插件:
+在其他插件中导入插件:
 
 ```python
 from arclet.entari import command, MessageChain, Image
@@ -156,7 +165,8 @@ basic:
       port: 5140
       path: "satori"
   ignore_self_message: true
-  log_level: INFO
+  log:
+    level: INFO
   prefix: ["/"]
 plugins:
   $files: ["./plugins"]
@@ -180,7 +190,8 @@ plugins:
     - `port`: satori 服务器端口
     - `path`: satori 服务器路径
   - `ignore_self_message`: 是否忽略自己发送的消息事件
-  - `log_level`: 日志等级
+  - `log`: 日志配置
+    - `level`: 日志等级, 可填项有 `TRACE` `DEBUG`, `INFO` 等
   - `prefix`: 指令前缀, 可留空
 - `plugins`: 插件配置
   - `$files`: 额外的插件配置文件搜索目录

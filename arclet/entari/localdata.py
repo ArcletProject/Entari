@@ -84,7 +84,7 @@ class Config(BasicConfModel):
 
 @RootlessPlugin.apply("localdata", default=True)
 def localdata_apply(plg: RootlessPlugin):
-    metadata("LocalData", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
+    metadata("Data store interface with local directories", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
 
     conf = plugin_config(Config)
     local_data.global_path = conf.use_global
