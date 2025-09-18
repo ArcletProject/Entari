@@ -24,15 +24,6 @@ TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
 R1 = TypeVar("R1")
 
-class RegisterNotInPluginError(Exception):
-    pass
-
-class StaticPluginDispatchError(Exception):
-    pass
-
-class ReusablePluginServiceError(Exception):
-    pass
-
 class PluginDispatcher(Generic[T]):
     publisher: Publisher
     plugin: Plugin

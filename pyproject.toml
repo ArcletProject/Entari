@@ -60,6 +60,9 @@ toml = [
 cli = [
     "entari-cli>=0.1.0",
 ]
+rich = [
+    "rich>=14.1.0",
+]
 
 [build-system]
 requires = ["pdm-backend"]
@@ -73,19 +76,6 @@ includes = ["arclet"]
 source = "file"
 path = "arclet/entari/__init__.py"
 
-[tool.pdm.dev-dependencies]
-dev = [
-    "isort>=5.13.2",
-    "black>=24.4.2",
-    "ruff>=0.4.2",
-    "fix-future-annotations>=0.5.0",
-    "watchfiles>=0.24.0",
-    "python-dotenv>=1.0.1",
-    "ruamel-yaml>=0.18.10",
-    "msgspec>=0.19.0",
-    "pydantic>=2.10.6",
-    "tomlkit>=0.13.3",
-]
 [tool.black]
 line-length = 120
 target-version = ["py310", "py311", "py312", "py313"]
@@ -117,3 +107,18 @@ typeCheckingMode = "basic"
 [tool.pdm.scripts]
 test = "pytest -v -n auto -W ignore ./tests/"
 format = { composite = ["isort ./arclet/","black ./arclet/","ruff check ./arclet/"] }
+
+[dependency-groups]
+dev = [
+    "isort>=5.13.2",
+    "black>=24.4.2",
+    "ruff>=0.4.2",
+    "fix-future-annotations>=0.5.0",
+    "watchfiles>=0.24.0",
+    "python-dotenv>=1.0.1",
+    "ruamel-yaml>=0.18.10",
+    "msgspec>=0.19.0",
+    "pydantic>=2.10.6",
+    "tomlkit>=0.13.3",
+    "richuru>=0.1.1",
+]

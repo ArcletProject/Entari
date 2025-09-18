@@ -20,6 +20,7 @@ from tarina.tools import TCallable
 
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
+from ..exceptions import RegisterNotInPluginError, ReusablePluginServiceError, StaticPluginDispatchError
 from ..filter import parse
 from ..logger import log
 from .service import plugin_service
@@ -29,18 +30,6 @@ current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
 T = TypeVar("T")
 TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
-
-
-class RegisterNotInPluginError(Exception):
-    pass
-
-
-class StaticPluginDispatchError(Exception):
-    pass
-
-
-class ReusablePluginServiceError(Exception):
-    pass
 
 
 class PluginDispatcher(Generic[T]):
@@ -205,24 +194,25 @@ class Plugin:
             self._extra["injected_services"] = [s.id if isinstance(s, type) else s for s in value.depend_services]
 
     def exec_apply(self):
-        if self._apply:
-            log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
-            token = current_plugin.set(self)
-            try:
-                self._apply(self)
-                log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
-            except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
-                self.dispose()
-                log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
-                publish(PluginLoadedFailed(self.id, e))
-                raise
-            except Exception as e:
-                self.dispose()
-                log.plugin.exception(f"failed to load plugin <blue>{self.id!r}</blue> caused by {e!r}", exc_info=e)
-                publish(PluginLoadedFailed(self.id, e))
-                raise
-            finally:
-                current_plugin.reset(token)
+        if not self._apply:
+            return
+        log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
+        token = current_plugin.set(self)
+        try:
+            self._apply(self)
+            log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
+        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
+            log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
+            self.dispose()
+            publish(PluginLoadedFailed(self.id, e))
+            raise
+        except Exception as e:
+            log.plugin.exception(f"failed to load plugin <blue>{self.id!r}</blue> caused by {e!r}", exc_info=e)
+            self.dispose()
+            publish(PluginLoadedFailed(self.id, e))
+            raise
+        finally:
+            current_plugin.reset(token)
 
     @property
     def is_available(self) -> bool:
@@ -428,17 +418,7 @@ class Plugin:
         if func.__module__ != self.module.__name__:
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
-            raise RegisterNotInPluginError(
-                f"\nHandler `{func.__qualname__}` from {func.__module__!r} should define "
-                f"in the same module as the plugin: {self.module.__name__!r}. "
-                "\n\nPlease choose one of the following solutions before import it: "
-                f"\n * add {func.__module__!r} to your config file."
-                f"\n * write the comment after the import statement line: `# entari: plugin`"
-                f"\n * append `load_plugin({func.__module__!r})` before the import statement."
-                f"\n * call `requires({func.__module__!r})` before the import statement."
-                f"\n * write the comment after the import statement line: `# entari: package`"
-                f"\n * call `package({func.__module__!r})` to let it marked as a sub-plugin of `{self.id}`."
-            )
+            raise RegisterNotInPluginError(func, self.module, self.id)
 
     def proxy(self):
         return proxy(self.module)

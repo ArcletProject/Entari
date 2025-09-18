@@ -27,7 +27,7 @@ from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
 from .event.send import SendResponse
-from .logger import apply_log_save, log
+from .logger import apply_log_save, enable_rich_except, log
 from .plugin import load_plugin, plugin_config, requires
 from .plugin.model import RootlessPlugin
 from .plugin.service import plugin_service
@@ -136,6 +136,7 @@ class Entari(App):
             ignore_self_message=ignore_self_message,
             skip_req_missing=skip_req_missing,
             external_dirs=external_dirs,
+            rich_except=config.basic.log.rich_except,
         )
 
     def __init__(
@@ -145,6 +146,7 @@ class Entari(App):
         ignore_self_message: bool = True,
         skip_req_missing: bool = False,
         external_dirs: Sequence[str | os.PathLike[str]] | None = None,
+        rich_except: bool = False,
     ):
         from . import __version__
 
@@ -154,6 +156,8 @@ class Entari(App):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
+        if rich_except:
+            enable_rich_except()
         log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         self._log_save_dispose = lambda: None
         if EntariConfig.instance.basic.log.save:

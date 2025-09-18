@@ -15,11 +15,12 @@ from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
-from ..logger import log, escape_tag
+from ..exceptions import StaticPluginDispatchError
+from ..logger import escape_tag, log
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
-from .model import StaticPluginDispatchError, current_plugin
 from .model import TS, Plugin, PluginDispatcher
+from .model import current_plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package

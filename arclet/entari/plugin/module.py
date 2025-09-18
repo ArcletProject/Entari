@@ -16,15 +16,9 @@ from arclet.letoderea.scope import scope_ctx
 from ..config import EntariConfig
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
+from ..exceptions import RegisterNotInPluginError, ReusablePluginServiceError, StaticPluginDispatchError
 from ..logger import log
-from .model import (
-    Plugin,
-    PluginMetadata,
-    RegisterNotInPluginError,
-    ReusablePluginServiceError,
-    StaticPluginDispatchError,
-    current_plugin,
-)
+from .model import Plugin, PluginMetadata, current_plugin
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -221,14 +215,19 @@ class PluginLoader(SourceFileLoader):
             token1 = scope_ctx.set(plugin._scope)
         try:
             super().exec_module(module)
-        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
+        except RegisterNotInPluginError as e:
+            log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e.msg}")
             plugin.dispose()
+            publish(PluginLoadedFailed(module.__name__, e))
+            raise
+        except (ImportError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>: {e.args[0]}")
+            plugin.dispose()
             publish(PluginLoadedFailed(module.__name__, e))
             raise
         except Exception as e:
-            plugin.dispose()
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
+            plugin.dispose()
             publish(PluginLoadedFailed(module.__name__, e))
             raise
         finally:

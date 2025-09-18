@@ -4,8 +4,11 @@ import inspect
 import logging
 import re
 import sys
-from typing import TYPE_CHECKING
+import traceback
+from types import TracebackType
+from typing import TYPE_CHECKING, cast
 
+from arclet.letoderea.exceptions import ExceptionHandler, Trace
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -33,6 +36,7 @@ class LoggerManager:
         self.fork("[core]")
         self.fork("[plugin]")
         self.fork("[message]")
+        self.fork("[error]")
         self.log_level = "INFO"
         self.levelno = logger.level("INFO").no
         self.ignores = set()
@@ -55,8 +59,14 @@ class LoggerManager:
     def message(self):
         return self.loggers["[message]"]
 
+    @property
+    def error(self):
+        return self.loggers["[error]"]
+
     def wrapper(self, name: str, color: str = "blue"):
-        patched = logger.patch(lambda r: r.update(name=escape_tag(name), extra=r["extra"] | {"entari_plugin_color": color}))
+        patched = logger.patch(
+            lambda r: r.update(name=escape_tag(name), extra=r["extra"] | {"entari_plugin_color": color})
+        )
         patched = patched.bind(name=f"plugins.{escape_tag(name)}")
         self.loggers[name] = patched
         return patched
@@ -136,7 +146,7 @@ logger_id = logger.add(
     sys.stdout,
     level=0,
     diagnose=True,
-    backtrace=True,
+    backtrace=False,
     colorize=True,
     filter=default_filter,
     format=_custom_format,
@@ -160,6 +170,42 @@ def _hidden_upsteam(record: Record):
 logger.configure(patcher=_hidden_upsteam)
 
 
+def loguru_exc_callback(cls: type[BaseException], val: BaseException, tb: TracebackType | None, *_, **__):
+    """loguru 异常回调
+
+    Args:
+        cls (Type[Exception]): 异常类
+        val (Exception): 异常的实际值
+        tb (TracebackType): 回溯消息
+    """
+    log.error.opt(exception=(cls, val, tb)).error("Exception:")
+
+
+def loguru_print_trace(te: Trace):
+    summary = te.stack[0]
+
+    class FakeFrame:
+        f_code = type(
+            "code", (), {"co_filename": summary.filename, "co_name": summary.name, "co_firstlineno": summary.lineno}
+        )
+        f_lineno = summary.lineno
+        f_globals = {}
+        f_locals = {}
+        f_builtins = {}
+
+    class FakeTraceback:
+        tb_frame = FakeFrame()
+        tb_lineno = summary.lineno
+        tb_next = te.exc_traceback
+
+    log.error.opt(exception=(te.exc_type, te.exc_value, cast(TracebackType, FakeTraceback()))).error("Exception:")
+
+
+traceback.print_exception = loguru_exc_callback
+ExceptionHandler.print_trace = loguru_print_trace
+sys.excepthook = loguru_exc_callback
+
+
 def apply_log_save(
     rotation: str = "00:00",
     compression: str | None = "zip",
@@ -180,4 +226,41 @@ def apply_log_save(
     return lambda: logger.remove(log_id)
 
 
-__all__ = ["log", "logger_id", "apply_log_save", "escape_tag"]
+try:
+    from loguru._better_exceptions import ExceptionFormatter
+    from rich.console import Console
+    from rich.traceback import Frame, Traceback
+
+    csl = Console(stderr=False, force_terminal=True)
+
+    def patch_format_exception(self, type_, value, tb, *, from_decorator=False):
+        rich_tb = Traceback.from_exception(
+            type_,
+            value,
+            tb,
+            show_locals=True,
+            width=csl.width,
+            code_width=120 if csl.width > 120 else 88,
+        )
+        segments = [*csl.render(rich_tb)]
+        yield csl._render_buffer(segments)
+
+    def patch_print_trace(te: Trace):
+        trace = Traceback.extract(te.exc_type, te.exc_value, te.exc_traceback, show_locals=True)
+        summary = te.stack[0]
+        trace.stacks[0].frames.insert(0, Frame(summary.filename, summary.lineno, summary.name, summary.line, locals={}))  # type: ignore
+        rich_tb = Traceback(trace, width=csl.width, code_width=120 if csl.width > 120 else 88)
+        segments = [*csl.render(rich_tb)]
+        log.error.opt().error(f"Exception:\n{''.join(csl._render_buffer(segments))}")
+
+    def enable_rich_except():
+        ExceptionFormatter.format_exception = patch_format_exception
+        ExceptionHandler.print_trace = patch_print_trace
+
+except ImportError:
+
+    def enable_rich_except():
+        log.error.warning("无法启用 rich except，未安装 rich 库，请通过 `pip install rich` 安装。")
+
+
+__all__ = ["log", "logger_id", "apply_log_save", "escape_tag", "enable_rich_except"]
