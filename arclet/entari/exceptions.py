@@ -44,5 +44,5 @@ class StaticPluginDispatchError(Exception):
     pass
 
 
-class ReusablePluginServiceError(Exception):
+class ReusablePluginError(Exception):
     pass

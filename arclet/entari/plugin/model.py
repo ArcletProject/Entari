@@ -20,7 +20,7 @@ from tarina.tools import TCallable
 
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
-from ..exceptions import RegisterNotInPluginError, ReusablePluginServiceError, StaticPluginDispatchError
+from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..filter import parse
 from ..logger import log
 from .service import plugin_service
@@ -201,7 +201,7 @@ class Plugin:
         try:
             self._apply(self)
             log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
-        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
+        except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
             self.dispose()
             publish(PluginLoadedFailed(self.id, e))
@@ -359,14 +359,17 @@ class Plugin:
             for ref in plugin_service.references.pop(self.path):
                 if ref not in plugin_service.plugins:
                     continue
-                if ref not in plugin_service.referents:
-                    continue
                 if ref in plugin_service._unloaded:
                     continue
-                if self.id not in plugin_service.referents[ref]:
+                strip_ref = ref
+                if ref.rfind("@") != -1:
+                    strip_ref = ref[: ref.rfind("@")]
+                if strip_ref not in plugin_service.referents:
                     continue
-                plugin_service.referents[ref].remove(self.path)
-                if not plugin_service.referents[ref] and ref not in plugin_service._direct_plugins:
+                if self.id not in plugin_service.referents[strip_ref]:
+                    continue
+                plugin_service.referents[strip_ref].remove(self.id)
+                if not plugin_service.referents[strip_ref] and strip_ref not in plugin_service._direct_plugins:
                     # if no more referents, remove it
                     try:
                         tasks.update(plugin_service.plugins[ref].dispose(is_cleanup=is_cleanup))
@@ -428,7 +431,7 @@ class Plugin:
 
     def service(self, serv: TS | type[TS]) -> TS:
         if self.reusable:
-            raise ReusablePluginServiceError("reusable plugin cannot provide services")
+            raise ReusablePluginError("reusable plugin cannot provide services")
         if isinstance(serv, type):
             serv = serv()
         self._services[serv.id] = serv

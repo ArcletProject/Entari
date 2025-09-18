@@ -16,7 +16,7 @@ from arclet.letoderea.scope import scope_ctx
 from ..config import EntariConfig
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
-from ..exceptions import RegisterNotInPluginError, ReusablePluginServiceError, StaticPluginDispatchError
+from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
 from .model import Plugin, PluginMetadata, current_plugin
 from .service import plugin_service
@@ -41,24 +41,25 @@ def requires(*names: str):
     _ENSURE_IS_PLUGIN.update(name.replace("::", "arclet.entari.builtins.") for name in names)
 
 
-def _ensure_plugin(names: list[str], sub: bool, current: str, prefix=""):
+def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix=""):
     for name in names:
         if sub:
-            _SUBMODULE_WAITLIST.setdefault(current, set()).add(f"{prefix}{name}")
+            _SUBMODULE_WAITLIST.setdefault(pname, set()).add(f"{prefix}{name}")
         else:
             _ENSURE_IS_PLUGIN.add(f"{prefix}{name}")
-            plugin_service.referents.setdefault(f"{prefix}{name}", set()).add(current)
-            plugin_service.references.setdefault(current, set()).add(f"{prefix}{name}")
+            plugin_service.referents.setdefault(f"{prefix}{name}", set()).add(pid)
+            plugin_service.references.setdefault(pname, set()).add(f"{prefix}{name}")
         _IMPORTING.add(f"{prefix}{name}")
 
 
 # fmt: off
 class _Visitor(ast.NodeVisitor):
-    def __init__(self, current: str, path: str, signed_plugin_lineno: list[int], signed_subplugin_lineno: list[int]):
-        self.current_name = current
+    def __init__(self, pid: str, pname: str, path: str, plugin_lineno: list[int], subplugin_lineno: list[int]):
+        self.pid = pid
+        self.pname = pname
         self.path = path
-        self.signed_plugin_lineno = signed_plugin_lineno
-        self.signed_subplugin_lineno = signed_subplugin_lineno
+        self.signed_plugin_lineno = plugin_lineno
+        self.signed_subplugin_lineno = subplugin_lineno
         self.type_checking_stack = []
         self.typing_aliases = {"typing", "typing_extensions"}  # 跟踪typing模块的别名
 
@@ -71,29 +72,29 @@ class _Visitor(ast.NodeVisitor):
         if self._in_type_checking():
             return
         if node.lineno in self.signed_plugin_lineno or all(x.name in _ENSURE_IS_PLUGIN for x in node.names):
-            _ensure_plugin([alias.name for alias in node.names], False, self.current_name)
+            _ensure_plugin([alias.name for alias in node.names], False, self.pid, self.pname)
         elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST for x in node.names):
-            _ensure_plugin([alias.name for alias in node.names], True, self.current_name)
+            _ensure_plugin([alias.name for alias in node.names], True, self.pid, self.pname)
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
-        name = self.current_name
+        name = self.pname
         if self._in_type_checking():
             return
         if node.module is None:  # from . import xxx
-            _ensure_plugin([alias.name for alias in node.names], node.lineno not in self.signed_plugin_lineno, name, f"{name}.")  # noqa: E501
+            _ensure_plugin([alias.name for alias in node.names], node.lineno not in self.signed_plugin_lineno, self.pid, name, f"{name}.")  # noqa: E501
         elif node.level == 0:  # from xxx import xxx
             if node.module in (*sys.builtin_module_names, *getattr(sys, "stdlib_module_names", [])):
                 return
             if node.lineno in self.signed_plugin_lineno or node.module in _ENSURE_IS_PLUGIN:
-                _ensure_plugin([node.module], False, name)
+                _ensure_plugin([node.module], False, self.pid, name)
             elif node.lineno in self.signed_subplugin_lineno or node.module in _SUBMODULE_WAITLIST:
-                _ensure_plugin([node.module], True, name)
+                _ensure_plugin([node.module], True, self.pid, name)
         elif node.level == 1:  # from .xxx import xxx
             prefix = name if self.path.endswith("__init__.py") else name.rpartition(".")[0]
-            _ensure_plugin([node.module], True, name, f"{prefix}.")
+            _ensure_plugin([node.module], True, self.pid, name, f"{prefix}.")
         else:  # from ..xxx import xxx
             prefix = ".".join(name.split(".")[: -node.level + 1 if self.path.endswith("__init__.py") else -node.level])
-            _ensure_plugin([node.module], node.lineno not in self.signed_plugin_lineno, name, f"{prefix}.")
+            _ensure_plugin([node.module], node.lineno not in self.signed_plugin_lineno, self.pid, name, f"{prefix}.")
 
     def visit_If(self, node: ast.If):
         is_type_checking = self._is_type_checking(node)
@@ -170,7 +171,7 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
-        visitor = _Visitor(name, path, signed_plugin_lineno, signed_subplugin_lineno)
+        visitor = _Visitor(self.plugin_id, name, path, signed_plugin_lineno, signed_subplugin_lineno)
         visitor.visit(nodes)
 
         return _bootstrap._call_with_frames_removed(  # type: ignore
@@ -181,6 +182,11 @@ class PluginLoader(SourceFileLoader):
         if self.name in plugin_service.plugins:
             self.loaded = True
             return plugin_service.plugins[self.name].proxy()
+        if self.name in plugin_service._subplugined:
+            self.loaded = True
+            return plugin_service.plugins[plugin_service._subplugined[self.name]].subproxy(self.name)
+        if any((k.startswith(self.name) and k.rfind("@") != -1) for k in plugin_service.plugins):
+            raise ReusablePluginError("reusable plugin cannot be imported directly")
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: dict[str, str] | None = None) -> None:
@@ -220,7 +226,7 @@ class PluginLoader(SourceFileLoader):
             plugin.dispose()
             publish(PluginLoadedFailed(module.__name__, e))
             raise
-        except (ImportError, StaticPluginDispatchError, ReusablePluginServiceError) as e:
+        except (ImportError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>: {e.args[0]}")
             plugin.dispose()
             publish(PluginLoadedFailed(module.__name__, e))
@@ -325,7 +331,7 @@ class _PluginFinder(MetaPathFinder):
                 or module_spec.name.startswith("entari_plugin")
             ):
                 module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
-                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.path)
+                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 return module_spec
 
         if module_spec.name in plugin_service.plugins:
