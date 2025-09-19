@@ -104,6 +104,36 @@ def get_all_subscribers():
     return list(itertools.chain.from_iterable(get_plugin_subscribers(plug) for plug in plugin_service.plugins.values()))
 
 
+def get_plugin_references(plug: Plugin | str | None = None) -> set[str]:
+    """获取指定插件引用的所有插件
+
+    Args:
+        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
+    """
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    return plugin_service.references.get(plg.id, set()).copy()
+
+
+def get_plugin_referents(plug: Plugin | str | None = None) -> set[str]:
+    """获取引用了指定插件的所有插件
+
+    Args:
+        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
+    """
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    return plugin_service.referents.get(plg.id, set()).copy()
+
+
 @overload
 def dispatch(event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
 @overload

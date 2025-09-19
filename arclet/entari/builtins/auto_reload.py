@@ -35,10 +35,31 @@ class Config(BasicConfModel):
 
 
 metadata(
-    "AutoReload",
+    "Auto Reload",
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Auto reload plugins when files changed",
     config=Config,
+    readme="""
+# Auto Reload (Hot Module Replacement)
+
+该插件提供自动监视指定目录下的 Python 文件变化并重新加载对应插件的功能。
+
+## 配置
+
+- `watch_dirs`: 需要监视的目录列表，支持相对路径和绝对路径，默认为当前目录 `["."]`
+- `watch_config`: 是否监视配置文件的变化，默认为 `False`
+- `debounce`: 防抖时间，单位为毫秒，防止频繁变动导致的重复加载，默认为 `1600` 毫秒
+- `step`: 轮询间隔，单位为毫秒，默认为 `50` 毫秒
+
+## 说明
+
+1. 若插件被标记为静态 (通过 `declare_static()`, 或作为 prelude 插件)，其变动将被忽略。
+2. 配置文件变动时：
+    - auto_reload 会发布 `ConfigReload` 事件，其他插件可监听该事件以处理配置变动。
+    - 若目标插件确认配置变动已被自身处理 (通过返回 `True`)，则不会重新加载该插件。
+    - 若目标插件未处理配置变动，且非静态插件，则会尝试重新加载该插件。
+    - 若插件配置在变动中被移除，则会卸载该插件。
+""",
 )
 
 

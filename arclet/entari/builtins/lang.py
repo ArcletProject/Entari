@@ -5,9 +5,19 @@ from arclet.entari import Session, metadata
 from arclet.entari.command import Match, mount
 
 metadata(
-    name="lang",
+    name="语言本地化管理",
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="i18n配置相关功能",
+    readme="""
+# 语言本地化管理
+
+该插件提供查看和切换语言的功能。
+
+## 使用
+
+- 查看支持的语言列表: `lang list [name?]`, 例如 `lang list entari::plugin/inspect`
+- 切换语言: `lang switch [locale?]`，例如 `lang switch zh-CN`
+""",
     config=None,
 )
 

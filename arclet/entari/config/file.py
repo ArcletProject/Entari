@@ -37,7 +37,7 @@ class LogInfo(BasicConfModel):
         default=None,
         description="Log saving configuration, if None or False, logs will not be saved",
     )
-    rich_except: bool = model_field(default=False, description="Enable rich traceback for exceptions")
+    rich_error: bool = model_field(default=False, description="Enable rich traceback for exceptions")
 
 
 class BasicConfig(BasicConfModel):

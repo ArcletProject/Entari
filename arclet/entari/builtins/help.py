@@ -33,9 +33,30 @@ config = plugin_config(Config)
 
 
 metadata(
-    "help",
+    "帮助",
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
-    description="展示所有命令帮助",
+    description="展示所有命令的帮助(菜单)",
+    readme="""
+# 帮助指令
+
+该插件提供查看所有命令帮助的功能等。
+
+## 配置
+
+- `help_command`: 帮助指令的指令名，默认为 `help`
+- `help_alias`: 帮助指令的别名，默认为 `["帮助", "命令帮助"]`
+- `help_all_alias`: 帮助指令的'所有帮助'别名，默认为 `["所有帮助", "所有命令帮助"]`
+- `page_size`: 帮助结果每页显示的命令数量，默认为 `None`，表示不分页
+
+## 使用
+
+- 查看所有命令帮助: `help` 或 `帮助`
+- 查看指定命令帮助: `help [id|name]` 或 `帮助 [id|name]`
+- 查看指定页数的命令帮助: `help --page [index]` 或 `帮助 --page [index]`
+- 查看命令所属命名空间: `help [id|name] --namespace` 或 `帮助 [id|name] --namespace`
+- 列出所有命令所属命名空间: `help --namespace --list` 或 `帮助 --namespace --list`
+- 查看隐藏命令: `help --hide` 或 `帮助 --hide`
+""",
     config=Config,
 )
 

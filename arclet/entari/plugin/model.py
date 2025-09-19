@@ -95,6 +95,8 @@ class PluginMetadata:
     """插件描述"""
     icon: str | None = None
     """插件图标 URL"""
+    readme: str | None = None
+    """插件 README"""
     classifier: list[str] = field(default_factory=list)
     """插件分类"""
     requirements: list[str] = field(default_factory=list)
@@ -103,9 +105,6 @@ class PluginMetadata:
     """插件依赖的服务"""
     config: Any | None = None
     """插件配置模型"""
-    # standards: list[str] = field(default_factory=list)
-    # frameworks: list[str] = field(default_factory=list)
-    # component_endpoints: list[str] = field(default_factory=list)
 
     def get_config_schema(self) -> dict[str, Any]:
         """获取插件配置模型的 JSON Schema"""

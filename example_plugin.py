@@ -127,4 +127,3 @@ async def output_hook(event: CommandOutput):
 #         channels = [channel for guild in (await account.guild_list()).data for channel in (await account.channel_list(guild.id)).data]
 #         for channel in channels:
 #             await account.send_message(channel, "Hello, World!")
-import example_plugin2

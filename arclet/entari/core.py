@@ -136,7 +136,7 @@ class Entari(App):
             ignore_self_message=ignore_self_message,
             skip_req_missing=skip_req_missing,
             external_dirs=external_dirs,
-            rich_except=config.basic.log.rich_except,
+            rich_error=config.basic.log.rich_error,
         )
 
     def __init__(
@@ -146,7 +146,7 @@ class Entari(App):
         ignore_self_message: bool = True,
         skip_req_missing: bool = False,
         external_dirs: Sequence[str | os.PathLike[str]] | None = None,
-        rich_except: bool = False,
+        rich_error: bool = False,
     ):
         from . import __version__
 
@@ -156,7 +156,7 @@ class Entari(App):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
-        if rich_except:
+        if rich_error:
             enable_rich_except()
         log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         self._log_save_dispose = lambda: None
