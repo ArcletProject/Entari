@@ -73,4 +73,4 @@ from .util import Param as Param
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.15.1"
+__version__ = "0.16.0-rc1"
