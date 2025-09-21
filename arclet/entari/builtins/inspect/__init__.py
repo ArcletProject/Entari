@@ -10,17 +10,7 @@ metadata(
     "Inspect",
     [{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Inspect on any user, group or channel",
-    readme="""
-# Inspect
-
-查看用户、频道或消息的详细信息
-
-## 使用
-
-- 基本用法: `inspect`, 能够查看当前会话的详细信息
-- 查看指定用户: `inspect @user`, 能够查看指定用户的详细信息
-- 查看指定频道: `inspect #channel`, 能够查看指定频道的详细信息
-""",
+    readme="README.md",
 )
 
 

@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:4d3fe19f57a9f553917d46aff00144dac056f10805e1ea53e09711e24d77545b"
+content_hash = "sha256:69214fd043b371c8ac0937219a1a28478f72f7d3b5816323d9ef78dad5e23f83"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -291,7 +291,7 @@ name = "click"
 version = "8.1.8"
 requires_python = ">=3.7"
 summary = "Composable command line interface toolkit"
-groups = ["default", "dev"]
+groups = ["dev"]
 dependencies = [
     "colorama; platform_system == \"Windows\"",
     "importlib-metadata; python_version < \"3.8\"",
@@ -502,34 +502,6 @@ dependencies = [
 files = [
     {file = "graia_amnesia-0.11.0-py3-none-any.whl", hash = "sha256:d7710a160a461131c50a11e2931329373ef27b434687f22acedb0f1e766a3e7a"},
     {file = "graia_amnesia-0.11.0.tar.gz", hash = "sha256:6b419160ad5de45bebdd0d8e93a110bb32665d46b5e26a9254e8546fa6dd1860"},
-]
-
-[[package]]
-name = "graia-amnesia"
-version = "0.11.0"
-extras = ["uvicorn"]
-requires_python = "<4.0,>=3.10"
-summary = "a collection of shared components for graia"
-groups = ["default"]
-dependencies = [
-    "graia-amnesia==0.11.0",
-    "uvicorn>=0.35.0",
-    "uvloop>=0.18.0; sys_platform != \"win32\"",
-]
-files = [
-    {file = "graia_amnesia-0.11.0-py3-none-any.whl", hash = "sha256:d7710a160a461131c50a11e2931329373ef27b434687f22acedb0f1e766a3e7a"},
-    {file = "graia_amnesia-0.11.0.tar.gz", hash = "sha256:6b419160ad5de45bebdd0d8e93a110bb32665d46b5e26a9254e8546fa6dd1860"},
-]
-
-[[package]]
-name = "h11"
-version = "0.16.0"
-requires_python = ">=3.8"
-summary = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
-groups = ["default"]
-files = [
-    {file = "h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"},
-    {file = "h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1"},
 ]
 
 [[package]]
@@ -1211,24 +1183,24 @@ files = [
 
 [[package]]
 name = "satori-python-client"
-version = "0.17.0"
+version = "0.17.1"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify client part"
 groups = ["default"]
 dependencies = [
     "aiohttp>=3.9.3",
-    "graia-amnesia[uvicorn]<0.12.0,>=0.11.0",
+    "graia-amnesia>=0.11.0",
     "launart>=0.8.2",
     "satori-python-core>=0.17.0",
 ]
 files = [
-    {file = "satori_python_client-0.17.0-py3-none-any.whl", hash = "sha256:99e04a99840b9f86ba7ae5bfc719ecc2ce90c5d40d615dd35c828669fde9453e"},
-    {file = "satori_python_client-0.17.0.tar.gz", hash = "sha256:356a05ab110c8d0e8c26137210b54e62c2a0db4d2ef7f1ed729f9ca198626754"},
+    {file = "satori_python_client-0.17.1-py3-none-any.whl", hash = "sha256:8220cc36c38d6adfd415096f0b8d7196080f4031dd1992b3f824bf2512d537cf"},
+    {file = "satori_python_client-0.17.1.tar.gz", hash = "sha256:5165076c09197b3d628878a614a250ae8b2281d071a45e849037d3893aa57ca4"},
 ]
 
 [[package]]
 name = "satori-python-core"
-version = "0.17.0"
+version = "0.17.1"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify common part"
 groups = ["default"]
@@ -1238,8 +1210,8 @@ dependencies = [
     "yarl>=1.9.4",
 ]
 files = [
-    {file = "satori_python_core-0.17.0-py3-none-any.whl", hash = "sha256:6eaf368042ab64aff1cd6b0f8643a0207a070345b2ed776d0ee0b2405f9e90ae"},
-    {file = "satori_python_core-0.17.0.tar.gz", hash = "sha256:6fb1872e0389f5bdbba0ef6069b098a7c3261cf8c9d4141b350bd51127571722"},
+    {file = "satori_python_core-0.17.1-py3-none-any.whl", hash = "sha256:71dea1df5c48f888c40e527ce47e6a73d2bafeca93d190a0a7cb13a9cffe5f9c"},
+    {file = "satori_python_core-0.17.1.tar.gz", hash = "sha256:9f066f69388c0384adb064f610724bfc50b403e9b1e74fb0aed0815fbbf0c673"},
 ]
 
 [[package]]
@@ -1470,57 +1442,6 @@ groups = ["default", "cli", "dev", "full", "pydantic", "reload"]
 files = [
     {file = "typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d"},
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
-]
-
-[[package]]
-name = "uvicorn"
-version = "0.35.0"
-requires_python = ">=3.9"
-summary = "The lightning-fast ASGI server."
-groups = ["default"]
-dependencies = [
-    "click>=7.0",
-    "h11>=0.8",
-    "typing-extensions>=4.0; python_version < \"3.11\"",
-]
-files = [
-    {file = "uvicorn-0.35.0-py3-none-any.whl", hash = "sha256:197535216b25ff9b785e29a0b79199f55222193d47f820816e7da751e9bc8d4a"},
-    {file = "uvicorn-0.35.0.tar.gz", hash = "sha256:bc662f087f7cf2ce11a1d7fd70b90c9f98ef2e2831556dd078d131b96cc94a01"},
-]
-
-[[package]]
-name = "uvloop"
-version = "0.21.0"
-requires_python = ">=3.8.0"
-summary = "Fast implementation of asyncio event loop on top of libuv"
-groups = ["default"]
-marker = "sys_platform != \"win32\""
-files = [
-    {file = "uvloop-0.21.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:ec7e6b09a6fdded42403182ab6b832b71f4edaf7f37a9a0e371a01db5f0cb45f"},
-    {file = "uvloop-0.21.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:196274f2adb9689a289ad7d65700d37df0c0930fd8e4e743fa4834e850d7719d"},
-    {file = "uvloop-0.21.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f38b2e090258d051d68a5b14d1da7203a3c3677321cf32a95a6f4db4dd8b6f26"},
-    {file = "uvloop-0.21.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:87c43e0f13022b998eb9b973b5e97200c8b90823454d4bc06ab33829e09fb9bb"},
-    {file = "uvloop-0.21.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:10d66943def5fcb6e7b37310eb6b5639fd2ccbc38df1177262b0640c3ca68c1f"},
-    {file = "uvloop-0.21.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:67dd654b8ca23aed0a8e99010b4c34aca62f4b7fce88f39d452ed7622c94845c"},
-    {file = "uvloop-0.21.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:c0f3fa6200b3108919f8bdabb9a7f87f20e7097ea3c543754cabc7d717d95cf8"},
-    {file = "uvloop-0.21.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0878c2640cf341b269b7e128b1a5fed890adc4455513ca710d77d5e93aa6d6a0"},
-    {file = "uvloop-0.21.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b9fb766bb57b7388745d8bcc53a359b116b8a04c83a2288069809d2b3466c37e"},
-    {file = "uvloop-0.21.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8a375441696e2eda1c43c44ccb66e04d61ceeffcd76e4929e527b7fa401b90fb"},
-    {file = "uvloop-0.21.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:baa0e6291d91649c6ba4ed4b2f982f9fa165b5bbd50a9e203c416a2797bab3c6"},
-    {file = "uvloop-0.21.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:4509360fcc4c3bd2c70d87573ad472de40c13387f5fda8cb58350a1d7475e58d"},
-    {file = "uvloop-0.21.0-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:359ec2c888397b9e592a889c4d72ba3d6befba8b2bb01743f72fffbde663b59c"},
-    {file = "uvloop-0.21.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:f7089d2dc73179ce5ac255bdf37c236a9f914b264825fdaacaded6990a7fb4c2"},
-    {file = "uvloop-0.21.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:baa4dcdbd9ae0a372f2167a207cd98c9f9a1ea1188a8a526431eef2f8116cc8d"},
-    {file = "uvloop-0.21.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:86975dca1c773a2c9864f4c52c5a55631038e387b47eaf56210f873887b6c8dc"},
-    {file = "uvloop-0.21.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:461d9ae6660fbbafedd07559c6a2e57cd553b34b0065b6550685f6653a98c1cb"},
-    {file = "uvloop-0.21.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:183aef7c8730e54c9a3ee3227464daed66e37ba13040bb3f350bc2ddc040f22f"},
-    {file = "uvloop-0.21.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:bfd55dfcc2a512316e65f16e503e9e450cab148ef11df4e4e679b5e8253a5281"},
-    {file = "uvloop-0.21.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:787ae31ad8a2856fc4e7c095341cccc7209bd657d0e71ad0dc2ea83c4a6fa8af"},
-    {file = "uvloop-0.21.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5ee4d4ef48036ff6e5cfffb09dd192c7a5027153948d85b8da7ff705065bacc6"},
-    {file = "uvloop-0.21.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f3df876acd7ec037a3d005b3ab85a7e4110422e4d9c1571d4fc89b0fc41b6816"},
-    {file = "uvloop-0.21.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:bd53ecc9a0f3d87ab847503c2e1552b690362e005ab54e8a48ba97da3924c0dc"},
-    {file = "uvloop-0.21.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:a5c39f217ab3c663dc699c04cbd50c13813e31d917642d459fdcec07555cc553"},
-    {file = "uvloop-0.21.0.tar.gz", hash = "sha256:3bf12b0fda68447806a7ad847bfa591613177275d35b6724b1ee573faa3704e3"},
 ]
 
 [[package]]

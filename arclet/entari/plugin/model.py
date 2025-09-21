@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 import sys
 from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
@@ -79,7 +80,7 @@ class PluginDispatcher(Generic[T]):
         return self.register()(func)
 
 
-@dataclass(frozen=True)
+@dataclass
 class PluginMetadata:
     name: str
     """插件名称"""
@@ -191,6 +192,13 @@ class Plugin:
         if value and value.depend_services:
             self._scope.propagators.append(inject(*value.depend_services, _is_global=True))  # type: ignore
             self._extra["injected_services"] = [s.id if isinstance(s, type) else s for s in value.depend_services]
+        if value.readme and re.fullmatch(r"(?i:readme)\.(?i:md|markdown)", value.readme.strip()):
+            readme_path = Path(self.module.__file__ or "").parent / value.readme.strip()
+            try:
+                value.readme = readme_path.read_text(encoding="utf-8")
+            except Exception as e:
+                log.plugin.error(f"failed to read readme file {readme_path}: {e!r}")
+                value.readme = None
 
     def exec_apply(self):
         if not self._apply:
@@ -299,11 +307,11 @@ class Plugin:
             pat["$not"] = deny
         if pat:
             self._scope.propagators.append(parse(pat))
-        if self._metadata and self._metadata.depend_services:
-            self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
-            self._extra["injected_services"] = [
-                s.id if isinstance(s, type) else s for s in self._metadata.depend_services
-            ]
+        # if self._metadata and self._metadata.depend_services:
+        #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
+        #     self._extra["injected_services"] = [
+        #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
+        #     ]
         if "$static" in self.config:
             self.is_static = True
         if self.id not in plugin_service._keep_values:
@@ -417,6 +425,8 @@ class Plugin:
     # fmt: on
 
     def validate(self, func):
+        if isinstance(func, Subscriber):
+            func = func.callable_target
         if func.__module__ != self.module.__name__:
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
