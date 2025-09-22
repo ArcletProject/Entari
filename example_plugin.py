@@ -42,8 +42,8 @@ async def _(session: Session):
 disp_message = plug.dispatch(MessageCreatedEvent)
 
 
-@filter_.public.append(filter_.to_me).append
-def filter_content(session: Session):
+@filter_.public.derive(filter_.to_me).derive
+async def filter_content(session: Session):
     return str(session.content) == "aaa"
 
 
@@ -101,19 +101,19 @@ print(plug.config)
 #     message += "喵"
 
 
-@plug.use("::config/reload")
+@plug.use("::config_reload")
 async def config_reload():
     print(">> Config Reloaded")
 
 
 @plug.use("::plugin/loaded_success")
 async def loaded_success(event):
-    print(f">> Plugin {event.name} Loaded Successfully")
+    print(f">> Plugin {event.plugin_id} Loaded Successfully")
 
 
 @plug.use("::plugin/unloaded")
 async def unloaded(event):
-    print(f">> Plugin {event.name} Unloaded")
+    print(f">> Plugin {event.plugin_id} Unloaded")
 
 
 @plug.dispatch(CommandOutput)

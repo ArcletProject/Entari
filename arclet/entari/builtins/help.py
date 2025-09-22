@@ -210,9 +210,14 @@ async def help_handle(arp: Arparma, session: Session):
     resp = help_cmd_handle(arp, True)
     if isinstance(resp, str):
         return await session.send(resp)
-    msg = await session.prompt(next(resp), timeout=15)
+
+    async def receiver(sess1: Session):
+        if (ans := str(sess1.content).strip().lower()) in {"<", "a", ">", "d"}:
+            return ans
+
+    msg = await session.prompt(receiver, next(resp), timeout=15)
     while msg:
         try:
-            msg = await session.prompt(resp.send(msg.extract_plain_text().strip().lower()), timeout=15)
+            msg = await session.prompt(resp.send(msg), timeout=15)
         except StopIteration:
             return

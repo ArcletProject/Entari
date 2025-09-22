@@ -224,17 +224,17 @@ class PluginLoader(SourceFileLoader):
         except RegisterNotInPluginError as e:
             log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e.msg}")
             plugin.dispose()
-            publish(PluginLoadedFailed(module.__name__, e))
+            publish(PluginLoadedFailed(self.plugin_id, e))
             raise
         except (ImportError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>: {e.args[0]}")
             plugin.dispose()
-            publish(PluginLoadedFailed(module.__name__, e))
+            publish(PluginLoadedFailed(self.plugin_id, e))
             raise
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
-            publish(PluginLoadedFailed(module.__name__, e))
+            publish(PluginLoadedFailed(self.plugin_id, e))
             raise
         finally:
             # leave plugin context
@@ -261,7 +261,7 @@ class PluginLoader(SourceFileLoader):
             if plugin.config.get("$disable", False):
                 plugin.disable()
             publish(Ready(), plugin._scope)
-        publish(PluginLoadedSuccess(module.__name__))
+        publish(PluginLoadedSuccess(self.plugin_id))
         return
 
 

@@ -530,5 +530,6 @@ def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None 
         if obj is None and obj_factory is None:
             raise ValueError("Either `obj` or `obj_factory` must be provided")
         _obj = obj_factory() if obj_factory else obj
+        plug._extra.setdefault("kept_variables", []).append(id_)
         plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)  # type: ignore
     return plugin_service._keep_values[plug.id][id_].obj  # type: ignore

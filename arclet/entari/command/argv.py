@@ -18,5 +18,5 @@ argv_config(
     MessageArgv,
     filter_out=[],
     to_text=lambda x: x.text if x.__class__ is Text else None,
-    converter=lambda x: MessageChain(x),
+    converter=MessageChain,
 )

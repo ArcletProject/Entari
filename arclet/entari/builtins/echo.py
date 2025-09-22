@@ -28,7 +28,7 @@ metadata(
     .option("unescape", "-E|--unescape # 发送反转义消息")
     .config(compact=True)
 )
-def echo(content: Match[MessageChain], arp: Arparma):
+async def echo(content: Match[MessageChain], arp: Arparma):
     if arp.find("unescape"):
         return MessageChain.of(content.result.extract_plain_text())
     elif arp.find("escape"):

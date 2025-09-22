@@ -76,9 +76,9 @@ class EntariProtocol(ApiProtocol):
         msg = MessageChain.of(content) if isinstance(content, str) else MessageChain(content)
         sess = None
         if source:
-            sess = Session(self.account, source)
+            sess = Session(self.account.custom(protocol_cls=EntariProtocol), source)
             sess.elements = msg
-        res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
+        res = await es.post(ev := SendRequest(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, sess))
         msg = sess.elements if sess else ev.message
         if res:
             if res.value is False:
@@ -92,7 +92,7 @@ class EntariProtocol(ApiProtocol):
         )
         res = cast("list[dict]", res)
         resp = [MessageReceipt.parse(i) for i in res]
-        await es.publish(SendResponse(self.account, channel_id, msg, resp, sess))
+        await es.publish(SendResponse(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, resp, sess))
         return resp
 
 

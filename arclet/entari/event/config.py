@@ -3,7 +3,7 @@ from typing import Any, Literal
 from arclet.letoderea import Result, make_event
 
 
-@make_event(name="entari.event/config/reload")
+@make_event(name="entari.event/config_reload")
 class ConfigReload:
     scope: Literal["basic", "plugin"]
     key: str
