@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Scope, Subscriber, define, enter_if, propagate, publish
+from arclet.letoderea import Propagator, Scope, Subscriber, define, enter_if, propagate, publish, Contexts, SUBSCRIBER
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
@@ -116,7 +116,7 @@ class PluginMetadata:
 
 def inject(*services: type[Service] | str | dict, _is_global: bool = False):
 
-    async def checker(launart: Launart):
+    async def checker(launart: Launart, ctx: Contexts):
         for service in services:
             if isinstance(service, dict):
                 serv_id = service["id"] if isinstance(service["id"], str) else service["id"].id
@@ -124,6 +124,8 @@ def inject(*services: type[Service] | str | dict, _is_global: bool = False):
             else:
                 serv_id = service if isinstance(service, str) else service.id
                 stage = "prepared"
+            sub = f"{ctx[SUBSCRIBER].callable_target.__module__}:{ctx[SUBSCRIBER].callable_target.__qualname__}"
+            log.plugin.trace(f"<y>{sub}</y> waiting for service <w><u>{serv_id}</u></w> to be <g>{stage!r}</g>")
             await plugin_service.service_waiter.wait_for(serv_id)
             serv = launart.components[serv_id]
             if not serv.status.prepared:

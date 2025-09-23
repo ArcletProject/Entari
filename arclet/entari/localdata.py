@@ -2,8 +2,9 @@ from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing_extensions import ParamSpec
-from weakref import finalize
 
+from launart import Launart
+from launart.service import Phase, Service
 from nonestorage import user_cache_dir, user_data_dir
 
 from .config import BasicConfModel, config_model_validate, model_field
@@ -29,13 +30,15 @@ def _auto_create_dir(func: Callable[P, Path]) -> Callable[P, Path]:
     return wrapper
 
 
-class LocalData:
+class LocalData(Service):
+    id = "entari.localdata"
+
     def __init__(self):
         self.global_path: bool = False
         self.app_name = "entari"
         self.base_dir: str | None = None
         self._temp_dir = TemporaryDirectory(prefix=f"{self.app_name}_")
-        finalize(self, lambda obj: obj._temp_dir.cleanup(), self)
+        super().__init__()
 
     def _get_base_cache_dir(self) -> Path:
         if self.global_path:
@@ -72,6 +75,22 @@ class LocalData:
     def get_temp_file(self, filename: str) -> Path:
         return self.get_temp_dir() / filename
 
+    @property
+    def required(self) -> set[str]:
+        return set()
+
+    @property
+    def stages(self) -> set[Phase]:
+        return {"preparing", "blocking", "cleanup"}
+
+    async def launch(self, mgr: Launart):
+        async with self.stage("preparing"):
+            pass
+        async with self.stage("blocking"):
+            await mgr.status.wait_for_sigexit()
+        async with self.stage("cleanup"):
+            self._temp_dir.cleanup()
+
 
 local_data = LocalData()
 
@@ -86,6 +105,7 @@ class Config(BasicConfModel):
 def localdata_apply(plg: RootlessPlugin):
     metadata("Data store interface with local directories", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
 
+    plg.service(local_data)
     conf = plugin_config(Config)
     local_data.global_path = conf.use_global
     local_data.app_name = conf.app_name.lower()
