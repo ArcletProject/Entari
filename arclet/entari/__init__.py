@@ -1,11 +1,10 @@
 from arclet.letoderea import Depends as Depends
 from arclet.letoderea import bind as bind
 from arclet.letoderea import depends as depends
-from arclet.letoderea import propagate as propagate
 from arclet.letoderea import deref as deref
 from arclet.letoderea import enter_if as enter_if
 from arclet.letoderea import param as param
-
+from arclet.letoderea import propagate as propagate
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
@@ -77,4 +76,4 @@ Param = param
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.16.0-rc1"
+__version__ = "0.16.0"
