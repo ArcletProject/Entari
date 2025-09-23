@@ -185,8 +185,8 @@ class PluginLoader(SourceFileLoader):
         if self.name in plugin_service._subplugined:
             self.loaded = True
             return plugin_service.plugins[plugin_service._subplugined[self.name]].subproxy(self.name)
-        if any((k.startswith(self.name) and k.rfind("@") != -1) for k in plugin_service.plugins):
-            raise ReusablePluginError("reusable plugin cannot be imported directly")
+        if any((k.startswith(self.name) and k.rfind("@") != -1) for k in plugin_service.plugins) and self.plugin_id.rfind("@") == -1:
+            raise ReusablePluginError(f"reusable plugin {self.name!r} cannot be imported directly")
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: dict[str, str] | None = None) -> None:
@@ -345,6 +345,8 @@ class _PluginFinder(MetaPathFinder):
                 fullname, module_origin, origin_id_ or fullname, plugin_service._subplugined[module_spec.name]
             )
             return module_spec
+        if any(k.startswith(module_spec.name) and k.rfind("@") != -1 for k in plugin_service.plugins) and (origin_id_ or fullname).rfind("@") == -1:
+            raise ReusablePluginError(f"reusable plugin {module_spec.name!r} cannot be imported directly")
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, module_spec.parent)
             return module_spec

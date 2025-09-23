@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import Propagator, Scope, Subscriber, define, enter_if, propagate, publish, Contexts, SUBSCRIBER
+from arclet.letoderea import SUBSCRIBER, Contexts, Propagator, Scope, Subscriber, define, enter_if, propagate, publish
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers

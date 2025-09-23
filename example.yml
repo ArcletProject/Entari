@@ -8,6 +8,8 @@ basic:
   log:
     level: "info"
     rich_error: false
+  external_dirs:
+    - my_plugins
 plugins:
   ::auto_reload:
     watch_dirs: ["."]
@@ -21,3 +23,5 @@ plugins:
   example_reusable@2:
     input: foo
     output: bar!
+  example_plugin2: {}
+  example_plugin3: {}
