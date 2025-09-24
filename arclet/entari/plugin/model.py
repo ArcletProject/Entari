@@ -201,6 +201,10 @@ class Plugin:
             except Exception as e:
                 log.plugin.error(f"failed to read readme file {readme_path}: {e!r}")
                 value.readme = None
+        if value.config and (
+            value.config.__doc__ is None or value.config.__doc__.startswith(f"{value.config.__name__}(")
+        ):
+            value.config.__doc__ = value.description or value.name
 
     def exec_apply(self):
         if not self._apply:

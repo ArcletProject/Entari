@@ -5,6 +5,7 @@ from arclet.letoderea import deref as deref
 from arclet.letoderea import enter_if as enter_if
 from arclet.letoderea import param as param
 from arclet.letoderea import propagate as propagate
+from arclet.letoderea import use as use
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio

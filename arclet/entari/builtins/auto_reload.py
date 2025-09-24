@@ -37,12 +37,12 @@ class Config(BasicConfModel):
 metadata(
     "Auto Reload",
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
-    description="Auto reload plugins when files changed",
+    description="自动监视指定目录下的 Python 或配置文件变化并重新加载对应插件",
     config=Config,
     readme="""
 # Auto Reload (Hot Module Replacement)
 
-该插件提供自动监视指定目录下的 Python 文件变化并重新加载对应插件的功能。
+该插件提供自动监视指定目录下的 Python 或配置文件变化并重新加载对应插件的功能。
 
 ## 配置
 

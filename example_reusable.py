@@ -1,4 +1,4 @@
-from arclet.entari import BasicConfModel, Session, filter_, MessageCreatedEvent, listen, plugin_config
+from arclet.entari import BasicConfModel, Session, filter_, use, plugin_config, metadata
 
 
 class Config(BasicConfModel):
@@ -6,10 +6,13 @@ class Config(BasicConfModel):
     output: str
 
 
+metadata(name="example_reusable", config=Config)
+
+
 conf = plugin_config(Config)
 
 
 @filter_(lambda sess: sess.content == conf.input)
-@listen(MessageCreatedEvent)
+@use("message-created")
 async def _(sess: Session):
     await sess.send(conf.output)

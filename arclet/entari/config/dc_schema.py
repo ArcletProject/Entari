@@ -142,7 +142,13 @@ class SchemaGenerator:
             return {"$ref": f"#{self.ref_root}$defs/{name}"}
 
     def create_dc_schema(self, dc: type[DataClass]):
-        schema = {"type": "object", "title": dc.__qualname__, "properties": {}, "required": []}
+        schema = {
+            "type": "object",
+            "title": dc.__qualname__,
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
         store_field_description(dc, dc.__dataclass_fields__)
         type_hints = t.get_type_hints(dc, include_extras=True)
         if (
@@ -234,14 +240,35 @@ class SchemaGenerator:
             args = tuple(i for i in args if i is not pathlib.Path)
         if len(args) == 1:
             return self.get_field_schema(args[0], default)
-        if default is _MISSING:
-            return {"anyOf": [self.get_field_schema(arg, _MISSING) for arg in args]}
-        else:
-            return {"anyOf": [self.get_field_schema(arg, _MISSING) for arg in args], "default": default}
+        if len(args) == 2 and type(None) in args and default is not _MISSING:
+            return self.get_field_schema(
+                args[0] if args[1] is type(None) else args[1], _MISSING if default is None else default
+            )
+
+        schemas = [self.get_field_schema(arg, _MISSING) for arg in args]
+        # 需要确定是使用 anyOf 还是 oneOf
+        # anyOf 允许多个 schema 同时匹配
+        # oneOf 则要求只能有一个 schema 匹配
+        # 理论上来说，anyOf 更宽松一些，但在某些情况下可能，例如 type 不一致
+        types = {}
+        for sch in schemas:
+            types.setdefault(sch.get("type"), []).append(sch)
+
+        if len(types) == 1:
+            return {"oneOf": schemas, **({"default": default} if default is not _MISSING else {})}
+        return {
+            "oneOf": [
+                schs[0] if len(schs) == 1 else {"oneOf": schs} if typ == "object" else {"anyOf": schs}
+                for typ, schs in types.items()
+            ],
+            **({"default": default} if default is not _MISSING else {}),
+        }
 
     def get_literal_schema(self, typ, default):
         schema = {} if default is _MISSING else {"default": default}
         args = t.get_args(typ)
+        if len(args) == 1:
+            return {**schema, "const": args[0]}
         return {"enum": list(args), **schema}
 
     def get_dict_schema(self, typ):

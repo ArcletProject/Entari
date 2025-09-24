@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Generic, TypeVar
 
-from arclet.letoderea import Contexts, Param, Provider
+from arclet.letoderea import Contexts, Param, Provider, define
 from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as OriginEvent
 from satori import EventType, Guild, Member, Role, User
@@ -395,6 +395,7 @@ MAPPING: dict[str, type[SatoriEvent]] = {}
 for cls in gen_subclass(SatoriEvent):
     if hasattr(cls, "type"):
         MAPPING[cls.type.value] = cls
+        define(cls, name=cls.type.value)
 
 
 def event_parse(account: Account, event: OriginEvent):

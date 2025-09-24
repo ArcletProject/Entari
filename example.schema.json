@@ -1,0 +1,494 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "basic": {
+      "type": "object",
+      "title": "BasicConfig",
+      "properties": {
+        "network": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/properties/basic/$defs/WebsocketsInfo"
+              },
+              {
+                "$ref": "#/properties/basic/$defs/WebhookInfo"
+              }
+            ]
+          },
+          "description": "Network configuration",
+          "title": "Network"
+        },
+        "ignore_self_message": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether ignore self-send message event",
+          "title": "Ignore Self Message"
+        },
+        "skip_req_missing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether skip Event Handler if requirement is missing",
+          "title": "Skip Req Missing"
+        },
+        "log": {
+          "$ref": "#/properties/basic/$defs/LogInfo",
+          "description": "Log configuration",
+          "title": "Log"
+        },
+        "log_level": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[Deprecated] Log level for the application",
+          "title": "Log Level"
+        },
+        "log_ignores": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "[Deprecated] Log ignores for the application",
+          "title": "Log Ignores"
+        },
+        "prefix": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command prefix for the application",
+          "title": "Prefix"
+        },
+        "cmd_count": {
+          "type": "integer",
+          "default": 4096,
+          "description": "Command count limit for the application",
+          "title": "Cmd Count"
+        },
+        "external_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "External directories to look for plugins",
+          "title": "External Dirs"
+        },
+        "schema": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether generate JSON schema for the configuration (after application start)",
+          "title": "Schema"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Basic configuration for the Entari application",
+      "$defs": {
+        "WebsocketsInfo": {
+          "type": "object",
+          "title": "WebsocketsInfo",
+          "properties": {
+            "type": {
+              "enum": [
+                "websocket",
+                "websockets",
+                "ws"
+              ],
+              "title": "Type"
+            },
+            "host": {
+              "type": "string",
+              "default": "localhost",
+              "description": "WebSocket server host",
+              "title": "Host"
+            },
+            "port": {
+              "type": "integer",
+              "default": 5140,
+              "description": "WebSocket server port",
+              "title": "Port"
+            },
+            "path": {
+              "type": "string",
+              "default": "",
+              "description": "WebSocket server endpoint path",
+              "title": "Path"
+            },
+            "token": {
+              "type": "string",
+              "description": "Authentication token for the WebSocket server",
+              "title": "Token"
+            },
+            "timeout": {
+              "type": "number",
+              "description": "Connection timeout in seconds",
+              "title": "Timeout"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "Satori Server WebSocket Configuration"
+        },
+        "WebhookInfo": {
+          "type": "object",
+          "title": "WebhookInfo",
+          "properties": {
+            "type": {
+              "enum": [
+                "webhook",
+                "wh",
+                "http"
+              ],
+              "title": "Type"
+            },
+            "host": {
+              "type": "string",
+              "default": "127.0.0.1",
+              "description": "Webhook self-server host",
+              "title": "Host"
+            },
+            "port": {
+              "type": "integer",
+              "default": 8080,
+              "description": "Webhook self-server port",
+              "title": "Port"
+            },
+            "path": {
+              "type": "string",
+              "default": "v1/events",
+              "description": "Webhook self-server endpoint path",
+              "title": "Path"
+            },
+            "token": {
+              "type": "string",
+              "description": "Authentication token for the webhook",
+              "title": "Token"
+            },
+            "server_host": {
+              "type": "string",
+              "default": "localhost",
+              "description": "Target server host",
+              "title": "Server Host"
+            },
+            "server_port": {
+              "type": "integer",
+              "default": 5140,
+              "description": "Target server port",
+              "title": "Server Port"
+            },
+            "server_path": {
+              "type": "string",
+              "default": "",
+              "description": "Target server endpoint path",
+              "title": "Server Path"
+            },
+            "timeout": {
+              "type": "number",
+              "description": "Connection timeout in seconds",
+              "title": "Timeout"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "Satori Server Webhook Configuration"
+        },
+        "LogSaveInfo": {
+          "type": "object",
+          "title": "LogSaveInfo",
+          "properties": {
+            "rotation": {
+              "type": "string",
+              "default": "00:00",
+              "description": "Log rotation time, e.g., '00:00' for daily rotation",
+              "title": "Rotation"
+            },
+            "compression": {
+              "type": "string",
+              "description": "Compression format for log saving, e.g., 'zip'",
+              "title": "Compression"
+            },
+            "colorize": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to colorize the log output",
+              "title": "Colorize"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Configuration for saving logs to a file"
+        },
+        "LogInfo": {
+          "type": "object",
+          "title": "LogInfo",
+          "properties": {
+            "level": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "INFO",
+              "description": "Log level for the application",
+              "title": "Level"
+            },
+            "ignores": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Log ignores for the application",
+              "title": "Ignores"
+            },
+            "save": {
+              "oneOf": [
+                {
+                  "$ref": "#/properties/basic/$defs/LogSaveInfo"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Log saving configuration, if None or False, logs will not be saved",
+              "title": "Save"
+            },
+            "rich_error": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether enable rich traceback for exceptions",
+              "title": "Rich Error"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Configuration for the application logs"
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "Plugin configurations",
+      "properties": {
+        "$prelude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Plugin name"
+          },
+          "description": "List of prelude plugins to load",
+          "default": [],
+          "uniqueItems": true
+        },
+        "$files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "File path"
+          },
+          "description": "List of configuration files to load",
+          "default": [],
+          "uniqueItems": true
+        },
+        "::auto_reload": {
+          "type": "object",
+          "title": "Config",
+          "properties": {
+            "watch_dirs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "需要监视的目录列表，支持相对路径和绝对路径",
+              "title": "Watch Dirs"
+            },
+            "watch_config": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否监视配置文件的变化，默认为 False",
+              "title": "Watch Config"
+            },
+            "debounce": {
+              "type": "integer",
+              "default": 1600,
+              "description": "防抖时间，单位为毫秒，防止频繁变动导致的重复加载，默认为 1600 毫秒",
+              "title": "Debounce"
+            },
+            "step": {
+              "type": "integer",
+              "default": 50,
+              "description": "轮询间隔，单位为毫秒，默认为 50 毫秒",
+              "title": "Step"
+            }
+          },
+          "additionalProperties": false,
+          "description": "自动监视指定目录下的 Python 或配置文件变化并重新加载对应插件"
+        },
+        "::echo": {
+          "type": "object",
+          "description": "Echo the content; no configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
+          "additionalProperties": true
+        },
+        ".record_message": {
+          "type": "object",
+          "title": "RecordConfig",
+          "properties": {
+            "to_me_only": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否仅记录提及 Bot 自己的消息",
+              "title": "To Me Only"
+            },
+            "record_send": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否记录发送的消息",
+              "title": "Record Send"
+            }
+          },
+          "additionalProperties": false,
+          "description": "将收到[和发出]的消息打印在日志中"
+        },
+        ".scheduler": {
+          "type": "object",
+          "description": "Simple Scheduler with interval / crontab task; no configuration required",
+          "additionalProperties": true
+        },
+        "example_reusable@1": {
+          "type": "object",
+          "title": "Config",
+          "properties": {
+            "input": {
+              "type": "string",
+              "title": "Input"
+            },
+            "output": {
+              "type": "string",
+              "title": "Output"
+            }
+          },
+          "required": [
+            "input",
+            "output"
+          ],
+          "additionalProperties": false,
+          "description": "example_reusable"
+        },
+        "example_reusable@2": {
+          "type": "object",
+          "title": "Config",
+          "properties": {
+            "input": {
+              "type": "string",
+              "title": "Input"
+            },
+            "output": {
+              "type": "string",
+              "title": "Output"
+            }
+          },
+          "required": [
+            "input",
+            "output"
+          ],
+          "additionalProperties": false,
+          "description": "example_reusable"
+        },
+        "example_plugin2": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin2\\__init__.py; no configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin3": {
+          "type": "object",
+          "description": "No configuration required",
+          "additionalProperties": true
+        },
+        ".commands": {
+          "type": "object",
+          "title": "CommandsConfig",
+          "properties": {
+            "block": {
+              "type": "boolean",
+              "default": true,
+              "description": "是否阻断消息传播",
+              "title": "Block"
+            },
+            "need_notice_me": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否需要通知我",
+              "title": "Need Notice Me"
+            },
+            "need_reply_me": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否需要回复我",
+              "title": "Need Reply Me"
+            },
+            "use_config_prefix": {
+              "type": "boolean",
+              "default": true,
+              "description": "是否使用配置前缀",
+              "title": "Use Config Prefix"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Commands Plugin"
+        },
+        ".localdata": {
+          "type": "object",
+          "title": "Config",
+          "properties": {
+            "use_global": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否使用全局数据目录",
+              "title": "Use Global"
+            },
+            "app_name": {
+              "type": "string",
+              "default": "entari",
+              "description": "应用名称",
+              "title": "App Name"
+            },
+            "base_dir": {
+              "type": "string",
+              "description": "基础目录，默认为空，表示使用 `app_name` 作为目录名，",
+              "title": "Base Dir"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Data store interface with local directories"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "basic"
+  ]
+}

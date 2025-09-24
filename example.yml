@@ -1,3 +1,4 @@
+# $schema: ./example.schema.json
 basic:
   network:
     - type: websocket
@@ -10,6 +11,7 @@ basic:
     rich_error: false
   external_dirs:
     - my_plugins
+  schema: true
 plugins:
   ::auto_reload:
     watch_dirs: ["."]

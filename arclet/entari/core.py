@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Iterable, Sequence
+from dataclasses import asdict
 import os
 from pathlib import Path
 import signal
@@ -20,7 +21,7 @@ from satori.client.protocol import ApiProtocol
 from satori.model import Event
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
-from .config import EntariConfig
+from .config import BasicConfModel, EntariConfig
 from .config.file import LogInfo
 from .config.model import config_model_validate
 from .event.base import MessageCreatedEvent, event_parse
@@ -28,8 +29,8 @@ from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
 from .event.send import SendResponse
 from .logger import apply_log_save, enable_rich_except, log
-from .plugin import load_plugin, plugin_config, requires
-from .plugin.model import RootlessPlugin
+from .plugin import get_plugins, load_plugin, plugin_config, requires
+from .plugin.model import PluginMetadata, RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -78,14 +79,26 @@ class AccountProvider(Provider[Account]):
 global_providers.extend([ApiProtocolProvider(), SessionProviderFactory(), AccountProvider()])
 
 
+class RecordConfig(BasicConfModel):
+    to_me_only: bool = False
+    """是否仅记录提及 Bot 自己的消息"""
+    record_send: bool = False
+    """是否记录发送的消息"""
+
+
 @RootlessPlugin.apply("record_message", default=True)
 def record(plg: RootlessPlugin):
-    cfg = plugin_config()
-    to_me_only = cfg.get("to_me_only", False)
+    plg.metadata = PluginMetadata(
+        "记录消息",
+        [{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
+        description="将收到[和发出]的消息打印在日志中",
+        config=RecordConfig,
+    )
+    cfg = plugin_config(RecordConfig)
 
     @plg.dispatch(MessageCreatedEvent).on(priority=0)
     async def log_msg(event: MessageCreatedEvent, is_notice_me: bool = False, is_reply_me: bool = False):
-        if to_me_only and not is_notice_me and not is_reply_me:
+        if cfg.to_me_only and not is_notice_me and not is_reply_me:
             return
         log.message.info(
             f"[{event.channel.name or event.channel.id}] "
@@ -93,7 +106,7 @@ def record(plg: RootlessPlugin):
             f"({event.user.id}) -> {event.message.content!r}"
         )
 
-    if cfg.get("record_send", False):
+    if cfg.record_send:
 
         @plg.dispatch(SendResponse)
         async def log_send(event: SendResponse):
@@ -126,10 +139,10 @@ class Entari(App):
         external_dirs = config.basic.external_dirs
         configs = []
         for conf in config.basic.network:
-            if conf["type"] in ("websocket", "websockets", "ws"):
-                configs.append(WebsocketsInfo(**{k: v for k, v in conf.items() if k != "type"}))
-            elif conf["type"] in ("webhook", "wh", "http"):
-                configs.append(WebhookInfo(**{k: v for k, v in conf.items() if k != "type"}))
+            if conf.type in ("websocket", "websockets", "ws"):
+                configs.append(WebsocketsInfo(**{k: v for k, v in asdict(conf).items() if k != "type"}))
+            elif conf.type in ("webhook", "wh", "http"):
+                configs.append(WebhookInfo(**{k: v for k, v in asdict(conf).items() if k != "type"}))
         return cls(
             *configs,
             log_level=log_level,
@@ -137,6 +150,7 @@ class Entari(App):
             skip_req_missing=skip_req_missing,
             external_dirs=external_dirs,
             rich_error=config.basic.log.rich_error,
+            gen_schema=config.basic.schema,
         )
 
     def __init__(
@@ -147,6 +161,7 @@ class Entari(App):
         skip_req_missing: bool = False,
         external_dirs: Sequence[str | os.PathLike[str]] | None = None,
         rich_error: bool = False,
+        gen_schema: bool = False,
     ):
         from . import __version__
 
@@ -176,6 +191,7 @@ class Entari(App):
         self.register(self.handle_event)
         self.lifecycle(self.account_hook)
         self._ref_tasks = set()
+        self.gen_schema = gen_schema
 
         le.on(ConfigReload, self.reset_self)
 
@@ -227,6 +243,8 @@ class Entari(App):
             alconna_config.command_max_count = value
         elif key == "external_dirs":
             log.core.warning("External dirs cannot be changed at runtime, ignored.")
+        elif key == "schema":
+            self.gen_schema = value
 
     def on_message(self, priority: int = 16):
         return le.on(MessageCreatedEvent, priority=priority)
@@ -245,6 +263,9 @@ class Entari(App):
                 plugins.append(apply)
         for plug in plugins:
             load_plugin(plug)
+
+        if self.gen_schema and EntariConfig.instance.path.exists():
+            EntariConfig.instance.generate_schema(get_plugins())
 
     async def handle_event(self, account: Account, event: Event):
         try:
