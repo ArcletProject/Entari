@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 import inspect
 import logging
 import re
@@ -112,7 +113,7 @@ log = LoggerManager()
 
 
 def default_filter(record):
-    if record["name"] in log.ignores:
+    if any(fnmatch.fnmatch(record["name"], pattern) for pattern in log.ignores):
         return False
     if record["name"].startswith("launart"):
         if log.levelno <= TRACE_NO:
