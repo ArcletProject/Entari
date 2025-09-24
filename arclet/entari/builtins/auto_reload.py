@@ -162,11 +162,6 @@ class Watcher(Service):
                     old_conf = EntariConfig._clean(old_plugin[plugin_name])
                     new_conf = EntariConfig.instance.plugin[plugin_name]
                     if old_conf != new_conf:
-                        logger.debug(
-                            f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_conf!r}</r> "
-                            f"to <g>{new_conf!r}</g>",
-                        )
-
                         if plugin := find_plugin(pid):
                             added = set(new_conf) - set(old_conf)
                             removed = set(old_conf) - set(new_conf)
@@ -182,6 +177,10 @@ class Watcher(Service):
                                     continue
                             if not changes:
                                 continue
+                            logger.debug(
+                                f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_conf!r}</r> "
+                                f"to <g>{new_conf!r}</g>",
+                            )
                             res = await post(
                                 ConfigReload("plugin", plugin_name, new_conf, old_conf),
                             )

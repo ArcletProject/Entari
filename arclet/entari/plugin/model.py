@@ -232,6 +232,8 @@ class Plugin:
         return self._scope.available
 
     def enable(self):
+        if self._scope.available:
+            return
         self._scope.enable()
         self.config.pop("$disable", None)
         if self.subplugins:
@@ -260,6 +262,8 @@ class Plugin:
             return tasks
 
     def disable(self):
+        if not self._scope.available:
+            return set()
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
@@ -303,7 +307,7 @@ class Plugin:
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
         self._scope = Scope.of(self.id)
         plugin_service.plugins[self.id] = self  # type: ignore
-        self._config_key = self.config.get("$path", self.id)
+        self._config_key = self.config.pop("$path", self.id)
         allow = self.config.get("$allow", {})
         deny = self.config.get("$deny", {})
         pat = {}
@@ -318,8 +322,7 @@ class Plugin:
         #     self._extra["injected_services"] = [
         #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
         #     ]
-        if "$static" in self.config:
-            self.is_static = True
+        self.is_static = self.config.pop("$static", False)
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
         if self.path not in plugin_service.referents:
@@ -363,6 +366,7 @@ class Plugin:
                     continue
                 try:
                     tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
+                    plugin_service._subplugined.pop(subplug, None)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)

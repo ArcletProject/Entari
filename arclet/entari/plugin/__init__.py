@@ -15,7 +15,7 @@ from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
-from ..exceptions import StaticPluginDispatchError
+from ..exceptions import StaticPluginDispatchError, ReusablePluginError, RegisterNotInPluginError
 from ..logger import escape_tag, log
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
@@ -201,7 +201,11 @@ def load_plugin(
                     recursive_guard.add(referent)
 
         return mod.__plugin__
-    except Exception:
+    except (ImportError, RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError):
+        return
+    except Exception as e:
+        log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue>: {e}", exc_info=e)
+        publish(PluginLoadedFailed(path))
         return
 
 
