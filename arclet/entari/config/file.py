@@ -293,11 +293,11 @@ class EntariConfig:
         schemas = {
             "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"),
             "plugins": {
-                "type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **{plug._config_key: ((config_model_schema(plug.metadata.config) if plug.metadata.config is not None else {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True}) if plug.metadata else {"type": "object", "description": "No configuration required", "additionalProperties": True}) for plug in plugins}}  # noqa: E501
+                "type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **{plug._config_key: ((config_model_schema(plug.metadata.config, ref_root=f"/properties/plugins/properties/{plug._config_key}/") if plug.metadata.config is not None else {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True}) if plug.metadata else {"type": "object", "description": "No configuration required", "additionalProperties": True}) for plug in plugins}}  # noqa: E501
             }
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
-            json.dump({"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501
+            json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501
         # fmt: on
 
 

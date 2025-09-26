@@ -4,6 +4,8 @@ import inspect
 from types import MappingProxyType
 from typing import cast
 
+_DESC_CACHE = {}
+
 
 def cleanup_src(src: str) -> str:
     lines = src.expandtabs().split("\n")
@@ -14,7 +16,7 @@ def cleanup_src(src: str) -> str:
 
 
 def store_field_description(cls: type, fields: dict[str, Field]) -> None:
-    if hasattr(cls, "__field_description_stored__"):
+    if cls in _DESC_CACHE:
         return
     try:
         node: ast.ClassDef = cast(ast.ClassDef, ast.parse(cleanup_src(inspect.getsource(cls))).body[0])
@@ -33,4 +35,4 @@ def store_field_description(cls: type, fields: dict[str, Field]) -> None:
             and "description" not in (field := fields[name]).metadata
         ):
             field.metadata = MappingProxyType({**field.metadata.copy(), "description": inspect.cleandoc(doc_string)})
-    setattr(cls, "__field_description_stored__", True)
+    _DESC_CACHE[cls] = True

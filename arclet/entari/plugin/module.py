@@ -73,7 +73,7 @@ class _Visitor(ast.NodeVisitor):
             return
         if node.lineno in self.signed_plugin_lineno or all(x.name in _ENSURE_IS_PLUGIN for x in node.names):
             _ensure_plugin([alias.name for alias in node.names], False, self.pid, self.pname)
-        elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST.get(self.pname, ()) for x in node.names):
+        elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST.get(self.pname, ()) for x in node.names):  # noqa: E501
             _ensure_plugin([alias.name for alias in node.names], True, self.pid, self.pname)
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -238,7 +238,7 @@ class PluginLoader(SourceFileLoader):
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
             publish(PluginLoadedFailed(self.plugin_id, e))
-            raise ImportError(*e.args, name=self.name, path=self.path) from None
+            raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path) from None
         finally:
             # leave plugin context
             delattr(module, "__cached__")

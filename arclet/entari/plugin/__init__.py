@@ -15,7 +15,7 @@ from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
-from ..exceptions import StaticPluginDispatchError, ReusablePluginError, RegisterNotInPluginError
+from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import escape_tag, log
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin

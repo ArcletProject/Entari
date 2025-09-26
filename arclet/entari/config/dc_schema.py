@@ -275,7 +275,6 @@ class SchemaGenerator:
         args = t.get_args(typ)
         assert len(args) in {0, 2}
         if args:
-            assert args[0] is str
             return {"type": "object", "additionalProperties": self.get_field_schema(args[1], _MISSING)}
         else:
             return {"type": "object"}
@@ -366,9 +365,9 @@ class SchemaGenerator:
         if name not in self.defs:
             self.defs[name] = {"title": title, "enum": [v.value for v in typ]}
         if default is _MISSING:
-            return {"$ref": f"#/$defs/{name}"}
+            return {"$ref": f"#{self.ref_root}$defs/{name}"}
         else:
-            return {"$ref": f"#/$defs/{name}", "default": default.value}
+            return {"$ref": f"#{self.ref_root}$defs/{name}", "default": default.value}
 
     # fmt: off
     def get_annotated_schema(self, typ, default):
