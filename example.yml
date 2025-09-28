@@ -16,7 +16,7 @@ plugins:
   ::auto_reload:
     watch_dirs: ["."]
   ::echo: {}
-  example_plugin: {}
+  #example_plugin: {}
   .record_message: {}
   .scheduler: {}
   example_reusable@1:

@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
     "basic": {
@@ -347,11 +347,6 @@
           "description": "Echo the content; no configuration required",
           "additionalProperties": true
         },
-        "example_plugin": {
-          "type": "object",
-          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
-          "additionalProperties": true
-        },
         ".record_message": {
           "type": "object",
           "title": "RecordConfig",
@@ -416,11 +411,6 @@
           ],
           "additionalProperties": false,
           "description": "example_reusable"
-        },
-        "example_plugin2": {
-          "type": "object",
-          "description": "D:\\Projects\\Entari\\example_plugin2\\__init__.py; no configuration required",
-          "additionalProperties": true
         },
         "example_plugin3": {
           "type": "object",

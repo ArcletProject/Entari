@@ -104,6 +104,24 @@ class _Visitor(ast.NodeVisitor):
         if is_type_checking:
             self.type_checking_stack.pop()
 
+    def visit_Call(self, node):
+        # 寻找 `requires(...)` 和 `package(...)` 调用
+        if isinstance(node.func, ast.Name) and node.func.id == "requires":
+            names = []
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    names.append(arg.value)
+            if names:
+                _ensure_plugin(names, False, self.pid, self.pname)
+        elif isinstance(node.func, ast.Name) and node.func.id == "package":
+            names = []
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    names.append(arg.value)
+            if names:
+                _ensure_plugin(names, True, self.pid, self.pname)
+        self.generic_visit(node)
+
     def _in_type_checking(self) -> bool:
         return len(self.type_checking_stack) > 0
 
