@@ -412,9 +412,29 @@
           "additionalProperties": false,
           "description": "example_reusable"
         },
+        "example_plugin2": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin2\\__init__.py; no configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
+          "additionalProperties": true
+        },
         "example_plugin3": {
           "type": "object",
           "description": "No configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin4": {
+          "type": "object",
+          "description": "A test plugin 4; no configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin4.foo.bar": {
+          "type": "object",
+          "description": "A test plugin 4; no configuration required",
           "additionalProperties": true
         },
         ".commands": {

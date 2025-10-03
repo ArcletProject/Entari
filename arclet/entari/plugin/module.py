@@ -427,6 +427,8 @@ def find_spec(id_, package=None):
             ) from e
     else:
         parent_path = None
+    if isinstance(parent_path, _bootstrap_external._NamespacePath):  # type: ignore
+        parent_path = _NamespacePath(parent_path._name, parent_path._path, PathFinder._get_spec)  # type: ignore
     if spec := _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_):
         return spec
     module_spec = _path_find_spec(fullname, parent_path, None)

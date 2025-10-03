@@ -27,3 +27,4 @@ plugins:
     output: bar!
   example_plugin2: {}
   example_plugin3: {}
+  example_plugin4: {}

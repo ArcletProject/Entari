@@ -5,7 +5,7 @@ from . import command
 from example_plugin import kept_data
 
 metadata(__file__)
-#requires("example_plugin")
+requires("example_plugin")
 
 
 @listen(Startup)
