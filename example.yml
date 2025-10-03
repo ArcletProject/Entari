@@ -11,6 +11,7 @@ basic:
     rich_error: false
   external_dirs:
     - my_plugins
+  prefix: ["", "/"]
   schema: true
 plugins:
   ::auto_reload:

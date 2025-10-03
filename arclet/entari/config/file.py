@@ -97,6 +97,9 @@ class BasicConfig(BasicConfModel):
             self.log.level = self.log_level
         if self.log_ignores is not None:
             self.log.ignores = self.log_ignores
+        if self.prefix.count(""):
+            self.prefix = [p for p in self.prefix if p]
+            self.prefix.append("")
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
