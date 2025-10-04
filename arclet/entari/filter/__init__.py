@@ -64,10 +64,11 @@ F = filter_
 
 
 class Interval(Propagator):
-    def __init__(self, interval: float, limit_prompt: str | MessageChain | None = None):
+    def __init__(self, interval: float, limit_prompt: str | MessageChain | None = None, priority: int = 80):
         self.success = True
         self.last_time = None
         self.interval = interval
+        self.priority = priority
         self.limit_prompt = limit_prompt
 
     async def before(self, session: Session | None = None):
@@ -83,15 +84,16 @@ class Interval(Propagator):
         self.last_time = datetime.now()
 
     def compose(self):
-        yield self.before, True, 15
-        yield self.after, False, 60
+        yield self.before, True, self.priority
+        yield self.after, False, self.priority
 
 
 class Semaphore(Propagator):
-    def __init__(self, count: int, limit_prompt: str | MessageChain | None = None):
+    def __init__(self, count: int, limit_prompt: str | MessageChain | None = None, priority: int = 80):
         self.count = count
         self.limit_prompt = limit_prompt
         self.semaphore = asyncio.Semaphore(count)
+        self.priority = priority
 
     async def before(self, session: Session | None = None):
         if not await self.semaphore.acquire():
@@ -103,5 +105,5 @@ class Semaphore(Propagator):
         self.semaphore.release()
 
     def compose(self):
-        yield self.before, True, 15
-        yield self.after, False, 60
+        yield self.before, True, self.priority
+        yield self.after, False, self.priority
