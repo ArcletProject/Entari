@@ -79,7 +79,7 @@ class EntariProtocol(ApiProtocol):
             sess = Session(self.account.custom(protocol_cls=EntariProtocol), source)
             sess.elements = msg
         res = await es.post(ev := SendRequest(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, sess))
-        msg = sess.elements if sess else ev.message
+        msg = sess._content if sess and sess._content else ev.message
         if res:
             if res.value is False:
                 return []
