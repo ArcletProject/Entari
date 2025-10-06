@@ -212,8 +212,10 @@ def apply_log_save(
     compression: str | None = "zip",
     colorize: bool = False,
 ):
+    from .localdata import local_data
+
     log_id = logger.add(
-        "logs/latest.log",
+        local_data._get_base_log_dir() / "latest.log",
         level=0,
         enqueue=False,
         rotation=rotation,
