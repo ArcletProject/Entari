@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 import traceback
+from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, cast
 
@@ -208,14 +209,13 @@ sys.excepthook = loguru_exc_callback
 
 
 def apply_log_save(
+    log_dir: str | Path,
     rotation: str = "00:00",
     compression: str | None = "zip",
     colorize: bool = False,
 ):
-    from .localdata import local_data
-
     log_id = logger.add(
-        local_data._get_base_log_dir() / "latest.log",
+        f"{log_dir}/latest.log",
         level=0,
         enqueue=False,
         rotation=rotation,

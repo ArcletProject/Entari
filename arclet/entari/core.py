@@ -21,6 +21,7 @@ from satori.client.protocol import ApiProtocol
 from satori.model import Event
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
+from .localdata import local_data
 from .config import BasicConfModel, EntariConfig
 from .config.file import LogInfo
 from .config.model import config_model_validate
@@ -177,9 +178,10 @@ class Entari(App):
         self._log_save_dispose = lambda: None
         if EntariConfig.instance.basic.log.save:
             if EntariConfig.instance.basic.log.save is True:
-                self._log_save_dispose = apply_log_save()
+                self._log_save_dispose = apply_log_save(local_data._get_base_log_dir())
             else:
                 self._log_save_dispose = apply_log_save(
+                    log_dir=local_data._get_base_log_dir(),
                     rotation=EntariConfig.instance.basic.log.save.rotation,
                     compression=EntariConfig.instance.basic.log.save.compression,
                     colorize=EntariConfig.instance.basic.log.save.colorize,
@@ -221,10 +223,13 @@ class Entari(App):
             self._log_save_dispose()
             if new_conf.save:
                 if new_conf.save is True:
-                    self._log_save_dispose = apply_log_save()
+                    self._log_save_dispose = apply_log_save(local_data._get_base_log_dir())
                 else:
                     self._log_save_dispose = apply_log_save(
-                        new_conf.save.rotation, new_conf.save.compression, new_conf.save.colorize
+                        local_data._get_base_log_dir(),
+                        new_conf.save.rotation,
+                        new_conf.save.compression,
+                        new_conf.save.colorize
                     )
         elif key == "ignore_self_message":
             self.ignore_self_message = value
