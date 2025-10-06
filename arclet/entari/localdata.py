@@ -52,6 +52,12 @@ class LocalData(Service):
         name = self.base_dir or f".{self.app_name.lstrip('.')}"
         return Path.cwd() / name / "data"
 
+    def _get_base_log_dir(self) -> Path:
+        if self.global_path:
+            return user_data_dir(self.app_name.title()).resolve()
+        name = self.base_dir or f".{self.app_name.lstrip('.')}"
+        return Path.cwd() / name / "log"
+
     @_auto_create_dir
     def get_cache_dir(self, name: str | None) -> Path:
         dir_ = self._get_base_cache_dir()
