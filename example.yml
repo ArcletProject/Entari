@@ -7,7 +7,7 @@ basic:
       path: "satori"
   ignore_self_message: true
   log:
-    level: "trace"
+    level: "debug"
     rich_error: false
   external_dirs:
     - example_plugins
@@ -29,4 +29,4 @@ plugins:
   example_plugin2: {}
   example_plugin3: {}
   example_plugin4: {}
-  example_plugin5: {}
+  ~example_plugin5: {}

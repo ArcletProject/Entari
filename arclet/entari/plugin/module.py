@@ -473,8 +473,21 @@ def import_plugin(id_, package=None, config: dict | None = None):
         if spec.loader:
             if isinstance(spec.loader, PluginLoader):
                 spec.loader.exec_module(mod, config=config)
-                sys.modules.pop(mod.__name__)
+                protected_modules = set()
+                module_name = mod.__name__
+                if module_name:
+                    prefix = []
+                    for part in module_name.split("."):
+                        prefix.append(part)
+                        protected_modules.add(".".join(prefix))
+                sys.modules.pop(module_name, None)
                 for _imported in _IMPORTING:
+                    if (
+                        _imported in protected_modules
+                        or _imported in plugin_service.plugins
+                        or _imported in plugin_service._subplugined
+                    ):
+                        continue
                     sys.modules.pop(_imported, None)
                 _IMPORTING.clear()
             else:

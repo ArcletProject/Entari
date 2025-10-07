@@ -448,11 +448,6 @@
           "description": "No configuration required",
           "additionalProperties": true
         },
-        "example_plugin5.foo.bar": {
-          "type": "object",
-          "description": "A test plugin 5; no configuration required",
-          "additionalProperties": true
-        },
         ".commands": {
           "type": "object",
           "title": "CommandsConfig",

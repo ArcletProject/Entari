@@ -4,6 +4,7 @@ import inspect
 import itertools
 from os import PathLike
 from pathlib import Path
+import sys
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
@@ -187,11 +188,14 @@ def load_plugin(
         plugin_service._direct_plugins.add(mod.__name__)
         if mod.__name__ in plugin_service.referents and plugin_service.referents[mod.__name__]:
             referents = plugin_service.referents[mod.__name__].copy()
-            plugin_service.referents[mod.__name__].clear()
+            # plugin_service.referents[mod.__name__].clear()
             for referent in referents:
                 if referent in recursive_guard:
                     continue
+                if referent.startswith(mod.__name__):
+                    continue
                 if referent in plugin_service.plugins:
+                    plugin_service.referents[mod.__name__].discard(referent)
                     log.plugin.debug(f"reloading <y>{escape_tag(mod.__name__)}</y>'s referent <y>{referent!r}</y>")
                     unload_plugin(referent)
                 if not (plug := load_plugin(referent)):
@@ -214,9 +218,18 @@ def load_plugins(dir_: str | PathLike | Path):
     path = dir_ if isinstance(dir_, Path) else Path(dir_)
     if not path.is_dir():
         raise NotADirectoryError(f"{path} is not a directory")
+    path: Path = path.resolve()  # .relative_to(Path.cwd())
+    syspaths = [Path(p).resolve() for p in sys.path if p]
+    prefixes = [p for p in syspaths if path.is_relative_to(p)]
+    if prefixes:
+        prefix = max(prefixes, key=lambda p: len(p.parts))
+    else:
+        prefix = Path.cwd()
     for p in path.iterdir():
         if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
-            load_plugin(".".join(p.parts[:-1:1]) + "." + p.stem)
+            p = p.resolve().relative_to(prefix)
+            plg = ".".join(p.parts[:-1:1]) + "." + p.stem
+            load_plugin(plg)
 
 
 if TYPE_CHECKING:

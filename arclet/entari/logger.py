@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, cast
 
 from arclet.letoderea.exceptions import ExceptionHandler, Trace
 from loguru import logger
+from satori.parser import snake_case
 
 if TYPE_CHECKING:
     from loguru import Logger, Record
@@ -67,10 +68,13 @@ class LoggerManager:
         return self.loggers["[error]"]
 
     def wrapper(self, name: str, color: str = "blue"):
-        patched = logger.patch(
-            lambda r: r.update(name=escape_tag(name), extra=r["extra"] | {"entari_plugin_color": color})
-        )
-        patched = patched.bind(name=f"plugins.{escape_tag(name)}")
+        name = escape_tag(name)
+        if name.startswith("[") and name.endswith("]"):
+            name1 = f"[{snake_case(name[1:-1])}]"
+        else:
+            name1 = snake_case(name)
+        patched = logger.patch(lambda r: r.update(name=name1, extra=r["extra"] | {"entari_plugin_color": color}))
+        patched = patched.bind(name=f"plugins.{name1}")
         self.loggers[name] = patched
         return patched
 
