@@ -21,7 +21,6 @@ from satori.client.protocol import ApiProtocol
 from satori.model import Event
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
-from .localdata import local_data
 from .config import BasicConfModel, EntariConfig
 from .config.file import LogInfo
 from .config.model import config_model_validate
@@ -29,6 +28,7 @@ from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
 from .event.send import SendResponse
+from .localdata import local_data
 from .logger import apply_log_save, enable_rich_except, log
 from .plugin import get_plugins, load_plugin, plugin_config, requires
 from .plugin.model import PluginMetadata, RootlessPlugin
@@ -172,6 +172,7 @@ class Entari(App):
             EntariConfig.load()
         alconna_config.command_max_count = EntariConfig.instance.basic.cmd_count
         log.set_level(log_level)
+        log.short_level = EntariConfig.instance.basic.log.short_level
         if rich_error:
             enable_rich_except()
         log.core.info(f"Entari <b><c>version {__version__}</c></b>")
@@ -229,7 +230,7 @@ class Entari(App):
                         local_data._get_base_log_dir(),
                         new_conf.save.rotation,
                         new_conf.save.compression,
-                        new_conf.save.colorize
+                        new_conf.save.colorize,
                     )
         elif key == "ignore_self_message":
             self.ignore_self_message = value

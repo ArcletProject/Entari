@@ -277,6 +277,12 @@
               "default": false,
               "description": "Whether enable rich traceback for exceptions",
               "title": "Rich Error"
+            },
+            "short_level": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether use short log level names",
+              "title": "Short Level"
             }
           },
           "additionalProperties": false,

@@ -3,10 +3,10 @@ from __future__ import annotations
 import fnmatch
 import inspect
 import logging
+from pathlib import Path
 import re
 import sys
 import traceback
-from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, cast
 
@@ -42,6 +42,7 @@ class LoggerManager:
         self.log_level = "INFO"
         self.levelno = logger.level("INFO").no
         self.ignores = set()
+        self.short_level = False
 
     def fork(self, child_name: str):
         patched = logger.patch(lambda r: r.update(name=child_name))
@@ -127,17 +128,21 @@ def default_filter(record):
 
 
 def _custom_format(record: Record):
-    if "entari_plugin_color" in record["extra"]:
-        name = f"<{record['extra']['entari_plugin_color']}><u>{{name}}</u></{record['extra']['entari_plugin_color']}>"
+    color = record["extra"].get("entari_plugin_color", "m")
+    if record["name"].startswith("[") and record["name"].endswith("]"):  # type: ignore
+        name = f"<{color}>{{name}}</{color}>"
     else:
-        name = "<m><u>{name}</u></m>"
+        name = f"<{color}><u>{{name}}</u></{color}>"
     if log.levelno <= TRACE_NO:
         time = "<lk>{time:YYYY-MM-DD HH:mm:ss.SSS}</lk>"
     elif log.levelno <= DEBUG_NO:
         time = "<lk>{time:YYYY-MM-DD HH:mm:ss}</lk>"
     else:
         time = "<lk>{time:MM-DD HH:mm:ss}</lk>"
-    res = f"{time} <lvl>{{level:<7}}</lvl> | {name} <lvl>{{message}}</lvl>\n"
+    level = "<lvl>{level:<7}</lvl> │"
+    if log.short_level:
+        level = "[<lvl>{level.name[0]}</lvl>]"
+    res = f"{time} {level} {name} <lvl>{{message}}</lvl>\n"
     if record["exception"]:
         res += "{exception}\n"
     return res
@@ -156,17 +161,29 @@ logger_id = logger.add(
 """默认日志处理器 id"""
 
 
+_HIDDEN_UPSTREAMS = {
+    "satori": "satori",
+    "launart": "launart",
+    "uvicorn": "uvicorn",
+    "starlette": "starlette",
+    "graia.amnesia": "amnesia",
+}
+
+
+def add_hidden_upstream(prefix: str, name: str):
+    """添加隐藏上游日志源
+
+    Args:
+        prefix (str): 日志源前缀
+        name (str): 日志源名称
+    """
+    _HIDDEN_UPSTREAMS[prefix] = name
+
+
 def _hidden_upsteam(record: Record):
-    if record["name"].startswith("satori"):  # type: ignore
-        record["name"] = "satori"
-    if record["name"].startswith("launart"):  # type: ignore
-        record["name"] = "launart"
-    if record["name"].startswith("uvicorn"):  # type: ignore
-        record["name"] = "uvicorn"
-    if record["name"].startswith("starlette"):  # type: ignore
-        record["name"] = "starlette"
-    if record["name"].startswith("graia.amnesia"):  # type: ignore
-        record["name"] = "graia.amnesia"
+    for prefix, name in _HIDDEN_UPSTREAMS.items():
+        if record["name"].startswith(prefix):  # type: ignore
+            record["name"] = name
 
 
 logger.configure(patcher=_hidden_upsteam)
@@ -266,4 +283,4 @@ except ImportError:
         log.error.warning("无法启用 rich except，未安装 rich 库，请通过 `pip install rich` 安装。")
 
 
-__all__ = ["log", "logger_id", "apply_log_save", "escape_tag", "enable_rich_except"]
+__all__ = ["log", "logger_id", "apply_log_save", "escape_tag", "enable_rich_except", "add_hidden_upstream"]

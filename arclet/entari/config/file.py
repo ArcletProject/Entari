@@ -70,6 +70,7 @@ class LogInfo(BasicConfModel):
         description="Log saving configuration, if None or False, logs will not be saved",
     )
     rich_error: bool = model_field(default=False, description="Whether enable rich traceback for exceptions")
+    short_level: bool = model_field(default=False, description="Whether use short log level names")
 
 
 class BasicConfig(BasicConfModel):
