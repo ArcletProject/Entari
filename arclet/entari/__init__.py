@@ -6,6 +6,7 @@ from arclet.letoderea import enter_if as enter_if
 from arclet.letoderea import param as param
 from arclet.letoderea import propagate as propagate
 from arclet.letoderea import use as use
+from arclet.letoderea.core import ExceptionEvent as ExceptionEvent
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio
@@ -52,6 +53,10 @@ from .config import load_config as load_config
 from .core import Entari as Entari
 from .event.base import MessageCreatedEvent as MessageCreatedEvent
 from .event.base import MessageEvent as MessageEvent
+from .event.config import ConfigReload as ConfigReload
+from .event.lifespan import Cleanup as Cleanup
+from .event.lifespan import Ready as Ready
+from .event.lifespan import Startup as Startup
 from .filter import filter_ as filter_
 from .localdata import local_data as local_data
 from .message import MessageChain as MessageChain
@@ -78,4 +83,4 @@ Param = param
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.16.3"
+__version__ = "0.16.4"

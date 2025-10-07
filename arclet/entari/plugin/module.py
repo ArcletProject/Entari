@@ -482,11 +482,7 @@ def import_plugin(id_, package=None, config: dict | None = None):
                         protected_modules.add(".".join(prefix))
                 sys.modules.pop(module_name, None)
                 for _imported in _IMPORTING:
-                    if (
-                        _imported in protected_modules
-                        or _imported in plugin_service.plugins
-                        or _imported in plugin_service._subplugined
-                    ):
+                    if _imported in protected_modules or _imported in plugin_service.plugins:
                         continue
                     sys.modules.pop(_imported, None)
                 _IMPORTING.clear()
