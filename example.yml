@@ -7,10 +7,10 @@ basic:
       path: "satori"
   ignore_self_message: true
   log:
-    level: "info"
+    level: "trace"
     rich_error: false
   external_dirs:
-    - my_plugins
+    - example_plugins
   prefix: ["", "/"]
   schema: true
 plugins:
@@ -29,3 +29,4 @@ plugins:
   example_plugin2: {}
   example_plugin3: {}
   example_plugin4: {}
+  example_plugin5: {}

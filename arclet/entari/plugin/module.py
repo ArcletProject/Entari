@@ -27,6 +27,7 @@ _IMPORTING = set()
 
 PLUGIN_PAT = re.compile(r"entari:\s*plugin")
 SUBPLUGIN_PAT = re.compile(r"entari:\s*(?:package|subplugin)")
+NAMESPACE_PAT = re.compile(r"entari:\s*namespace")
 
 
 def package(*names: str):
@@ -54,12 +55,14 @@ def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix="")
 
 # fmt: off
 class _Visitor(ast.NodeVisitor):
-    def __init__(self, pid: str, pname: str, path: str, plugin_lineno: list[int], subplugin_lineno: list[int]):
+    def __init__(self, pid: str, pname: str, path: str, plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
         self.pid = pid
         self.pname = pname
         self.path = path
-        self.signed_plugin_lineno = plugin_lineno
-        self.signed_subplugin_lineno = subplugin_lineno
+        self.signed_plugin_lineno = plg_lineno
+        self.signed_subplugin_lineno = sub_lineno
+        self.signed_namespace_lineno = ns_lineno
+        self.signed_namespace_modules = set()
         self.type_checking_stack = []
         self.typing_aliases = {"typing", "typing_extensions"}  # 跟踪typing模块的别名
 
@@ -90,11 +93,26 @@ class _Visitor(ast.NodeVisitor):
             elif node.lineno in self.signed_subplugin_lineno or node.module in _SUBMODULE_WAITLIST.get(name, ()):
                 _ensure_plugin([node.module], True, self.pid, name)
         elif node.level == 1:  # from .xxx import xxx
+            if node.lineno in self.signed_plugin_lineno:
+                pname = f"{name}.{node.module}"
+                _ensure_plugin([alias.name for alias in node.names], False, self.pid, pname, f"{pname}.")  # noqa: E501
+            elif node.lineno in self.signed_namespace_lineno or node.module in self.signed_namespace_modules:
+                self.signed_namespace_modules.add(node.module)
+                pname = f"{name}.{node.module}"
+                _ensure_plugin([alias.name for alias in node.names], False, self.pid, pname, f"{pname}.")
             prefix = name if self.path.endswith("__init__.py") else name.rpartition(".")[0]
-            _ensure_plugin([node.module], True, self.pid, name, f"{prefix}.")
+            _ensure_plugin([node.module], True, self.pid, prefix, f"{prefix}.")
         else:  # from ..xxx import xxx
             prefix = ".".join(name.split(".")[: -node.level + 1 if self.path.endswith("__init__.py") else -node.level])
-            _ensure_plugin([node.module], node.lineno not in self.signed_plugin_lineno, self.pid, name, f"{prefix}.")
+            if not prefix:  # relative import beyond top-level package
+                return
+            if prefix not in plugin_service.plugins and prefix not in _ENSURE_IS_PLUGIN:
+                is_sub = prefix in _SUBMODULE_WAITLIST.get(name, ())
+                pname = name
+            else:
+                is_sub = True
+                pname = prefix
+            _ensure_plugin([node.module], is_sub, self.pid, pname, f"{prefix}.")
 
     def visit_If(self, node: ast.If):
         is_type_checking = self._is_type_checking(node)
@@ -174,14 +192,17 @@ class PluginLoader(SourceFileLoader):
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
         name = self.name
-        signed_plugin_lineno = []
-        signed_subplugin_lineno = []
+        plg_lineno = []
+        sub_lineno = []
+        ns_lineno = []
         for token in tokenize.tokenize(BytesIO(data).readline):
             if token.type == tokenize.COMMENT:
                 if PLUGIN_PAT.search(token.string):
-                    signed_plugin_lineno.append(token.start[0])
+                    plg_lineno.append(token.start[0])
                 elif SUBPLUGIN_PAT.search(token.string):
-                    signed_subplugin_lineno.append(token.start[0])
+                    sub_lineno.append(token.start[0])
+                elif NAMESPACE_PAT.search(token.string):
+                    ns_lineno.append(token.start[0])
 
         try:
             nodes = ast.parse(data, type_comments=True)
@@ -189,7 +210,7 @@ class PluginLoader(SourceFileLoader):
             return _bootstrap._call_with_frames_removed(  # type: ignore
                 compile, data, path, "exec", dont_inherit=True, optimize=-1
             )
-        visitor = _Visitor(self.plugin_id, name, path, signed_plugin_lineno, signed_subplugin_lineno)
+        visitor = _Visitor(self.plugin_id, name, path, plg_lineno, sub_lineno, ns_lineno)
         visitor.visit(nodes)
 
         return _bootstrap._call_with_frames_removed(  # type: ignore
@@ -332,6 +353,8 @@ class _PluginFinder(MetaPathFinder):
             return
         module_origin = module_spec.origin
         if not module_origin:
+            if not module_spec.loader:  # namespace package
+                return module_spec
             return
         if isinstance(module_spec.loader, ExtensionFileLoader):
             return
