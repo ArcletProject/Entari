@@ -2,11 +2,11 @@ from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Generic, NoReturn, TypeVar, cast, overload
 
 from arclet.letoderea import STOP, es, step_out
-from satori import ChannelType
+from satori import ChannelType, Quote
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
-from satori.element import Element
+from satori.element import At, Element
 from satori.model import (
     Channel,
     Guild,
@@ -38,54 +38,59 @@ T = TypeVar("T")
 
 
 class EntariProtocol(ApiProtocol):
+    # fmt: off
 
-    async def send_message(
-        self, channel: str | Channel, message: str | Iterable[str | Element], source: SatoriEvent | None = None
-    ) -> list[MessageReceipt]:
+    async def send_message(self, channel: str | Channel, message: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel (str | Channel): 要发送的频道 ID
             message (str | Iterable[str | Element]): 要发送的消息
             source (SatoriEvent | None): 源事件
+            at_sender (At | None): 是否 @ 发送者，默认为 None
+            reply_to (Quote | None): 是否作为回复发送，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         channel_id = channel.id if isinstance(channel, Channel) else channel
-        return await self.message_create(channel_id=channel_id, content=message, source=source)
+        return await self.message_create(channel_id=channel_id, content=message, source=source, at_sender=at_sender, reply_to=reply_to)  # noqa: E501
 
-    async def send_private_message(
-        self, user: str | User, message: str | Iterable[str | Element], source: SatoriEvent | None = None
-    ) -> list[MessageReceipt]:
+    async def send_private_message(self, user: str | User, message: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
         """发送私聊消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             user (str | User): 要发送的用户 ID
             message (str | Iterable[str | Element]): 要发送的消息
             source (SatoriEvent | None): 源事件
+            at_sender (At | None): 是否 @ 发送者，默认为 None
+            reply_to (Quote | None): 是否作为回复发送，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         user_id = user.id if isinstance(user, User) else user
         channel = await self.user_channel_create(user_id=user_id)
-        return await self.message_create(channel_id=channel.id, content=message, source=source)
+        return await self.message_create(channel_id=channel.id, content=message, source=source, at_sender=at_sender, reply_to=reply_to)  # noqa: E501
 
-    async def message_create(
-        self, channel_id: str, content: str | Iterable[str | Element], source: SatoriEvent | None = None
-    ) -> list[MessageReceipt]:
+    async def message_create(self, channel_id: str, content: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel_id (str): 频道 ID
             content (str | Iterable[str | Element]): 消息内容
             source (SatoriEvent | None): 源事件
+            at_sender (At | None): 是否 @ 发送者，默认为 None
+            reply_to (Quote | None): 是否作为回复发送，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
-        msg = MessageChain.of(content) if isinstance(content, str) else MessageChain(content)
+        msg: MessageChain = MessageChain.of(content) if isinstance(content, str) else MessageChain(content)
+        if at_sender:
+            msg.insert(0, at_sender)
+        if reply_to:
+            msg.insert(0, reply_to)
         sess = None
         if source:
             sess = Session(self.account.custom(protocol_cls=EntariProtocol), source)
@@ -106,6 +111,8 @@ class EntariProtocol(ApiProtocol):
         resp = [MessageReceipt.parse(i) for i in res]
         await es.publish(SendResponse(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, resp, sess))
         return resp
+
+    # fmt: on
 
 
 class Session(Generic[TEvent]):
@@ -261,55 +268,68 @@ class Session(Generic[TEvent]):
     def elements(self, value: MessageChain):
         self._content = value
 
-    async def _send(self, channel_id: str, message: str | Iterable[str | Element]):
-        return await self.account.protocol.send_message(channel_id, message, self.event)
+    def _resolve(self, at_sender: bool, reply_to: bool):
+        at = reply = None
+        if at_sender:
+            if not self.event.user:
+                raise RuntimeError("Event has no User to @!")
+            at = At(self.event.user.id)
+        if reply_to:
+            if not isinstance(self.event, MessageEvent):
+                raise RuntimeError("Event cannot be replied to!")
+            if not self.event.message:
+                raise RuntimeError("Event cannot be replied to!")
+            reply = Quote(self.event.message.id)
+        return at, reply
 
-    async def send(
-        self,
-        message: str | Iterable[str | Element],
-    ) -> list[MessageReceipt]:
+    # fmt: off
+
+    async def send(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
         """发送消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
             message: 要发送的消息
+            at_sender: 是否 @ 发送者，默认为 False
+            reply_to: 是否作为回复发送，默认为 False
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         if not self.event._origin.channel:
             raise RuntimeError("Event has no Channel context!")
-        return await self.account.protocol.send_message(self.event._origin.channel.id, message, self.event)
+        return await self.account.protocol.send_message(self.event._origin.channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
 
-    async def send_message(
-        self,
-        message: str | Iterable[str | Element],
-    ) -> list[MessageReceipt]:
+    async def send_message(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
         """发送消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
             message: 要发送的消息
+            at_sender: 是否 @ 发送者，默认为 False
+            reply_to: 是否作为回复发送，默认为 False
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         if not self.event.channel:
             raise RuntimeError("Event has no Channel context!")
-        return await self.account.protocol.send_message(self.event.channel.id, message, self.event)
+        return await self.account.protocol.send_message(self.event.channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
 
-    async def send_private_message(
-        self,
-        message: str | Iterable[str | Element],
-    ) -> list[MessageReceipt]:
+    async def send_private_message(self, message: str | Iterable[str | Element], user_id: str | None = None, at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
         """发送私聊消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
             message: 要发送的消息
+            user_id: 要发送的用户 ID，默认为 None（即发送给当前事件的用户）
+            at_sender: 是否 @ 发送者，默认为 False
+            reply_to: 是否作为回复发送，默认为 False
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
-        channel = await self.user_channel_create()
-        return await self.account.protocol.send_message(channel.id, message, self.event)
+        channel = await self.user_channel_create(user_id)
+        return await self.account.protocol.send_message(channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
+
+    # fmt: on
 
     async def update_message(self, message: str | Iterable[str | Element]):
         """更新消息。
@@ -337,7 +357,7 @@ class Session(Generic[TEvent]):
         """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.protocol.send_message(self.event.channel.id, content, self.event)
+        return await self.account.protocol.message_create(self.event.channel.id, content, self.event)
 
     async def message_get(self, message_id: str) -> MessageObject:
         """获取特定消息。返回一个 `MessageObject` 对象。
@@ -444,16 +464,19 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot use to delete channel!")
         return await self.account.protocol.channel_delete(self.event.channel.id)
 
-    async def user_channel_create(self) -> Channel:
+    async def user_channel_create(self, user_id: str | None = None) -> Channel:
         """创建一个私聊频道。返回一个 Channel 对象。
+
+        Args:
+            user_id (str | None, optional): 用户 ID，默认为 None（即当前事件的用户）
 
         Returns:
             Channel: `Channel` 对象
         """
-        if not self.event.user:
+        if not user_id and not self.event.user:
             raise RuntimeError("Event cannot use to create user channel!")
         return await self.account.protocol.user_channel_create(
-            self.event.user.id, self.event.guild.id if self.event.guild else None
+            user_id or self.event.user.id, self.event.guild.id if self.event.guild else None  # type: ignore
         )
 
     def guild_member_list(self, next_token: str | None = None) -> IterablePageResult[Member]:

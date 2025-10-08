@@ -33,7 +33,7 @@ async def cleanup():
 @filter_.public
 async def _(session: Session):
     if session.content == "test":
-        resp = await session.send("This message will recall in 5s...")
+        resp = await session.send("This message will recall in 5s...", at_sender=True)
 
         @scheduler.invoke(5)
         async def _():
