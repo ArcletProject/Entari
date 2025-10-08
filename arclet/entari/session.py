@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable, Iterable
-from typing import Generic, NoReturn, TypeVar, cast, overload
+from typing import Any, Generic, NoReturn, TypeVar, cast, overload
 
 from arclet.letoderea import STOP, es, step_out
 from satori import ChannelType
@@ -7,7 +7,19 @@ from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
 from satori.element import Element
-from satori.model import Channel, Guild, Member, MessageReceipt, PageResult, Role, User
+from satori.model import (
+    Channel,
+    Guild,
+    IterablePageResult,
+    Login,
+    Member,
+    MessageObject,
+    MessageReceipt,
+    Meta,
+    Role,
+    Upload,
+    User,
+)
 
 from .event.base import (
     FriendRequestEvent,
@@ -256,72 +268,114 @@ class Session(Generic[TEvent]):
         self,
         message: str | Iterable[str | Element],
     ) -> list[MessageReceipt]:
+        """发送消息。返回一个 `MessageObject` 对象构成的数组。
+
+        Args:
+            message: 要发送的消息
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
         if not self.event._origin.channel:
-            raise RuntimeError("Event cannot be replied to!")
+            raise RuntimeError("Event has no Channel context!")
         return await self.account.protocol.send_message(self.event._origin.channel.id, message, self.event)
 
     async def send_message(
         self,
         message: str | Iterable[str | Element],
     ) -> list[MessageReceipt]:
-        """发送消息
+        """发送消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
             message: 要发送的消息
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         if not self.event.channel:
-            raise RuntimeError("Event cannot be replied to!")
+            raise RuntimeError("Event has no Channel context!")
         return await self.account.protocol.send_message(self.event.channel.id, message, self.event)
 
     async def send_private_message(
         self,
         message: str | Iterable[str | Element],
     ) -> list[MessageReceipt]:
-        """发送私聊消息
+        """发送私聊消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
             message: 要发送的消息
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         channel = await self.user_channel_create()
         return await self.account.protocol.send_message(channel.id, message, self.event)
 
-    async def update_message(
-        self,
-        message: str | Iterable[str | Element],
-    ):
-        """更新消息
+    async def update_message(self, message: str | Iterable[str | Element]):
+        """更新消息。
 
         Args:
-            message: 要更新的消息
+            message (str | Iterable[str | Element]): 更新后的消息
+
+        Returns:
+            None: 该方法无返回值
         """
         if not self.event.channel:
-            raise RuntimeError("Event cannot be replied to!")
+            raise RuntimeError("Event has no Channel context!")
         if not self.event.message:
             raise RuntimeError("Event cannot update message")
         return await self.account.protocol.update_message(self.event.channel, self.event.message.id, message)
 
-    async def message_create(
-        self,
-        content: str,
-    ) -> list[MessageReceipt]:
+    async def message_create(self, content: str) -> list[MessageReceipt]:
+        """发送消息。返回一个 `MessageObject` 对象构成的数组。
+
+        Args:
+            content (str): 消息内容
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
         return await self.account.protocol.send_message(self.event.channel.id, content, self.event)
 
-    async def message_delete(self, message_id: str) -> None:
-        if not self.event.channel:
-            raise RuntimeError("Event cannot be replied to!")
-        await self.account.protocol.message_delete(
-            self.event.channel.id,
-            message_id,
-        )
+    async def message_get(self, message_id: str) -> MessageObject:
+        """获取特定消息。返回一个 `MessageObject` 对象。
 
-    async def message_update(
-        self,
-        content: str,
-    ) -> None:
+        Args:
+            message_id (str): 消息 ID
+
+        Returns:
+            MessageObject: `MessageObject` 对象
+        """
         if not self.event.channel:
-            raise RuntimeError("Event cannot be replied to!")
+            raise RuntimeError("Event has no Channel context!")
+        return await self.account.protocol.message_get(self.event.channel.id, message_id)
+
+    async def message_delete(self, message_id: str) -> None:
+        """撤回特定消息。
+
+        Args:
+            message_id (str): 消息 ID
+
+        Returns:
+            None: 该方法无返回值
+        """
+        if not self.event.channel:
+            raise RuntimeError("Event has no Channel context!")
+        await self.account.protocol.message_delete(self.event.channel.id, message_id)
+
+    async def message_update(self, content: str) -> None:
+        """编辑特定消息。
+
+        Args:
+            content (str): 消息内容
+
+        Returns:
+            None: 该方法无返回值
+        """
+        if not self.event.channel:
+            raise RuntimeError("Event has no Channel context!")
         if not self.event.message:
             raise RuntimeError("Event cannot update message")
         await self.account.protocol.message_update(
@@ -331,43 +385,99 @@ class Session(Generic[TEvent]):
         )
 
     async def channel_create(self, data: Channel) -> Channel:
+        """创建群组频道。返回一个 Channel 对象。
+
+        Args:
+            data (Channel): 频道数据
+
+        Returns:
+            Channel: `Channel` 对象
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to create channel!")
         return await self.account.protocol.channel_create(self.event.guild.id, data)
 
-    async def channel_list(self, next_token: str | None = None) -> PageResult[Channel]:
+    async def channel_get(self, channel_id: str) -> Channel:
+        """根据 ID 获取频道。返回一个 `Channel` 对象。
+
+        Args:
+            channel_id (str): 频道 ID
+
+        Returns:
+            Channel: `Channel` 对象
+        """
+        return await self.account.protocol.channel_get(channel_id)
+
+    def channel_list(self, next_token: str | None = None) -> IterablePageResult[Channel]:
+        """获取群组中的全部频道。返回一个 Channel 的分页列表。
+
+        Args:
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[Channel]: `Channel` 的分页列表
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to list channel!")
-        return await self.account.protocol.channel_list(self.event.guild.id, next_token)
+        return self.account.protocol.channel_list(self.event.guild.id, next_token)
 
-    async def channel_update(
-        self,
-        data: Channel,
-    ) -> None:
+    async def channel_update(self, data: Channel) -> None:
+        """修改群组频道。
+
+        Args:
+            data (Channel): 频道数据
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot use to update channel!")
         return await self.account.protocol.channel_update(self.event.channel.id, data)
 
     async def channel_delete(self) -> None:
+        """删除群组频道。
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot use to delete channel!")
-        return await self.account.protocol.channel_delete(
-            self.event.channel.id,
-        )
+        return await self.account.protocol.channel_delete(self.event.channel.id)
 
     async def user_channel_create(self) -> Channel:
+        """创建一个私聊频道。返回一个 Channel 对象。
+
+        Returns:
+            Channel: `Channel` 对象
+        """
         if not self.event.user:
             raise RuntimeError("Event cannot use to create user channel!")
         return await self.account.protocol.user_channel_create(
             self.event.user.id, self.event.guild.id if self.event.guild else None
         )
 
-    async def guild_member_list(self, next_token: str | None = None) -> PageResult[Member]:
+    def guild_member_list(self, next_token: str | None = None) -> IterablePageResult[Member]:
+        """获取群组成员列表。返回一个 Member 的分页列表。
+
+        Args:
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[Member]: `Member` 的分页列表
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to list member!")
-        return await self.account.protocol.guild_member_list(self.event.guild.id, next_token)
+        return self.account.protocol.guild_member_list(self.event.guild.id, next_token)
 
     async def guild_member_get(self, user_id: str | None = None) -> Member:
+        """获取群成员信息。返回一个 `Member` 对象。
+
+        Args:
+            user_id (str): 用户 ID
+
+        Returns:
+            Member: `Member` 对象
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to get member!")
         if user_id:
@@ -377,6 +487,15 @@ class Session(Generic[TEvent]):
         return await self.account.protocol.guild_member_get(self.event.guild.id, self.event.user.id)
 
     async def guild_member_kick(self, user_id: str | None = None, permanent: bool = False) -> None:
+        """将某个用户踢出群组。
+
+        Args:
+            user_id (str): 用户 ID
+            permanent (bool, optional): 是否永久踢出 (无法再次加入群组)，默认为 False
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to kick member!")
         if user_id:
@@ -386,6 +505,15 @@ class Session(Generic[TEvent]):
         return await self.account.protocol.guild_member_kick(self.event.guild.id, self.event.user.id, permanent)
 
     async def guild_member_role_set(self, role_id: str, user_id: str | None = None) -> None:
+        """设置群组内用户的角色。
+
+        Args:
+            user_id (str): 用户 ID
+            role_id (str): 角色 ID
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to guild member role set!")
         if user_id:
@@ -395,6 +523,15 @@ class Session(Generic[TEvent]):
         return await self.account.protocol.guild_member_role_set(self.event.guild.id, self.event.user.id, role_id)
 
     async def guild_member_role_unset(self, role_id: str, user_id: str | None = None) -> None:
+        """取消群组内用户的角色。
+
+        Args:
+            user_id (str): 用户 ID
+            role_id (str): 角色 ID
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to guild member role unset!")
         if user_id:
@@ -403,89 +540,146 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot use to guild member role unset!")
         return await self.account.protocol.guild_member_role_unset(self.event.guild.id, self.event.user.id, role_id)
 
-    async def guild_role_list(self, next_token: str | None = None) -> PageResult[Role]:
+    def guild_role_list(self, next_token: str | None = None) -> IterablePageResult[Role]:
+        """获取群组角色列表。返回一个 Role 的分页列表。
+
+        Args:
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[Role]: `Role` 的分页列表
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to list role!")
-        return await self.account.protocol.guild_role_list(self.event.guild.id, next_token)
+        return self.account.protocol.guild_role_list(self.event.guild.id, next_token)
 
-    async def guild_role_create(
-        self,
-        role: Role,
-    ) -> Role:
+    async def guild_role_create(self, role: Role) -> Role:
+        """创建群组角色。返回一个 Role 对象。
+
+        Args:
+            role (Role): 角色数据
+
+        Returns:
+            Role: `Role` 对象
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to create role!")
         return await self.account.protocol.guild_role_create(self.event.guild.id, role)
 
-    async def guild_role_update(
-        self,
-        role_id: str,
-        role: Role,
-    ) -> None:
+    async def guild_role_update(self, role_id: str, role: Role) -> None:
+        """修改群组角色。
+
+        Args:
+            role_id (str): 角色 ID
+            role (Role): 角色数据
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to update role!")
         return await self.account.protocol.guild_role_update(self.event.guild.id, role_id, role)
 
     async def guild_role_delete(self, role_id: str) -> None:
+        """删除群组角色。
+
+        Args:
+            role_id (str): 角色 ID
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.guild:
             raise RuntimeError("Event cannot use to delete role!")
-        return await self.account.protocol.guild_role_delete(
-            self.event.guild.id,
-            role_id,
-        )
+        return await self.account.protocol.guild_role_delete(self.event.guild.id, role_id)
 
-    async def reaction_create(
-        self,
-        emoji: str,
-    ) -> None:
+    async def reaction_create(self, emoji: str, message_id: str | None = None) -> None:
+        """向特定消息添加表态。
+
+        Args:
+            message_id (str | None, optional): 消息 ID
+            emoji (str): 表态名称
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        if not self.event.message:
+        if not message_id and not self.event.message:
             raise RuntimeError("Event cannot create reaction")
-        return await self.account.protocol.reaction_create(self.event.channel.id, self.event.message.id, emoji)
+        return await self.account.protocol.reaction_create(self.event.channel.id, message_id or self.event.message.id, emoji)  # type: ignore  # noqa: E501
 
-    async def reaction_delete(
-        self,
-        emoji: str,
-        user_id: str | None = None,
-    ) -> None:
+    async def reaction_delete(self, emoji: str, message_id: str | None = None, user_id: str | None = None) -> None:
+        """从特定消息删除某个用户添加的特定表态。
+
+        如果没有传入用户 ID 则表示删除自己的表态。
+
+        Args:
+            message_id (str | None, optional): 消息 ID
+            emoji (str): 表态名称
+            user_id (str | None, optional): 用户 ID，默认为 None
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        if not self.event.message:
+        if not message_id and not self.event.message:
             raise RuntimeError("Event cannot delete reaction")
-        return await self.account.protocol.reaction_delete(self.event.channel.id, self.event.message.id, emoji, user_id)
+        return await self.account.protocol.reaction_delete(self.event.channel.id, message_id or self.event.message.id, emoji, user_id)  # type: ignore  # noqa: E501
 
-    async def reaction_clear(
-        self,
-        emoji: str | None = None,
-    ) -> None:
+    async def reaction_clear(self, emoji: str | None = None, message_id: str | None = None) -> None:
+        """从特定消息清除某个特定表态。
+
+        如果没有传入表态名称则表示清除所有表态。
+
+        Args:
+            message_id (str | None, optional): 消息 ID
+            emoji (str | None, optional): 表态名称，默认为 None
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        if not self.event.message:
+        if not message_id and not self.event.message:
             raise RuntimeError("Event cannot clear reaction")
         return await self.account.protocol.reaction_clear(
             self.event.channel.id,
-            self.event.message.id,
+            message_id or self.event.message.id,  # type: ignore
             emoji,
         )
 
-    async def reaction_list(
-        self,
-        emoji: str,
-        next_token: str | None = None,
-    ) -> PageResult[User]:
+    def reaction_list(
+        self, emoji: str, message_id: str | None = None, next_token: str | None = None
+    ) -> IterablePageResult[User]:
+        """获取添加特定消息的特定表态的用户列表。返回一个 User 的分页列表。
+
+        Args:
+            message_id (str | None, optional): 消息 ID
+            emoji (str): 表态名称
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[User]: `User` 的分页列表
+        """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        if not self.event.message:
+        if not message_id and not self.event.message:
             raise RuntimeError("Event cannot list reaction")
-        return await self.account.protocol.reaction_list(
-            self.event.channel.id, self.event.message.id, emoji, next_token
+        return self.account.protocol.reaction_list(
+            self.event.channel.id, message_id or self.event.message.id, emoji, next_token  # type: ignore
         )
 
-    async def request_approve(
-        self,
-        approve: bool,
-        comment: str,
-    ):
+    async def request_approve(self, approve: bool, comment: str):
+        """处理请求。
+
+        Args:
+            approve (bool): 是否通过请求
+            comment (str): 备注信息
+        Returns:
+            None: 该方法无返回值
+        """
         if isinstance(self.event, FriendRequestEvent):
             return await self.friend_approve(approve, comment)
         if isinstance(self.event, GuildRequestEvent):
@@ -494,29 +688,167 @@ class Session(Generic[TEvent]):
             return await self.guild_member_approve(approve, comment)
         raise RuntimeError("Event cannot approve request")
 
-    async def friend_approve(
-        self,
-        approve: bool,
-        comment: str,
-    ):
+    async def friend_approve(self, approve: bool, comment: str):
+        """处理好友申请。
+
+        Args:
+            approve (bool): 是否通过请求
+            comment (str): 备注信息
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not isinstance(self.event, FriendRequestEvent):
             raise RuntimeError("Event cannot approve friend request")
         return await self.account.protocol.friend_approve(self.event.message.id, approve, comment)
 
-    async def guild_approve(
-        self,
-        approve: bool,
-        comment: str,
-    ):
+    async def guild_approve(self, approve: bool, comment: str):
+        """处理来自群组的邀请。
+
+        Args:
+            approve (bool): 是否通过请求
+            comment (str): 备注信息
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not isinstance(self.event, GuildRequestEvent):
             raise RuntimeError("Event cannot approve guild request")
         return await self.account.protocol.guild_approve(self.event.message.id, approve, comment)
 
-    async def guild_member_approve(
-        self,
-        approve: bool,
-        comment: str,
-    ):
+    async def guild_member_approve(self, approve: bool, comment: str):
+        """处理来自群组的加群请求。
+
+        Args:
+            approve (bool): 是否通过请求
+            comment (str): 备注信息
+
+        Returns:
+            None: 该方法无返回值
+        """
         if not isinstance(self.event, GuildMemberRequestEvent):
             raise RuntimeError("Event cannot approve guild member request")
         return await self.account.protocol.guild_member_approve(self.event.message.id, approve, comment)
+
+    async def channel_mute(self, duration: float = 60) -> None:
+        """禁言群组频道。
+
+        如果传入的禁言时长为 0 则表示解除禁言。
+
+        Args:
+            duration (float, optional): 禁言时长 (秒)，默认为 60 秒
+        Returns:
+            None: 该方法无返回值
+        """
+        if not self.event.channel:
+            raise RuntimeError("Event cannot use to mute channel!")
+        return await self.account.protocol.channel_mute(self.event.channel.id, duration)
+
+    async def guild_get(self, guild_id: str) -> Guild:
+        """根据 ID 获取群组。返回一个 `Guild` 对象。
+
+        Args:
+            guild_id (str): 群组 ID
+
+        Returns:
+            Guild: `Guild` 对象
+        """
+        return await self.account.protocol.guild_get(guild_id)
+
+    def guild_list(self, next_token: str | None = None) -> IterablePageResult[Guild]:
+        """获取当前用户加入的全部群组。返回一个 Guild 的分页列表。
+
+        Args:
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[Guild]: `Guild` 的分页列表
+        """
+        return self.account.protocol.guild_list(next_token)
+
+    async def guild_member_mute(self, user_id: str, duration: float = 60) -> None:
+        """禁言群组成员。
+
+        如果传入的禁言时长为 0 则表示解除禁言。
+
+        Args:
+            user_id (str): 用户 ID
+            duration (float, optional): 禁言时长 (秒)，默认为 60 秒
+
+        Returns:
+            None: 该方法无返回值
+        """
+        if not self.event.guild:
+            raise RuntimeError("Event cannot use to mute guild member!")
+        return await self.account.protocol.guild_member_mute(self.event.guild.id, user_id, duration)
+
+    async def login_get(self) -> Login:
+        """获取当前登录信息。返回一个 `Login` 对象。
+
+        Returns:
+            Login: `Login` 对象
+        """
+        return await self.account.protocol.login_get()
+
+    async def user_get(self, user_id: str) -> User:
+        """获取用户信息。返回一个 `User` 对象。
+
+        Args:
+            user_id (str): 用户 ID
+
+        Returns:
+            User: `User` 对象
+        """
+        return await self.account.protocol.user_get(user_id)
+
+    def friend_list(self, next_token: str | None = None) -> IterablePageResult[User]:
+        """获取好友列表。返回一个 User 的分页列表。
+
+        Args:
+            next_token (str | None, optional): 分页令牌，默认为空
+
+        Returns:
+            IterablePageResult[User]: `User` 的分页列表
+        """
+        return self.account.protocol.friend_list(next_token)
+
+    async def internal(self, action: str, method: str = "POST", **kwargs) -> Any:
+        """内部接口调用。
+
+        Args:
+            action (str): 内部接口名称
+            method (str, optional): 请求方法，默认为 POST
+            **kwargs: 参数
+        """
+        return await self.account.protocol.internal(action, method, **kwargs)
+
+    async def meta_get(self) -> Meta:
+        """获取元信息。返回一个 `Meta` 对象。
+
+        Returns:
+            Meta: `Meta` 对象
+        """
+        return await self.account.protocol.meta_get()
+
+    @overload
+    async def upload_create(self, *uploads: Upload) -> list[str]: ...
+    @overload
+    async def upload_create(self, **uploads: Upload) -> dict[str, str]: ...
+
+    async def upload_create(self, *args: Upload, **kwargs: Upload):  # type: ignore
+        """上传文件。
+
+        如果要发送的消息中含有图片或其他媒体资源，\
+            可以使用此 API 将文件上传至 Satori 服务器并转换为 URL，以便在消息编码中使用。
+        """
+        return await self.account.protocol.upload_create(*args, **kwargs)
+
+    upload = upload_create
+
+    async def download(self, url: str):
+        """访问内部链接。"""
+        return await self.account.protocol.download(url)
+
+    async def request_internal(self, url: str, method: str = "GET", **kwargs) -> dict:
+        """访问内部链接。"""
+        return await self.account.protocol.request_internal(url, method, **kwargs)
