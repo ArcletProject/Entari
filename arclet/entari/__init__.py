@@ -54,6 +54,7 @@ from .core import Entari as Entari
 from .event.base import MessageCreatedEvent as MessageCreatedEvent
 from .event.base import MessageEvent as MessageEvent
 from .event.config import ConfigReload as ConfigReload
+from .event.lifespan import AccountUpdate as AccountUpdate
 from .event.lifespan import Cleanup as Cleanup
 from .event.lifespan import Ready as Ready
 from .event.lifespan import Startup as Startup

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
 from importlib import import_module
 from io import StringIO
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 ENV_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}['\"]?")
 T = TypeVar("T")
+T_M = TypeVar("T_M", bound=MutableMapping)
 
 
 class WebsocketsInfo(BasicConfModel):
@@ -206,8 +207,10 @@ class EntariConfig:
         return True
 
     @staticmethod
-    def _clean(value: dict):
-        return {k: v for k, v in value.items() if k not in {"$path", "$static"}}
+    def _clean(value: T_M) -> T_M:
+        value.pop("$path", None)
+        value.pop("$static", None)
+        return value
 
     def dump(self, indent: int = 2):
         basic = self._origin_data.get("basic", {})

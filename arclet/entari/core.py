@@ -284,7 +284,7 @@ class Entari(App):
             log.core.warning(f"received unsupported event {event.type}: {event}")
 
     async def account_hook(self, account: Account, state: LoginStatus):
-        le.publish(AccountUpdate(account, state))
+        await le.publish(AccountUpdate(account, state))
 
     def run(
         self,
