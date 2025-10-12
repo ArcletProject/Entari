@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Generic, NoReturn, TypeVar, cast, overload
 
@@ -372,15 +373,18 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event has no Channel context!")
         return await self.account.protocol.message_get(self.event.channel.id, message_id)
 
-    async def message_delete(self, message_id: str) -> None:
+    async def message_delete(self, message_id: str, delay: float = -1) -> None:
         """撤回特定消息。
 
         Args:
             message_id (str): 消息 ID
+            delay (float, optional): 延迟撤回时间，单位为秒，默认为 -1（表示不延迟）
 
         Returns:
             None: 该方法无返回值
         """
+        if delay > 0:
+            await asyncio.sleep(delay)
         if not self.event.channel:
             raise RuntimeError("Event has no Channel context!")
         await self.account.protocol.message_delete(self.event.channel.id, message_id)
