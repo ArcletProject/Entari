@@ -277,15 +277,9 @@ class Plugin:
                 continue
             plugin_service.plugins[ret].disable()
         tasks = set()
-        for serv in self._services.values():
-            plugin_service.service_waiter.clear(serv.id)
-            try:
-                it(Launart).remove_component(serv)
-                t = asyncio.create_task(serv.status.wait_for("finished"))
-                t.add_done_callback(tasks.discard)
-                tasks.add(t)
-            except ValueError:
-                pass
+        t = self._clean_service()
+        t.add_done_callback(tasks.discard)
+        tasks.add(t)
         self._scope.disable()
         self.config["$disable"] = True
         return tasks
@@ -332,6 +326,33 @@ class Plugin:
         plugin_service._unloaded.discard(self.id)
         finalize(self, self.dispose, is_cleanup=True)
 
+    def _clean_service(self):
+        manager = it(Launart)
+
+        def _gen(service):
+            for serv in manager.components.values():
+                if service.id in serv.required:
+                    yield from _gen(serv)
+            yield service
+
+        _services = [s for serv in self._services.values() for s in _gen(serv)]
+
+        async def _clean(services):
+            if not manager.task_group:
+                return
+            for serv in services:
+                plugin_service.service_waiter.clear(serv.id)
+                if serv.id not in manager.task_group.sideload_trackers:
+                    continue
+                try:
+                    tracker = manager.task_group.sideload_trackers[serv.id]
+                    manager.remove_component(serv)
+                    await asyncio.wait([tracker, asyncio.create_task(serv.status.wait_for("finished"))])
+                except (ValueError, KeyError):
+                    pass
+
+        return asyncio.create_task(_clean(_services))
+
     def dispose(self, *, is_cleanup: bool = False):
         if not is_cleanup and self.is_static:
             return  # static plugin can only be disposed in cleanup phase
@@ -342,15 +363,9 @@ class Plugin:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
         tasks = set()
-        for serv in self._services.values():
-            plugin_service.service_waiter.clear(serv.id)
-            try:
-                it(Launart).remove_component(serv)
-                t = asyncio.create_task(serv.status.wait_for("finished"))
-                t.add_done_callback(tasks.discard)
-                tasks.add(t)
-            except ValueError:
-                pass
+        t = self._clean_service()
+        t.add_done_callback(tasks.discard)
+        tasks.add(t)
         self._services.clear()
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
