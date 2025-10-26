@@ -353,6 +353,11 @@
           "description": "Echo the content; no configuration required",
           "additionalProperties": true
         },
+        "example_plugin": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
+          "additionalProperties": true
+        },
         ".record_message": {
           "type": "object",
           "title": "RecordConfig",

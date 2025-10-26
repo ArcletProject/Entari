@@ -12,6 +12,7 @@ import arclet.letoderea as le
 from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, global_providers
 from arclet.letoderea.scope import configure
 from creart import it
+from graia.amnesia.builtins.memcache import MemcacheService
 from launart import Launart, Service
 from satori import LoginStatus
 from satori.client import App
@@ -260,12 +261,17 @@ class Entari(App):
         elif key == "schema":
             self.gen_schema = value
 
+    @property
+    def cache(self):
+        return it(Launart).get_component(MemcacheService).cache
+
     def on_message(self, priority: int = 16):
         return le.on(MessageCreatedEvent, priority=priority)
 
     def ensure_manager(self, manager: Launart):
         self.manager = manager
         manager.add_component(plugin_service)
+        manager.add_component(MemcacheService())
 
         requires(*EntariConfig.instance.prelude_plugin)
         for plug in EntariConfig.instance.prelude_plugin_names:

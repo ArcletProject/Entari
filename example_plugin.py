@@ -21,6 +21,7 @@ plug = Plugin.current()
 
 @plug.use("::startup")
 async def prepare(app: Entari):
+    await app.cache.set("foo", ["something will expire in 5m"])
     print(">> example: Preparing")
 
 
@@ -71,8 +72,10 @@ kept_data = keeping("foo", [], dispose=lambda x: x.clear())
 
 
 @command.on("append {data}")
-def append(data: str):
+async def append(app: Entari, data: str):
     kept_data.append(data)
+    if foo := await app.cache.get("foo"):
+        kept_data.extend(foo)
     return f"Appended {data}"
 
 
