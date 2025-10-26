@@ -97,26 +97,34 @@ def record(plg: RootlessPlugin):
     )
     cfg = plugin_config(RecordConfig)
 
+    # fmt: off
+
     @plg.dispatch(MessageCreatedEvent).on(priority=0)
     async def log_msg(event: MessageCreatedEvent, is_notice_me: bool = False, is_reply_me: bool = False):
         if cfg.to_me_only and not is_notice_me and not is_reply_me:
             return
-        log.message.info(
-            f"[{event.channel.name or event.channel.id}] "
-            f"{event.member.nick if event.member and event.member.nick else (event.user.name or event.user.id)}"
-            f"({event.user.id}) -> {event.message.content!r}"
-        )
+        if "guild.plain" in event.login.features or not event.guild or (event.guild and event.guild.id == event.channel.id):  # noqa: E501
+            scene = f"[{event.channel.name or event.channel.id}" + f"({event.channel.id})]" if event.channel.name else "]"  # noqa: E501
+        else:
+            scene = f"[{event.guild.name or event.guild.id}" + (f"({event.guild.id})" if event.guild.name else "") + f" / {event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
+
+        log.message.info(f"{scene} {event.member.nick if event.member and event.member.nick else (event.user.name or event.user.id)}({event.user.id}) -> {event.message.content!r}")  # noqa: E501
 
     if cfg.record_send:
 
         @plg.dispatch(SendResponse)
-        async def log_send(event: SendResponse):
-            if event.session:
-                log.message.info(
-                    f"[{event.session.channel.name or event.session.channel.id}] <- {event.message.display()!r}"
-                )
+        async def log_send(sr: SendResponse):
+            if sr.session:
+                event = sr.session.event
+                if "guild.plain" in event.login.features or not event.guild or (event.guild and event.guild.id == event.channel.id):  # noqa: E501
+                    scene = f"[{event.channel.name or event.channel.id}" + f"({event.channel.id})]" if event.channel.name else "]"  # noqa: E501
+                else:
+                    scene = f"[{event.guild.name or event.guild.id}" + (f"({event.guild.id})" if event.guild.name else "") + f" / {event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
+                log.message.info(f"{scene} <- {sr.message.display()!r}")
             else:
-                log.message.info(f"[{event.channel}] <- {event.message.display()!r}")
+                log.message.info(f"[{sr.channel}] <- {sr.message.display()!r}")
+
+    # fmt: on
 
 
 class Entari(App):
