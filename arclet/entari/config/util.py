@@ -1,10 +1,25 @@
 import ast
+from collections.abc import Mapping
 from dataclasses import Field
 import inspect
 from types import MappingProxyType
 from typing import cast
 
 _DESC_CACHE = {}
+
+
+class GetattrDict:
+    def __init__(self, source: Mapping):
+        self._source = source
+
+    def __getitem__(self, item):
+        return self._source[item]
+
+    def __getattr__(self, item):
+        try:
+            return self._source[item]
+        except KeyError as e:
+            raise AttributeError(f"{item} not found") from e
 
 
 def cleanup_src(src: str) -> str:

@@ -9,11 +9,12 @@ import re
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar
 import warnings
 
-from tarina.tools import nest_dict_update
+from tarina.tools import nest_dict_update, safe_eval
 
 from .model import Proxy, config_model_dump, config_model_schema, config_model_validate
 from .models.default import BasicConfModel as BasicConfModel
 from .models.default import field as model_field
+from .util import GetattrDict
 
 try:
     from ruamel.yaml import YAML
@@ -23,7 +24,7 @@ except ImportError:
 if TYPE_CHECKING:
     from ..plugin import Plugin
 
-ENV_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?env\.(?P<name>[^}\s]+)\s?\}\}['\"]?")
+EXPR_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?(?P<expr>[^}\s]+)\s?\}\}['\"]?")
 T = TypeVar("T")
 T_M = TypeVar("T_M", bound=MutableMapping)
 
@@ -105,7 +106,7 @@ class BasicConfig(BasicConfModel):
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
-_dumpers: dict[str, Callable[[Path, dict, int], None]] = {}
+_dumpers: dict[str, Callable[[dict, int], str]] = {}
 
 
 @dataclass
@@ -117,34 +118,50 @@ class EntariConfig:
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     save_flag: bool = field(default=False)
     _origin_data: dict[str, Any] = field(init=False)
+    _env_replaced: dict[int, str] = field(default_factory=dict, init=False)
 
     instance: ClassVar["EntariConfig"]
 
-    @classmethod
-    def loader(cls, path: Path):
+    def loader(self, path: Path):
         if not path.exists():
             return {}
         end = path.suffix.split(".")[-1]
         if end in _loaders:
+            ctx = {"env": GetattrDict(os.environ)}
+
             with path.open("r", encoding="utf-8") as f:
-                text = f.read()
-                text = ENV_CONTEXT_PAT.sub(lambda m: os.environ.get(m["name"], ""), text)
-                return _loaders[end](text)
+                lines = f.readlines()
+            for i, line in enumerate(lines):
+
+                def handle(m: re.Match[str]):
+                    self._env_replaced[i] = line
+                    expr = m.group("expr")
+                    return safe_eval(expr, ctx)
+
+                lines[i] = EXPR_CONTEXT_PAT.sub(handle, line)
+            text = "".join(lines)
+            return _loaders[end](text)
 
         raise ValueError(f"Unsupported file format: {path.suffix}")
 
-    @classmethod
-    def dumper(cls, path: Path, save_path: Path, data: dict, indent: int):
+    def dumper(self, path: Path, save_path: Path, data: dict, indent: int):
         if not path.exists():
             return
-        origin = cls.loader(path)
+        origin = self.loader(path)
         if "entari" in origin:
             origin["entari"] = data
         else:
             origin = data
         end = save_path.suffix.split(".")[-1]
         if end in _dumpers:
-            _dumpers[end](save_path, origin, indent)
+            ans = _dumpers[end](origin, indent)
+            if self._env_replaced:
+                lines = ans.splitlines(keepends=True)
+                for i, line in self._env_replaced.items():
+                    lines[i] = line
+                ans = "".join(lines)
+            with save_path.open("w", encoding="utf-8") as f:
+                f.write(ans)
             return
         raise ValueError(f"Unsupported file format: {save_path.suffix}")
 
@@ -325,7 +342,7 @@ def register_loader(*ext: str):
 def register_dumper(*ext: str):
     """Register a dumper for a specific file extension."""
 
-    def decorator(func: Callable[[Path, dict, int], None]):
+    def decorator(func: Callable[[dict, int], str]):
         for e in ext:
             _dumpers[e] = func
         return func
@@ -339,9 +356,8 @@ def json_loader(text: str) -> dict:
 
 
 @register_dumper("json")
-def json_dumper(save_path: Path, origin: dict, indent: int):
-    with save_path.open("w+", encoding="utf-8") as f:
-        json.dump(origin, f, indent=indent, ensure_ascii=False)
+def json_dumper(origin: dict, indent: int):
+    return json.dumps(origin, indent=indent, ensure_ascii=False)
 
 
 @register_loader("yaml", "yml")
@@ -355,11 +371,12 @@ def yaml_loader(text: str) -> dict:
 
 
 @register_dumper("yaml", "yml")
-def yaml_dumper(save_path: Path, origin: dict, indent: int):
+def yaml_dumper(origin: dict, indent: int):
     if YAML is None:
         raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
     yaml = YAML()
     yaml.preserve_quotes = True
     yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
-    with save_path.open("w+", encoding="utf-8") as f:
-        yaml.dump(origin, f)
+    sio = StringIO()
+    yaml.dump(origin, sio)
+    return sio.getvalue()
