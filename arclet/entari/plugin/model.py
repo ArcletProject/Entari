@@ -14,6 +14,7 @@ from arclet.letoderea import SUBSCRIBER, Contexts, Propagator, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
+from arclet.letoderea.scope import RegisterWrapper
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
@@ -55,17 +56,21 @@ class PluginDispatcher(Generic[T]):
 
     def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, once: bool = False):  # noqa: E501
         _providers = providers or []
-        wrapper = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # noqa: E501 # type: ignore
+        wrapper: RegisterWrapper[T, None] = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # type: ignore # noqa: E501
 
-        def decorator(func1, /):
+        old_call = wrapper.__call__
+
+        def __call__(func1: Callable[..., T], /) -> Subscriber[T]:
             self.plugin.validate(func1)
-            sub = wrapper(func1)
+            sub = old_call(func1)
             sub.propagates(*self.propagators)
             return sub
 
+        wrapper.__call__ = __call__  # type: ignore
         if func:
-            return decorator(func)
-        return decorator
+            return wrapper(func)
+        return wrapper
+
 
     def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if func:
@@ -424,12 +429,6 @@ class Plugin:
         return PluginDispatcher(self, event, name=name)
 
     # fmt: off
-
-    @overload
-    def use(self,  pub: str | Publisher, *, priority: int = 16, providers: TProviders | None = None) -> Callable[[Callable[..., Any]], Subscriber]: ...  # noqa: E501
-
-    @overload
-    def use(self, pub: str | Publisher, func: Callable[..., Any], *, priority: int = 16, providers: TProviders | None = None) -> Subscriber: ...  # noqa: E501
 
     def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if self.is_static:

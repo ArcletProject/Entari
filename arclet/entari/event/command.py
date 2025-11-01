@@ -12,13 +12,13 @@ class CommandExecute:
 
     async def gather(self, context: Contexts):
         if isinstance(self.message, str):
-            context["message"] = MessageChain(self.message)
+            context["$message"] = MessageChain(self.message)
         else:
-            context["message"] = self.message
+            context["$message"] = self.message
 
     class CommandProvider(Provider[MessageChain]):
         async def __call__(self, context: Contexts):
-            return context.get("message")
+            return context.get("$message")
 
     def check_result(self, value) -> Result[str | MessageChain] | None:
         if isinstance(value, str | MessageChain):

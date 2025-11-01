@@ -24,14 +24,14 @@ class SendRequest:
 
 
 before_send_pub = define(SendRequest, name="entari.event/before_send")
-before_send_pub.bind(provide(MessageChain, target="message"))
+before_send_pub.bind(provide(MessageChain, target="message", call="$message"))
 
 
 @before_send_pub.gather
 async def req_gather(req: SendRequest, context: Contexts):
-    context["account"] = req.account
-    context["channel"] = req.channel
-    context["message"] = req.message
+    context["$account"] = req.account
+    context["$channel"] = req.channel
+    context["$message"] = req.message
     if req.session:
         context["session"] = req.session
 
@@ -46,15 +46,15 @@ class SendResponse:
 
 
 send_pub = define(SendResponse, name="entari.event/after_send")
-send_pub.bind(provide(MessageChain, target="message"))
+send_pub.bind(provide(MessageChain, target="message", call="$message"))
 send_pub.bind(provide(list, target="result"))
 
 
 @send_pub.gather
 async def resp_gather(resp: SendResponse, context: Contexts):
-    context["account"] = resp.account
-    context["channel"] = resp.channel
-    context["message"] = resp.message
+    context["$account"] = resp.account
+    context["$channel"] = resp.channel
+    context["$message"] = resp.message
     context["result"] = resp.result
     if resp.session:
         context["session"] = resp.session

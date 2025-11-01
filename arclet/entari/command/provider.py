@@ -49,7 +49,7 @@ class MessageJudges(Propagator):
             return STOP
         if "$message_content" in ctx:
             return {"$message_content": message}
-        return {"message": message}
+        return {"$message": message}
 
     def compose(self):
         yield self.judge, True, 60

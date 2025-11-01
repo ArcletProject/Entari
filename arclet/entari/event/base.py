@@ -97,13 +97,13 @@ class SatoriEvent:
         self._origin = origin
 
     async def gather(self, context: Contexts):
-        context["account"] = self.account
+        context["$account"] = self.account
         context["$origin_event"] = self._origin
 
         for name in self.__class__._attrs:
             value = getattr(self, name)
             if value is not None:
-                context["$message_origin" if name == "message" else name] = value
+                context["$message_origin" if name == "message" else f"${name}"] = value
 
     class TimeProvider(Provider[datetime]):
         async def __call__(self, context: Contexts):
@@ -117,16 +117,16 @@ class SatoriEvent:
             return param.name == "operator" and super().validate(param)
 
         async def __call__(self, context: Contexts):
-            if "operator" in context:
-                return context["operator"]
+            if "$operator" in context:
+                return context["$operator"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].operator
 
     class UserProvider(Provider[User]):
         async def __call__(self, context: Contexts):
-            if "user" in context:
-                return context["user"]
+            if "$user" in context:
+                return context["$user"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].user
@@ -141,40 +141,40 @@ class SatoriEvent:
 
     class ChannelProvider(Provider[Channel]):
         async def __call__(self, context: Contexts):
-            if "channel" in context:
-                return context["channel"]
+            if "$channel" in context:
+                return context["$channel"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].channel
 
     class GuildProvider(Provider[Guild]):
         async def __call__(self, context: Contexts):
-            if "guild" in context:
-                return context["guild"]
+            if "$guild" in context:
+                return context["$guild"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].guild
 
     class MemberProvider(Provider[Member]):
         async def __call__(self, context: Contexts):
-            if "member" in context:
-                return context["member"]
+            if "$member" in context:
+                return context["$member"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].member
 
     class RoleProvider(Provider[Role]):
         async def __call__(self, context: Contexts):
-            if "role" in context:
-                return context["role"]
+            if "$role" in context:
+                return context["$role"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].role
 
     class LoginProvider(Provider[Login]):
         async def __call__(self, context: Contexts):
-            if "login" in context:
-                return context["login"]
+            if "$login" in context:
+                return context["$login"]
             if "$origin_event" not in context:
                 return
             return context["$origin_event"].login
@@ -202,7 +202,7 @@ class GuildEvent(NoticeEvent):
 
     async def gather(self, context: Contexts):
         await super().gather(context)
-        context["guild"] = self.guild
+        context["$guild"] = self.guild
 
 
 class GuildAddedEvent(GuildEvent):

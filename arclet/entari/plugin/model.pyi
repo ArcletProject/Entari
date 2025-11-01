@@ -7,10 +7,10 @@ from typing_extensions import NotRequired, Self
 
 from arclet.letoderea import ExitState, Propagator, Provider, ProviderFactory, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut
-from arclet.letoderea.decorate import _Check
+from arclet.letoderea.decorate import Check
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
-from arclet.letoderea.scope import _Wrapper
+from arclet.letoderea.scope import RegisterWrapper
 from arclet.letoderea.typing import Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
@@ -74,7 +74,7 @@ class PluginDispatcher(Generic[T]):
     @overload
     def register(
         self, *, priority: int = 16, providers: TProviders | None = None, once: bool = False
-    ) -> _Wrapper[T]: ...  # noqa: E501
+    ) -> RegisterWrapper[T, None]: ...  # noqa: E501
     @overload
     def once(
         self,
@@ -104,7 +104,9 @@ class PluginDispatcher(Generic[T]):
         self, func: Callable[..., T | ExitState | None], *, priority: int = 16, providers: TProviders | None = None
     ) -> Subscriber[T]: ...
     @overload
-    def once(self, *, priority: int = 16, providers: TProviders | None = None) -> _Wrapper[T]: ...  # noqa: E501
+    def once(
+        self, *, priority: int = 16, providers: TProviders | None = None
+    ) -> RegisterWrapper[T, None]: ...  # noqa: E501
     on = register
     handle = register
     __call__ = register
@@ -141,7 +143,7 @@ class PluginMetadata:
 @overload
 def inject(*services: type[Service] | str | DependService) -> Callable[[TCallable], TCallable]: ...
 @overload
-def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> _Check: ...
+def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> Check: ...
 @dataclass
 class Plugin:
     id: str
@@ -223,7 +225,7 @@ class Plugin:
     @overload
     def use(
         self, pub: Publisher[Resultable[T]], *, priority: int = 16, providers: TProviders | None = None
-    ) -> _Wrapper[T]: ...
+    ) -> RegisterWrapper[T, None]: ...
     @overload
     def use(
         self, pub: Publisher[Any], func: Callable[..., T], *, priority: int = 16, providers: TProviders | None = None
@@ -231,7 +233,7 @@ class Plugin:
     @overload
     def use(
         self, pub: Publisher[Any], *, priority: int = 16, providers: TProviders | None = None
-    ) -> Callable[[Callable[..., T]], Subscriber[T]]: ...
+    ) -> RegisterWrapper[None, Callable]: ...
     @overload
     def use(
         self, pub: str, func: Callable[..., T], *, priority: int = 16, providers: TProviders | None = None
@@ -239,7 +241,7 @@ class Plugin:
     @overload
     def use(
         self, pub: str, *, priority: int = 16, providers: TProviders | None = None
-    ) -> Callable[[Callable[..., T]], Subscriber[T]]: ...
+    ) -> RegisterWrapper[None, Callable]: ...
     def validate(self, func) -> None: ...
     def proxy(self) -> ModuleType: ...
     def subproxy(self, sub_id: str) -> ModuleType: ...

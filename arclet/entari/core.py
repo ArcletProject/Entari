@@ -39,7 +39,7 @@ from .session import EntariProtocol, Session
 
 class ApiProtocolProvider(Provider[ApiProtocol]):
     async def __call__(self, context: Contexts):
-        if account := context.get("account"):
+        if account := context.get("$account"):
             return account.protocol
 
 
@@ -54,8 +54,8 @@ class SessionProviderFactory(ProviderFactory):
                 return
             if "$session" in context and isinstance(context["$session"], Session):
                 return context["$session"]
-            if "$origin_event" in context and "account" in context:
-                session = Session(context["account"], context["$event"])
+            if "$origin_event" in context and "$account" in context:
+                session = Session(context["$account"], context["$event"])
                 if "$message_content" in context:
                     session.elements = context["$message_content"]
                 if "$message_reply" in context:
@@ -74,8 +74,8 @@ class SessionProviderFactory(ProviderFactory):
 
 class AccountProvider(Provider[Account]):
     async def __call__(self, context: Contexts):
-        if "account" in context:
-            return context["account"]
+        if "$account" in context:
+            return context["$account"]
 
 
 global_providers.extend([ApiProtocolProvider(), SessionProviderFactory(), AccountProvider()])
