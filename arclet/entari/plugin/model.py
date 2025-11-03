@@ -71,7 +71,6 @@ class PluginDispatcher(Generic[T]):
             return wrapper(func)
         return wrapper
 
-
     def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         if func:
             return self.register(func, priority=priority, providers=providers, once=True)

@@ -48,8 +48,7 @@ async def filter_content(session: Session):
     return str(session.content) == "aaa"
 
 
-@disp_message.on()
-@filter_content
+@disp_message.on().if_(filter_content)
 async def _(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
