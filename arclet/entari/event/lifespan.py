@@ -1,4 +1,4 @@
-from arclet.letoderea import make_event
+from arclet.letoderea import make_event, provide
 from satori.client import Account
 from satori.model import LoginStatus
 
@@ -22,3 +22,5 @@ class Cleanup:
 class AccountUpdate:
     account: Account
     status: LoginStatus
+
+    providers = [provide(Account, call="account")]

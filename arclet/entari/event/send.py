@@ -24,7 +24,7 @@ class SendRequest:
 
 
 before_send_pub = define(SendRequest, name="entari.event/before_send")
-before_send_pub.bind(provide(MessageChain, target="message", call="$message"))
+before_send_pub.bind(provide(MessageChain, call="$message"))
 
 
 @before_send_pub.gather
@@ -46,7 +46,7 @@ class SendResponse:
 
 
 send_pub = define(SendResponse, name="entari.event/after_send")
-send_pub.bind(provide(MessageChain, target="message", call="$message"))
+send_pub.bind(provide(MessageChain, call="$message"))
 send_pub.bind(provide(list, target="result"))
 
 
@@ -57,4 +57,4 @@ async def resp_gather(resp: SendResponse, context: Contexts):
     context["$message"] = resp.message
     context["result"] = resp.result
     if resp.session:
-        context["session"] = resp.session
+        context["$session"] = resp.session

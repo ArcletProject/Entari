@@ -114,16 +114,16 @@ def record(plg: RootlessPlugin):
     if cfg.record_send:
 
         @plg.dispatch(SendResponse)
-        async def log_send(sr: SendResponse):
-            if sr.session:
-                event = sr.session.event
-                if "guild.plain" in event.login.features or not event.guild or (event.guild and event.guild.id == event.channel.id):  # noqa: E501
-                    scene = f"[{event.channel.name or event.channel.id}" + f"({event.channel.id})]" if event.channel.name else "]"  # noqa: E501
+        async def log_send(event: SendResponse):
+            if event.session:
+                ev = event.session.event
+                if "guild.plain" in ev.login.features or not ev.guild or (ev.guild and ev.guild.id == ev.channel.id):  # noqa: E501
+                    scene = f"[{ev.channel.name or ev.channel.id}" + f"({ev.channel.id})]" if ev.channel.name else "]"  # noqa: E501
                 else:
-                    scene = f"[{event.guild.name or event.guild.id}" + (f"({event.guild.id})" if event.guild.name else "") + f" / {event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
-                log.message.info(f"{scene} <- {sr.message.display()!r}")
+                    scene = f"[{ev.guild.name or ev.guild.id}" + (f"({ev.guild.id})" if ev.guild.name else "") + f" / {ev.channel.name or ev.channel.id}" + (f"({ev.channel.id})]" if ev.channel.name else "]")  # noqa: E501
+                log.message.info(f"{scene} <- {event.message.display()!r}")
             else:
-                log.message.info(f"[{sr.channel}] <- {sr.message.display()!r}")
+                log.message.info(f"[{event.channel}] <- {event.message.display()!r}")
 
     # fmt: on
 
