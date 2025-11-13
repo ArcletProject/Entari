@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable
-from typing import Any, Generic, NoReturn, TypeVar, cast, overload
+from typing import Any, Generic, NoReturn, cast, overload
+from typing_extensions import TypeVar
 
 from arclet.letoderea import STOP, es, step_out
 from satori import ChannelType, Quote
@@ -34,7 +35,7 @@ from .event.base import (
 from .event.send import SendRequest, SendResponse
 from .message import MessageChain
 
-TEvent = TypeVar("TEvent", bound=SatoriEvent)
+TEvent = TypeVar("TEvent", bound=SatoriEvent, default=SatoriEvent)
 T = TypeVar("T")
 
 

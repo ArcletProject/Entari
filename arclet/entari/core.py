@@ -14,7 +14,7 @@ from arclet.letoderea.scope import configure
 from creart import it
 from graia.amnesia.builtins.memcache import MemcacheService
 from launart import Launart, Service
-from satori import LoginStatus
+from satori import Channel, LoginStatus
 from satori.client import App
 from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
@@ -105,7 +105,7 @@ def record(plg: RootlessPlugin):
         if cfg.to_me_only and not is_notice_me and not is_reply_me:
             return
         if "guild.plain" in event.login.features or not event.guild or (event.guild and event.guild.id == event.channel.id):  # noqa: E501
-            scene = f"[{event.channel.name or event.channel.id}" + f"({event.channel.id})]" if event.channel.name else "]"  # noqa: E501
+            scene = f"[{event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
         else:
             scene = f"[{event.guild.name or event.guild.id}" + (f"({event.guild.id})" if event.guild.name else "") + f" / {event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
 
@@ -117,8 +117,10 @@ def record(plg: RootlessPlugin):
         async def log_send(event: SendResponse):
             if event.session:
                 ev = event.session.event
+                if not ev.channel:
+                    ev.channel = Channel(event.channel)
                 if "guild.plain" in ev.login.features or not ev.guild or (ev.guild and ev.guild.id == ev.channel.id):  # noqa: E501
-                    scene = f"[{ev.channel.name or ev.channel.id}" + f"({ev.channel.id})]" if ev.channel.name else "]"  # noqa: E501
+                    scene = f"[{ev.channel.name or ev.channel.id}" + (f"({ev.channel.id})]" if ev.channel.name else "]")  # noqa: E501
                 else:
                     scene = f"[{ev.guild.name or ev.guild.id}" + (f"({ev.guild.id})" if ev.guild.name else "") + f" / {ev.channel.name or ev.channel.id}" + (f"({ev.channel.id})]" if ev.channel.name else "]")  # noqa: E501
                 log.message.info(f"{scene} <- {event.message.display()!r}")

@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, TypeVar, overload
 
 from arclet.letoderea import Contexts, Param, Provider, define
 from satori import ArgvInteraction, ButtonInteraction, Channel
@@ -53,28 +54,56 @@ def _remove_notice_me(message: MessageChain, account: Account):
     return message
 
 
-class Attr(Generic[T]):
-    def __init__(self, key: str | None = None):
-        self.key = key
+class Attr:
+    def __init__(self, key: str | None = None, cls: Callable[..., T] | None = None, internal: bool = False):
+        self.key = key or ""
+        self.cls_ = cls
+        self.internal = internal
 
     def __set_name__(self, owner: type["SatoriEvent"], name: str):
         self.key = self.key or name
         if name not in ("id", "timestamp"):
             owner._attrs.add(name)
 
-    def __get__(self, instance: "SatoriEvent", owner: type["SatoriEvent"]) -> T:
-        return getattr(instance._origin, self.key, None)  # type: ignore
+    def __get__(self, instance: "SatoriEvent", owner: type["SatoriEvent"]):
+        if self.internal and instance._origin._data:
+            val = instance._origin._data.get(self.key)
+        else:
+            val = getattr(instance._origin, self.key, None)
+        if self.cls_ and val is not None:
+            return self.cls_(val)
+        return val
 
     def __set__(self, instance: "SatoriEvent", value):
         raise AttributeError("can't set attribute")
 
 
-def attr(key: str | None = None) -> Any:
-    return Attr(key)
+@overload
+def attr(*, internal: bool = False) -> Any: ...
+
+
+@overload
+def attr(key: str, /, *, internal: bool = False) -> Any: ...
+
+
+@overload
+def attr(cls: Callable[..., T], /, *, internal: bool = False) -> T: ...
+
+
+@overload
+def attr(key: str, cls: Callable[..., T], /, *, internal: bool = False) -> T: ...
+
+
+def attr(*args, internal: bool = False) -> Any:
+    if not args:
+        return Attr(internal=internal)
+    key = args[0] if isinstance(args[0], str) else None
+    cls = args[1] if len(args) == 2 else (args[0] if not isinstance(args[0], str) else None)
+    return Attr(key, cls, internal)
 
 
 class SatoriEvent:
-    type: ClassVar[EventType]
+    type: ClassVar[str]
     _attrs: ClassVar[set[str]] = set()
     _origin: OriginEvent
     account: Account
@@ -106,6 +135,9 @@ class SatoriEvent:
                 context["$message_origin" if name == "message" else f"${name}"] = value
 
     class TimeProvider(Provider[datetime]):
+        def validate(self, param: Param):
+            return super().validate(param) and param.name == "event_time"
+
         async def __call__(self, context: Contexts):
             if "$event" in context:
                 return context["$event"].timestamp
@@ -180,7 +212,7 @@ class SatoriEvent:
             return context["$origin_event"].login
 
     def __repr__(self):
-        return f"<{self.__class__.__name__[:-5]}{self._origin!r}>"
+        return f"<{self.__class__.__name__.removesuffix('Event')}{self._origin!r}>"
 
 
 class NoticeEvent(SatoriEvent):
@@ -394,12 +426,25 @@ MAPPING: dict[str, type[SatoriEvent]] = {}
 
 for cls in gen_subclass(SatoriEvent):
     if hasattr(cls, "type"):
-        MAPPING[cls.type.value] = cls
-        define(cls, name=cls.type.value)
+        typ = cls.type.value if isinstance(cls.type, EventType) else cls.type
+        MAPPING[typ] = cls
+        define(cls, name=typ)
+
+
+INTERNAL_ADDITIONAL_HANDLERS: list[Callable[[str, str, dict[str, Any]], type[SatoriEvent] | None]] = []
 
 
 def event_parse(account: Account, event: OriginEvent):
-    try:
-        return MAPPING[event.type](account, event)
-    except KeyError:
-        raise NotImplementedError from None
+    constructor_cls = MAPPING.get(event.type)
+    if (constructor_cls is None or event.type == EventType.INTERNAL) and event._type and event._data:
+        found = next((h(event.type, event._type, event._data) for h in INTERNAL_ADDITIONAL_HANDLERS), None)
+        if found is not None:
+            constructor_cls = found
+            define(constructor_cls, name=constructor_cls.type)
+    if constructor_cls is None:
+        raise NotImplementedError(f"Unsupported event type: {event.type}")
+    return constructor_cls(account, event)
+
+
+def register_internal_event(func: Callable[[str, str, dict[str, Any]], type[SatoriEvent] | None]):
+    INTERNAL_ADDITIONAL_HANDLERS.append(func)
