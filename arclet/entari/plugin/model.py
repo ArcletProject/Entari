@@ -58,15 +58,16 @@ class PluginDispatcher(Generic[T]):
         _providers = providers or []
         wrapper: RegisterWrapper[T, None] = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # type: ignore # noqa: E501
 
-        old_call = wrapper.__call__
+        old_call = RegisterWrapper.__call__
 
-        def __call__(func1: Callable[..., T], /) -> Subscriber[T]:
+        def _call(self_, func1: Callable[..., T], /) -> Subscriber[T]:
             self.plugin.validate(func1)
-            sub = old_call(func1)
+            sub = old_call(self_, func1)
             sub.propagates(*self.propagators)
+            RegisterWrapper.__call__ = old_call  # type: ignore
             return sub
 
-        wrapper.__call__ = __call__  # type: ignore
+        RegisterWrapper.__call__ = _call  # type: ignore
         if func:
             return wrapper(func)
         return wrapper

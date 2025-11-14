@@ -121,6 +121,9 @@ class SatoriEvent:
     role: Role | None = attr()
     user: User | None = attr()
 
+    def __init_subclass__(cls, **kwargs):
+        cls._attrs = set()
+
     def __init__(self, account: Account, origin: OriginEvent):
         self.account = account
         self._origin = origin

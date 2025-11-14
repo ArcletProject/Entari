@@ -699,7 +699,7 @@ class Session(Generic[TEvent]):
             self.event.channel.id, message_id or self.event.message.id, emoji, next_token  # type: ignore
         )
 
-    async def request_approve(self, approve: bool, comment: str):
+    async def request_approve(self, approve: bool, comment: str = ""):
         """处理请求。
 
         Args:
@@ -716,7 +716,7 @@ class Session(Generic[TEvent]):
             return await self.guild_member_approve(approve, comment)
         raise RuntimeError("Event cannot approve request")
 
-    async def friend_approve(self, approve: bool, comment: str):
+    async def friend_approve(self, approve: bool, comment: str = ""):
         """处理好友申请。
 
         Args:
@@ -730,7 +730,7 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot approve friend request")
         return await self.account.protocol.friend_approve(self.event.message.id, approve, comment)
 
-    async def guild_approve(self, approve: bool, comment: str):
+    async def guild_approve(self, approve: bool, comment: str = ""):
         """处理来自群组的邀请。
 
         Args:
@@ -744,7 +744,7 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot approve guild request")
         return await self.account.protocol.guild_approve(self.event.message.id, approve, comment)
 
-    async def guild_member_approve(self, approve: bool, comment: str):
+    async def guild_member_approve(self, approve: bool, comment: str = ""):
         """处理来自群组的加群请求。
 
         Args:
