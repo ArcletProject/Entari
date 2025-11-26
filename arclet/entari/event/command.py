@@ -36,10 +36,12 @@ class CommandOutput:
         context["$session"] = self.session
         context["$out_command"] = self.command
         context["$out_content"] = self.content
+        context["$out_type"] = self.type
 
     providers = [
         provide(Alconna, call="$out_command"),
-        provide(str, call="$out_content"),
+        provide(str, target="content", call="$out_content"),
+        provide(str, target="type", call="$out_type"),
     ]
 
     def check_result(self, value) -> Result[str | bool | MessageChain] | None:

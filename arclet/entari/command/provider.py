@@ -9,7 +9,7 @@ from arclet.letoderea.exceptions import ProviderUnsatisfied
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
 from satori.element import Text
-from tarina.generic import get_origin
+from tarina.generic import get_origin, origin_is_union
 
 from ..config import EntariConfig
 from ..event.base import Reply
@@ -17,6 +17,14 @@ from ..event.command import CommandOutput, CommandParse, CommandReceive
 from ..message import MessageChain
 from ..session import Session
 from .model import CommandResult, Match, Query
+
+
+def is_optional(annotation: Any) -> bool:
+    origin = get_origin(annotation)
+    if origin_is_union(origin):
+        args = get_args(annotation)
+        return type(None) in args
+    return False
 
 
 def _remove_config_prefix(message: MessageChain):
@@ -58,8 +66,9 @@ class MessageJudges(Propagator):
 class AlconnaSuppiler(Propagator):
     cmd: Alconna
 
-    def __init__(self, cmd: Alconna):
+    def __init__(self, cmd: Alconna, skip_for_unmatch: bool = True):
         self.cmd = cmd
+        self.skip_for_unmatch = skip_for_unmatch
 
     async def before_supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
         if session:
@@ -79,6 +88,12 @@ class AlconnaSuppiler(Propagator):
             except Exception as e:
                 _res = Arparma(self.cmd._hash, _message, False, error_info=e)
             may_help_text: str | None = cap.get("output", None)
+        if not _res.head_matched:
+            return STOP
+        if not may_help_text and not _res.matched and self.skip_for_unmatch:
+            return STOP
+        if not may_help_text and _res.error_info:
+            may_help_text = repr(_res.error_info)
         return {"_result": CommandResult(self.cmd, _res, may_help_text)}
 
     async def after_supply(self, ctx: Contexts, session: Session | None = None):
@@ -141,14 +156,20 @@ class AlconnaProvider(Provider[Any]):
         if self.type == "duplication":
             return self.extra["duplication"](result.result)
         if self.type == "match":
-            target = result.result.all_matched_args.get(self.extra["name"], Empty)
+            default_ = Empty
+            if is_optional(self.extra["anno"]):
+                default_ = None
+            target = result.result.all_matched_args.get(self.extra["name"], default_)
             return Match(target, target != Empty)
         if self.type == "query":
-            q = Query(self.extra["query"].path, self.extra["query"].result)
+            default_ = self.extra["query"].result
+            if is_optional(self.extra["anno"]):
+                default_ = None
+            q = Query(self.extra["query"].path, default_)
             res = result.result.query(q.path, Empty)
             q.available = res != Empty
             if q.available:
-                q.result = res
+                q.result = res  # type: ignore
             elif self.extra["query"].result != Empty:
                 q.available = True
             return q
@@ -200,7 +221,9 @@ class AlconnaProviderFactory(ProviderFactory):
         if inspect.isclass(annotation) and issubclass(annotation, Duplication):
             return AlconnaProvider("duplication", {"duplication": param.annotation})
         if annotation is Match:
-            return AlconnaProvider("match", {"name": param.name})
+            return AlconnaProvider("match", {"name": param.name, "anno": param.annotation})
         if isinstance(param.default, Query):
-            return AlconnaProvider("query", {"query": param.default})
+            return AlconnaProvider("query", {"query": param.default, "anno": param.annotation})
+        if annotation is Query:
+            return AlconnaProvider("query", {"query": Query(param.name, Empty), "anno": param.annotation})
         return AlconnaProvider("args", {"name": param.name, "anno": param.annotation})

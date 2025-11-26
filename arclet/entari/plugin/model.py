@@ -10,7 +10,18 @@ from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
 from weakref import finalize, proxy
 
-from arclet.letoderea import SUBSCRIBER, Contexts, Propagator, Scope, Subscriber, define, enter_if, propagate, publish
+from arclet.letoderea import (
+    SUBSCRIBER,
+    Contexts,
+    ExitState,
+    Propagator,
+    Scope,
+    Subscriber,
+    define,
+    enter_if,
+    propagate,
+    publish,
+)
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
@@ -80,6 +91,13 @@ class PluginDispatcher(Generic[T]):
     # fmt: on
     on = register
     handle = register
+
+    def finish(self, value=None, block=True):
+        if value is None:
+            return ExitState.block if block else ExitState.stop
+        if block:
+            return ExitState.block.finish(value)
+        return ExitState.stop.finish(value=value)
 
     def __call__(self, func):
         return self.register()(func)

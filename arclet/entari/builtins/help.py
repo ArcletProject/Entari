@@ -1,10 +1,11 @@
+from collections.abc import Generator
 from dataclasses import field
 import random
+from typing import Literal, overload
 
 from arclet.alconna import (
     Alconna,
     Args,
-    Arparma,
     CommandMeta,
     Field,
     Option,
@@ -98,15 +99,21 @@ for alias in set(config.help_all_alias):
     help_cmd.shortcut(alias, {"args": ["--hide"], "prefix": True, "fuzzy": False})
 
 
-def help_cmd_handle(arp: Arparma, interactive: bool = False):
-    is_namespace = arp.query[SubcommandResult]("namespace")
-    page = arp.query[int]("page.index", 1)
+@overload
+def help_cmd_handle(is_namespace: SubcommandResult | None, query: str, page: int, hide: bool) -> str: ...
+
+
+@overload
+def help_cmd_handle(
+    is_namespace: SubcommandResult | None, query: str, page: int, hide: bool, interactive: Literal[True]
+) -> Generator[str, str, None]: ...
+
+
+def help_cmd_handle(
+    is_namespace: SubcommandResult | None, query: str, page: int, hide: bool, interactive: bool = False
+):
     target_namespace = is_namespace.args.get("target") if is_namespace else None
-    cmds = [
-        i
-        for i in command_manager.get_commands(target_namespace or "")
-        if not i.meta.hide or arp.query[bool]("hide.value", False)
-    ]
+    cmds = [i for i in command_manager.get_commands(target_namespace or "") if not i.meta.hide or hide]
     if is_namespace and is_namespace.options["list"].value and not target_namespace:
         namespaces = {i.namespace: 0 for i in cmds}
         return "\n".join(
@@ -119,7 +126,7 @@ def help_cmd_handle(arp: Arparma, interactive: bool = False):
 
     footer = lang.require("manager", "help_footer").format(help="|".join(sorted(help_names, key=lambda x: len(x))))
     show_namespace = is_namespace and not is_namespace.options["list"].value and not target_namespace
-    if (query := arp.all_matched_args["query"]) != "-1":
+    if query != "-1":
         if query.isdigit():
             index = int(query)
             if index < 0 or index >= len(cmds):
@@ -197,19 +204,30 @@ def help_cmd_handle(arp: Arparma, interactive: bool = False):
     return generator(page)
 
 
-disp = command.mount(help_cmd)
+disp = command.mount(help_cmd, skip_for_unmatch=False)
 
 
 @disp.on_execute()
-async def help_exec(arp: Arparma):
-    return help_cmd_handle(arp)
+async def help_exec(
+    query: command.Match[str],
+    page: command.Query[int] = command.Query("page.index", 1),
+    hide: command.Query[bool] = command.Query("hide.value", False),
+    is_namespace: command.Query[SubcommandResult | None] = command.Query("namespace"),
+):
+    return help_cmd_handle(is_namespace.result, query.result, page.result, hide.result)
 
 
-@disp.handle
-async def help_handle(arp: Arparma, session: Session):
-    resp = help_cmd_handle(arp, True)
+@disp.handle(priority=16)
+async def help_handle(
+    session: Session,
+    query: command.Match[str],
+    page: command.Query[int] = command.Query("page.index", 1),
+    hide: command.Query[bool] = command.Query("hide.value", False),
+    is_namespace: command.Query[SubcommandResult | None] = command.Query("namespace"),
+):
+    resp = help_cmd_handle(is_namespace.result, query.result, page.result, hide.result, True)
     if isinstance(resp, str):
-        return await session.send(resp)
+        return disp.finish(await session.send(resp))
 
     async def receiver(sess1: Session):
         if (ans := str(sess1.content).strip().lower()) in {"<", "a", ">", "d"}:
@@ -218,6 +236,6 @@ async def help_handle(arp: Arparma, session: Session):
     msg = await session.prompt(receiver, next(resp), timeout=15)
     while msg:
         try:
-            msg = await session.prompt(resp.send(msg), timeout=15)
+            msg = str(await session.prompt(resp.send(msg), timeout=15))
         except StopIteration:
-            return
+            return disp.finish()

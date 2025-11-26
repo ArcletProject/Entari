@@ -107,6 +107,7 @@ class PluginDispatcher(Generic[T]):
     def once(
         self, *, priority: int = 16, providers: TProviders | None = None
     ) -> RegisterWrapper[T, None]: ...  # noqa: E501
+    def finish(self, value: Any = None, block: bool = False) -> ExitState: ...
     on = register
     handle = register
     __call__ = register
