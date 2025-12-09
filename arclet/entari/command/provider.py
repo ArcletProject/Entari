@@ -19,10 +19,14 @@ from ..session import Session
 from .model import CommandResult, Match, Query
 
 
-def is_optional(annotation: Any) -> bool:
-    origin = get_origin(annotation)
+def _is_optional(annotation: Any) -> bool:
+    args = get_args(annotation)
+    if not args:
+        return False
+    arg = args[0]
+    origin = get_origin(arg)
     if origin_is_union(origin):
-        args = get_args(annotation)
+        args = get_args(arg)
         return type(None) in args
     return False
 
@@ -157,13 +161,13 @@ class AlconnaProvider(Provider[Any]):
             return self.extra["duplication"](result.result)
         if self.type == "match":
             default_ = Empty
-            if is_optional(self.extra["anno"]):
+            if _is_optional(self.extra["anno"]):
                 default_ = None
             target = result.result.all_matched_args.get(self.extra["name"], default_)
             return Match(target, target != Empty)
         if self.type == "query":
             default_ = self.extra["query"].result
-            if is_optional(self.extra["anno"]):
+            if _is_optional(self.extra["anno"]):
                 default_ = None
             q = Query(self.extra["query"].path, default_)
             res = result.result.query(q.path, Empty)

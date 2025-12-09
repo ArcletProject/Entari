@@ -45,6 +45,20 @@ TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
 
 
+def _make_scope(plugin: Plugin):
+    class PluginRegisterWrapper(RegisterWrapper):
+        _plugin: Plugin = plugin
+
+        def __call__(self, func: Callable, /) -> Subscriber[T]:
+            self._plugin.validate(func)
+            return super().__call__(func)
+
+    class PluginScope(Scope):
+        __wrapper_class__ = PluginRegisterWrapper
+
+    return PluginScope
+
+
 class PluginDispatcher(Generic[T]):
     def __init__(self, plugin: Plugin, event: type, name: str | None = None):
         self.publisher = define(event, name=name)
@@ -65,28 +79,20 @@ class PluginDispatcher(Generic[T]):
 
         return step_out(event, providers=providers, priority=priority, block=block)
 
-    def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, once: bool = False):  # noqa: E501
+    def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None, once: bool = False):  # noqa: E501
         _providers = providers or []
-        wrapper: RegisterWrapper[T, None] = self.plugin._scope.register(priority=priority, providers=[*self.providers, *_providers], once=once, publisher=self.publisher)  # type: ignore # noqa: E501
-
-        old_call = RegisterWrapper.__call__
-
-        def _call(self_, func1: Callable[..., T], /) -> Subscriber[T]:
-            self.plugin.validate(func1)
-            sub = old_call(self_, func1)
-            sub.propagates(*self.propagators)
-            RegisterWrapper.__call__ = old_call  # type: ignore
-            return sub
-
-        RegisterWrapper.__call__ = _call  # type: ignore
+        _propagators = propagators or []
+        wrapper = self.plugin._scope.register(
+            priority=priority, providers=[*self.providers, *_providers], propagators=[*self.propagators, *_propagators], once=once, publisher=self.publisher  # noqa: E501
+        )
         if func:
             return wrapper(func)
         return wrapper
 
-    def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
+    def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
         if func:
-            return self.register(func, priority=priority, providers=providers, once=True)
-        return self.register(priority=priority, providers=providers, once=True)
+            return self.register(func, priority=priority, providers=providers, propagators=propagators, once=True)
+        return self.register(priority=priority, providers=providers, propagators=propagators, once=True)
 
     # fmt: on
     on = register
@@ -322,7 +328,7 @@ class Plugin:
         uid_index = self.id.rfind("@")
         self.path = self.id[:uid_index] if uid_index != -1 else self.id
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
-        self._scope = Scope.of(self.id)
+        self._scope = _make_scope(self).of(self.id)
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
         allow = self.config.get("$allow", {})
@@ -448,7 +454,7 @@ class Plugin:
 
     # fmt: off
 
-    def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
+    def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot use events by `Plugin.use`")
         if isinstance(pub, str):
@@ -461,8 +467,8 @@ class Plugin:
             raise LookupError(f"no publisher found: {pid}")
         disp = PluginDispatcher(self, _publishers[pid].target)
         if func:
-            return disp.register(func=func, priority=priority, providers=providers)
-        return disp.register(priority=priority, providers=providers)
+            return disp.register(func=func, priority=priority, providers=providers, propagators=propagators)
+        return disp.register(priority=priority, providers=providers, propagators=propagators)
 
     # fmt: on
 

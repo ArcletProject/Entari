@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from arclet.alconna import Alconna, command_manager
-from arclet.letoderea import define, use
+from arclet.letoderea import define, deref, use
 from arclet.letoderea.provider import TProviders
 
 from ..event.base import MessageCreatedEvent
@@ -37,29 +37,15 @@ class AlconnaPluginDispatcher(PluginDispatcher):
 
     def assign(self, path: str, value: Any = _seminal, or_not: bool = False, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
         assign = Assign(path, value, or_not)
-        wrapper = self.register(priority=priority, providers=providers)
-
-        def decorator(func):
-            sub = wrapper(func)
-            sub.propagate(assign)
-            return sub
-
-        return decorator
+        return self.register(priority=priority, providers=providers, propagators=[assign])
 
     def on_execute(self, priority: int = 16, providers: TProviders | None = None):
         with self.plugin._scope.context():
-            wrapper = use(exec_pub, priority=priority, providers=providers)
-
-            def decorator(func):
-                sub = wrapper(func)
-                sub.propagate(self.supplier)
-                return sub
-
-            return decorator
+            return use(exec_pub, priority=priority, providers=providers, propagators=[self.supplier])
 
     def on_output(self, priority: int = 16, providers: TProviders | None = None):
         with self.plugin._scope.context():
-            return use(out_pub, priority=priority, providers=providers)
+            return use(out_pub, priority=priority, providers=providers).if_(deref(Alconna) == self.supplier.cmd)
 
     Match = Match
     Query = Query
