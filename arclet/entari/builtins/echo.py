@@ -32,6 +32,6 @@ async def echo(content: Match[MessageChain], arp: Arparma):
     if arp.find("unescape"):
         return MessageChain.of(content.result.extract_plain_text())
     elif arp.find("escape"):
-        return str(content.result)
+        return MessageChain(str(content.result))
     else:
         return content.result
