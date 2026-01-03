@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Any
 
 from arclet.entari.config.file import register_dumper, register_loader

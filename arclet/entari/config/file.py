@@ -318,6 +318,9 @@ class EntariConfig:
             "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"),
             "plugins": {
                 "type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **{plug._config_key: ((config_model_schema(plug.metadata.config, ref_root=f"/properties/plugins/properties/{plug._config_key}/") if plug.metadata.config is not None else {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True}) if plug.metadata else {"type": "object", "description": "No configuration required", "additionalProperties": True}) for plug in plugins}}  # noqa: E501
+            },
+            "adapters": {
+                "type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}  # noqa: E501
             }
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
