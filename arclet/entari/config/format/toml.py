@@ -21,11 +21,10 @@ def toml_loader(text: str) -> dict[str, Any]:
 
 
 @register_dumper("toml")
-def toml_dumper(save_path: Path, origin: dict[str, Any], indent: int = 4):
+def toml_dumper(origin: dict[str, Any], indent: int = 4):
     """
     Dump a dictionary to a TOML file.
     """
     if dumps is None:
         raise RuntimeError("tomlkit is not installed. Please install with `arclet-entari[toml]`")
-    with open(save_path, "w+", encoding="utf-8") as f:
-        f.write(dumps(origin))
+    return dumps(origin)
