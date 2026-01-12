@@ -95,9 +95,9 @@ class EntariProtocol(ApiProtocol):
             msg.insert(0, reply_to)
         sess = None
         if source:
-            sess = Session(self.account.custom(protocol_cls=EntariProtocol), source)
+            sess = Session(self.account, source)  # type: ignore
             sess.elements = msg
-        res = await es.post(ev := SendRequest(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, sess))
+        res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
         msg = sess._content if sess and sess._content else ev.message
         if res:
             if res.value is False:
@@ -111,7 +111,7 @@ class EntariProtocol(ApiProtocol):
         )
         res = cast("list[dict]", res)
         resp = [MessageReceipt.parse(i) for i in res]
-        await es.publish(SendResponse(self.account.custom(protocol_cls=EntariProtocol), channel_id, msg, resp, sess))
+        await es.publish(SendResponse(self.account, channel_id, msg, resp, sess))
         return resp
 
     # fmt: on
@@ -291,6 +291,7 @@ class Session(Generic[TEvent]):
 
         Args:
             message: 要发送的消息
+            source (SatoriEvent | None): 源事件
             at_sender: 是否 @ 发送者，默认为 False
             reply_to: 是否作为回复发送，默认为 False
 

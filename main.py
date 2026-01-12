@@ -8,7 +8,7 @@ async def echoimg(img: Image, session: Session):
     await session.send_message([img])
 
 
-app = Entari.load()
+app = Entari.load("example.yml")
 
 
 @command.on("load {plugin}")

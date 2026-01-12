@@ -17,6 +17,7 @@ from arclet.alconna import (
 from tarina import lang
 
 from arclet.entari import BasicConfModel, Session, command, metadata, plugin_config
+from arclet.entari.command import Match, Query
 
 
 class Config(BasicConfModel):
@@ -209,10 +210,10 @@ disp = command.mount(help_cmd, skip_for_unmatch=False)
 
 @disp.on_execute()
 async def help_exec(
-    query: command.Match[str],
-    page: command.Query[int] = command.Query("page.index", 1),
-    hide: command.Query[bool] = command.Query("hide.value", False),
-    is_namespace: command.Query[SubcommandResult | None] = command.Query("namespace"),
+    query: Match[str],
+    page: Query[int] = Query("page.index", 1),
+    hide: Query[bool] = Query("hide.value", False),
+    is_namespace: Query[SubcommandResult | None] = Query("namespace"),
 ):
     return help_cmd_handle(is_namespace.result, query.result, page.result, hide.result)
 
@@ -220,10 +221,10 @@ async def help_exec(
 @disp.handle(priority=16)
 async def help_handle(
     session: Session,
-    query: command.Match[str],
-    page: command.Query[int] = command.Query("page.index", 1),
-    hide: command.Query[bool] = command.Query("hide.value", False),
-    is_namespace: command.Query[SubcommandResult | None] = command.Query("namespace"),
+    query: Match[str],
+    page: Query[int] = Query("page.index", 1),
+    hide: Query[bool] = Query("hide.value", False),
+    is_namespace: Query[SubcommandResult | None] = Query("namespace"),
 ):
     resp = help_cmd_handle(is_namespace.result, query.result, page.result, hide.result, True)
     if isinstance(resp, str):
