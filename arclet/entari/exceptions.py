@@ -5,6 +5,7 @@ Handler `{func.__qualname__}` from {func.__module__!r} should define in the same
 
 Please choose one of the following solutions before import it:
  * add {func.__module__!r} to your config file.
+ * rename {func.__module__!r} to 'entari_plugin_{func.__module__!s}'
  * write the comment after the import statement line: `# entari: plugin`
  * append `load_plugin({func.__module__!r})` before the import statement.
  * call `requires({func.__module__!r})` in the {mod.__name__!r}.
@@ -22,6 +23,7 @@ Please choose one of the following solutions before import it:
 
 Please choose one of the following solutions:
 [magenta] *[/] add [bright_green]{func.__module__!r}[/] to your config file.
+[magenta] *[/] rename [red]{func.__module__!r}[/] to [bright_green]'entari_plugin_{func.__module__!s}'[/]
 [magenta] *[/] write the comment after the import statement line: [white]`# entari: plugin`[/]
 [magenta] *[/] append [bright_yellow]`load_plugin({func.__module__!r})`[/] [u bright_white]before the import stmt[/].
 [magenta] *[/] call [bright_yellow]`requires({func.__module__!r})`[/] in the [blue]{mod.__name__!r}[/].

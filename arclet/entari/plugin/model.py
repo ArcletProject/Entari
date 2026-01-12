@@ -23,6 +23,7 @@ from arclet.letoderea import (
     publish,
 )
 from arclet.letoderea.breakpoint import StepOut, step_out
+from arclet.letoderea.core import add_task
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers
 from arclet.letoderea.scope import RegisterWrapper
@@ -283,7 +284,7 @@ class Plugin:
                 plugin_service.service_waiter.assign(serv.id)
                 try:
                     it(Launart).add_component(serv)
-                    t = asyncio.create_task(serv.status.wait_for("prepared"))
+                    t = add_task(serv.status.wait_for("prepared"))
                     t.add_done_callback(tasks.discard)
                     tasks.add(t)
                 except ValueError:
@@ -358,7 +359,7 @@ class Plugin:
     def _clean_service(self):
         manager = it(Launart)
 
-        def _gen(service):
+        def _gen(service: Service):
             for serv in manager.components.values():
                 if service.id in serv.required:
                     yield from _gen(serv)
@@ -366,7 +367,7 @@ class Plugin:
 
         _services = [s for serv in self._services.values() for s in _gen(serv)]
 
-        async def _clean(services):
+        async def _clean(services: list[Service]):
             if not manager.task_group:
                 return
             for serv in services:
@@ -376,11 +377,11 @@ class Plugin:
                 try:
                     tracker = manager.task_group.sideload_trackers[serv.id]
                     manager.remove_component(serv)
-                    await asyncio.wait([tracker, asyncio.create_task(serv.status.wait_for("finished"))])
+                    await asyncio.wait([tracker, add_task(serv.status.wait_for("finished"))])
                 except (ValueError, KeyError):
                     pass
 
-        return asyncio.create_task(_clean(_services))
+        return add_task(_clean(_services))
 
     def dispose(self, *, is_cleanup: bool = False):
         if not is_cleanup and self.is_static:

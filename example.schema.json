@@ -353,11 +353,6 @@
           "description": "Echo the content; no configuration required",
           "additionalProperties": true
         },
-        "example_plugin": {
-          "type": "object",
-          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
-          "additionalProperties": true
-        },
         ".record_message": {
           "type": "object",
           "title": "RecordConfig",
@@ -422,6 +417,16 @@
           ],
           "additionalProperties": false,
           "description": "example_reusable"
+        },
+        "example_plugin2": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugins\\example_plugin2\\__init__.py; no configuration required",
+          "additionalProperties": true
+        },
+        "example_plugin": {
+          "type": "object",
+          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
+          "additionalProperties": true
         },
         "example_plugin6": {
           "type": "object",
@@ -498,6 +503,24 @@
           "additionalProperties": false,
           "description": "Data store interface with local directories"
         }
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "description": "Adapter configurations",
+      "items": {
+        "type": "object",
+        "description": "Adapter configuration",
+        "properties": {
+          "$path": {
+            "type": "string",
+            "description": "Adapter Module Path"
+          }
+        },
+        "required": [
+          "$path"
+        ],
+        "additionalProperties": true
       }
     }
   },

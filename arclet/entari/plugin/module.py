@@ -30,16 +30,20 @@ SUBPLUGIN_PAT = re.compile(r"entari:\s*(?:package|subplugin)")
 NAMESPACE_PAT = re.compile(r"entari:\s*namespace")
 
 
-def package(*names: str):
+def package(*names: str | ModuleType):
     """手动指定特定模块作为插件的子模块"""
     if not (plugin := current_plugin.get(None)):
         raise LookupError("no plugin context found")
-    _SUBMODULE_WAITLIST.setdefault(plugin.module.__name__, set()).update(names)
+    _SUBMODULE_WAITLIST.setdefault(plugin.module.__name__, set()).update(
+        [n if isinstance(n, str) else n.__name__ for n in names]
+    )
 
 
-def requires(*names: str):
+def requires(*names: str | ModuleType):
     """手动指定哪些模块是插件"""
-    _ENSURE_IS_PLUGIN.update(name.replace("::", "arclet.entari.builtins.") for name in names)
+    _ENSURE_IS_PLUGIN.update(
+        n.replace("::", "arclet.entari.builtins.") if isinstance(n, str) else n.__name__ for n in names
+    )
 
 
 def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix=""):
@@ -129,6 +133,12 @@ class _Visitor(ast.NodeVisitor):
             for arg in node.args:
                 if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                     names.append(arg.value)
+                elif isinstance(arg, ast.Name):
+                    names.append(arg.id)
+                elif isinstance(arg, ast.Attribute):
+                    value = arg.value
+                    if isinstance(value, ast.Name):
+                        names.append(f"{value.id}.{arg.attr}")
             if names:
                 _ensure_plugin(names, False, self.pid, self.pname)
         elif isinstance(node.func, ast.Name) and node.func.id == "package":
