@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from arclet.letoderea import Contexts, Result, define, provide
 from satori.client import Account
-from satori.model import MessageReceipt
+from satori.model import MessageObject
 
 from ..message import MessageChain
 
@@ -41,13 +41,13 @@ class SendResponse:
     account: Account
     channel: str
     message: MessageChain
-    result: list[MessageReceipt]
+    result: list[MessageObject]
     session: "Session | None" = None
 
 
 send_pub = define(SendResponse, name="entari.event/after_send")
 send_pub.bind(provide(MessageChain, call="$message"))
-send_pub.bind(provide(list[MessageReceipt], call="$resp_result"))
+send_pub.bind(provide(list[MessageObject], call="$resp_result"))
 
 
 @send_pub.gather

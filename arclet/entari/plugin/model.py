@@ -50,7 +50,7 @@ def _make_scope(plugin: Plugin):
     class PluginRegisterWrapper(RegisterWrapper):
         _plugin: Plugin = plugin
 
-        def __call__(self, func: Callable, /) -> Subscriber[T]:
+        def __call__(self, func: Callable[..., T], /) -> Subscriber[T]:
             self._plugin.validate(func)
             return super().__call__(func)
 

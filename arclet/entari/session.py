@@ -16,7 +16,6 @@ from satori.model import (
     Login,
     Member,
     MessageObject,
-    MessageReceipt,
     Meta,
     Role,
     Upload,
@@ -42,48 +41,48 @@ T = TypeVar("T")
 class EntariProtocol(ApiProtocol):
     # fmt: off
 
-    async def send_message(self, channel: str | Channel, message: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
+    async def send_message(self, channel: str | Channel, message: str | Iterable[str | Element], at_sender: At | None = None, reply_to: Quote | None = None, referrer: dict[str, Any] | None = None) -> list[MessageObject]:  # noqa: E501
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel (str | Channel): 要发送的频道 ID
             message (str | Iterable[str | Element]): 要发送的消息
-            source (SatoriEvent | None): 源事件
             at_sender (At | None): 是否 @ 发送者，默认为 None
             reply_to (Quote | None): 是否作为回复发送，默认为 None
+            referrer (dict[str, Any] | None): 消息来源信息，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         channel_id = channel.id if isinstance(channel, Channel) else channel
-        return await self.message_create(channel_id=channel_id, content=message, source=source, at_sender=at_sender, reply_to=reply_to)  # noqa: E501
+        return await self.message_create(channel_id=channel_id, content=message, at_sender=at_sender, reply_to=reply_to, referrer=referrer)  # noqa: E501
 
-    async def send_private_message(self, user: str | User, message: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
+    async def send_private_message(self, user: str | User, message: str | Iterable[str | Element], at_sender: At | None = None, reply_to: Quote | None = None, referrer: dict[str, Any] | None = None) -> list[MessageObject]:  # noqa: E501
         """发送私聊消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             user (str | User): 要发送的用户 ID
             message (str | Iterable[str | Element]): 要发送的消息
-            source (SatoriEvent | None): 源事件
             at_sender (At | None): 是否 @ 发送者，默认为 None
             reply_to (Quote | None): 是否作为回复发送，默认为 None
+            referrer (dict[str, Any] | None): 消息来源信息，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         user_id = user.id if isinstance(user, User) else user
         channel = await self.user_channel_create(user_id=user_id)
-        return await self.message_create(channel_id=channel.id, content=message, source=source, at_sender=at_sender, reply_to=reply_to)  # noqa: E501
+        return await self.message_create(channel_id=channel.id, content=message, at_sender=at_sender, reply_to=reply_to, referrer=referrer)  # noqa: E501
 
-    async def message_create(self, channel_id: str, content: str | Iterable[str | Element], source: SatoriEvent | None = None, at_sender: At | None = None, reply_to: Quote | None = None) -> list[MessageReceipt]:  # noqa: E501
+    async def message_create(self, channel_id: str, content: str | Iterable[str | Element], at_sender: At | None = None, reply_to: Quote | None = None, referrer: dict[str, Any] | None = None) -> list[MessageObject]:  # noqa: E501
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
         Args:
             channel_id (str): 频道 ID
             content (str | Iterable[str | Element]): 消息内容
-            source (SatoriEvent | None): 源事件
             at_sender (At | None): 是否 @ 发送者，默认为 None
             reply_to (Quote | None): 是否作为回复发送，默认为 None
+            referrer (dict[str, Any] | None): 消息来源信息，默认为 None
 
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
@@ -94,8 +93,9 @@ class EntariProtocol(ApiProtocol):
         if reply_to:
             msg.insert(0, reply_to)
         sess = None
-        if source:
-            sess = Session(self.account, source)  # type: ignore
+        if referrer and "source" in referrer:
+            sess = Session(self.account, referrer["source"])  # type: ignore
+            referrer = {k: v for k, v in referrer.items() if k != "source"}
             sess.elements = msg
         res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
         msg = sess._content if sess and sess._content else ev.message
@@ -107,10 +107,10 @@ class EntariProtocol(ApiProtocol):
         send = str(msg)
         res = await self.call_api(
             Api.MESSAGE_CREATE,
-            {"channel_id": channel_id, "content": send},
+            {"channel_id": channel_id, "content": send, "referrer": referrer},
         )
         res = cast("list[dict]", res)
-        resp = [MessageReceipt.parse(i) for i in res]
+        resp = [MessageObject.parse(i) for i in res]
         await es.publish(SendResponse(self.account, channel_id, msg, resp, sess))
         return resp
 
@@ -123,6 +123,8 @@ class Session(Generic[TEvent]):
     def __init__(self, account: Account[EntariProtocol], event: TEvent):
         self.account = account
         self.event = event
+        self.referrer = event.referrer or {}
+        self.referrer["source"] = self.event
         self.type = event.type
         self._content = None
         if isinstance(event, MessageEvent):
@@ -286,23 +288,7 @@ class Session(Generic[TEvent]):
 
     # fmt: off
 
-    async def send(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
-        """发送消息。返回一个 `MessageObject` 对象构成的数组。
-
-        Args:
-            message: 要发送的消息
-            source (SatoriEvent | None): 源事件
-            at_sender: 是否 @ 发送者，默认为 False
-            reply_to: 是否作为回复发送，默认为 False
-
-        Returns:
-            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
-        """
-        if not self.event._origin.channel:
-            raise RuntimeError("Event has no Channel context!")
-        return await self.account.protocol.send_message(self.event._origin.channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
-
-    async def send_message(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
+    async def send(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageObject]:  # noqa: E501
         """发送消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
@@ -315,9 +301,24 @@ class Session(Generic[TEvent]):
         """
         if not self.event.channel:
             raise RuntimeError("Event has no Channel context!")
-        return await self.account.protocol.send_message(self.event.channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
+        return await self.account.protocol.send_message(self.event.channel.id, message,  *self._resolve(at_sender, reply_to), referrer=self.referrer)  # noqa: E501
 
-    async def send_private_message(self, message: str | Iterable[str | Element], user_id: str | None = None, at_sender: bool = False, reply_to: bool = False) -> list[MessageReceipt]:  # noqa: E501
+    async def send_message(self, message: str | Iterable[str | Element], at_sender: bool = False, reply_to: bool = False) -> list[MessageObject]:  # noqa: E501
+        """发送消息。返回一个 `MessageObject` 对象构成的数组。
+
+        Args:
+            message: 要发送的消息
+            at_sender: 是否 @ 发送者，默认为 False
+            reply_to: 是否作为回复发送，默认为 False
+
+        Returns:
+            list[MessageReceipt]: `MessageReceipt` 对象构成的数组
+        """
+        if not self.event.channel:
+            raise RuntimeError("Event has no Channel context!")
+        return await self.account.protocol.send_message(self.event.channel.id, message,  *self._resolve(at_sender, reply_to), referrer=self.referrer)  # noqa: E501
+
+    async def send_private_message(self, message: str | Iterable[str | Element], user_id: str | None = None, at_sender: bool = False, reply_to: bool = False) -> list[MessageObject]:  # noqa: E501
         """发送私聊消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
@@ -330,7 +331,7 @@ class Session(Generic[TEvent]):
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
         channel = await self.user_channel_create(user_id)
-        return await self.account.protocol.send_message(channel.id, message, self.event, *self._resolve(at_sender, reply_to))  # noqa: E501
+        return await self.account.protocol.send_message(channel.id, message,  *self._resolve(at_sender, reply_to), referrer=self.referrer)  # noqa: E501
 
     # fmt: on
 
@@ -349,7 +350,7 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot update message")
         return await self.account.protocol.update_message(self.event.channel, self.event.message.id, message)
 
-    async def message_create(self, content: str) -> list[MessageReceipt]:
+    async def message_create(self, content: str) -> list[MessageObject]:
         """发送消息。返回一个 `MessageObject` 对象构成的数组。
 
         Args:
@@ -360,7 +361,7 @@ class Session(Generic[TEvent]):
         """
         if not self.event.channel:
             raise RuntimeError("Event cannot be replied to!")
-        return await self.account.protocol.message_create(self.event.channel.id, content, self.event)
+        return await self.account.protocol.message_create(self.event.channel.id, content, referrer=self.referrer)
 
     async def message_get(self, message_id: str) -> MessageObject:
         """获取特定消息。返回一个 `MessageObject` 对象。

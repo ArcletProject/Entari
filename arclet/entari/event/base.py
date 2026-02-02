@@ -120,6 +120,7 @@ class SatoriEvent:
     operator: User | None = attr()
     role: Role | None = attr()
     user: User | None = attr()
+    referrer: dict | None = attr()
 
     def __init_subclass__(cls, **kwargs):
         cls._attrs = set()
@@ -226,6 +227,14 @@ class FriendEvent(NoticeEvent):
     user: User = attr()
 
 
+class FriendAddedEvent(FriendEvent):
+    type = EventType.FRIEND_ADDED
+
+
+class FriendRemovedEvent(FriendEvent):
+    type = EventType.FRIEND_REMOVED
+
+
 class FriendRequestEvent(FriendEvent):
     type = EventType.FRIEND_REQUEST
 
@@ -256,6 +265,23 @@ class GuildRequestEvent(GuildEvent):
 
 class GuildUpdatedEvent(GuildEvent):
     type = EventType.GUILD_UPDATED
+
+
+class ChannelEvent(GuildEvent):
+    channel: Channel = attr()
+
+
+class ChannelAddedEvent(ChannelEvent):
+    type = EventType.CHANNEL_ADDED
+
+
+class ChannelUpdatedEvent(ChannelEvent):
+    type = EventType.CHANNEL_UPDATED
+
+
+class ChannelRemovedEvent(ChannelEvent):
+    type = EventType.CHANNEL_REMOVED
+
 
 
 class GuildMemberEvent(GuildEvent):
