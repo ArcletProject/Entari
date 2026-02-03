@@ -102,7 +102,7 @@ class PluginManagerService(Service):
                     self.plugins.pop(plug_id, None)
             for values in self._keep_values.values():
                 for value in values.values():
-                    value.dispose()
+                    await value.dispose()
                 values.clear()
             self._keep_values.clear()
 

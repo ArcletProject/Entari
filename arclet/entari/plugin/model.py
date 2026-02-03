@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+import inspect
+from collections.abc import Callable, Awaitable
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -30,7 +31,8 @@ from arclet.letoderea.scope import RegisterWrapper
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
-from tarina.tools import TCallable
+from tarina.tools import TCallable, run_sync
+from typing_extensions import TypeIs
 
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
@@ -44,6 +46,10 @@ current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
 T = TypeVar("T")
 TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
+
+
+def _is_awaitable(o) -> TypeIs[Callable[..., Awaitable[Any]]]:
+    return inspect.iscoroutinefunction(o)
 
 
 def _make_scope(plugin: Plugin):
@@ -314,9 +320,20 @@ class Plugin:
         self.config["$disable"] = True
         return tasks
 
-    def collect(self, *disposes: Callable[[], None]):
+    def collect(self, *disposes: Callable[[], None] | Callable[[], Awaitable[None]]):
         """收集副作用回收函数"""
-        self._dispose_callbacks.extend(disposes)
+        _disposes = []
+
+        def wrapper(func: Callable[[], Awaitable[None]]):
+            return lambda _f=func: add_task(_f()) and None  # type: ignore
+
+        for dispose in disposes:
+            if _is_awaitable(dispose):
+                _disposes.append(wrapper(dispose))
+            else:
+                _disposes.append(dispose)
+
+        self._dispose_callbacks.extend(disposes)  # type: ignore
         return self
 
     def restore(self):
@@ -546,32 +563,41 @@ class RootlessPlugin(Plugin):
 
 
 class KeepingVariable(Generic[T]):
-    def __init__(self, obj: T, dispose: Callable[[T], None] | None = None):
+    def __init__(self, obj: T, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None):
         self.obj = obj
-        self._dispose = dispose
+        self._dispose = None
+        if hasattr(self.obj, "dispose"):
+            _dispose = self.obj.dispose.__func__  # type: ignore
+            if _is_awaitable(_dispose):
+                self._dispose = _dispose
+            else:
+                self._dispose = run_sync(_dispose)
+        elif dispose is not None:
+            if _is_awaitable(dispose):
+                self._dispose = dispose
+            else:
+                self._dispose = run_sync(dispose)
         try:
             setattr(self.obj, "__keeping__", True)
         except AttributeError:
             pass
 
-    def dispose(self):
-        if hasattr(self.obj, "dispose"):
-            self.obj.dispose()  # type: ignore
-        elif self._dispose:
-            self._dispose(self.obj)
+    async def dispose(self):
+        if self._dispose:
+            await self._dispose(self.obj)
         del self.obj
 
 
-@overload
-def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | None = None) -> T: ...
-
-
-@overload
-def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | None = None) -> T: ...
+# @overload
+# def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
+#
+#
+# @overload
+# def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
 
 
 # fmt: off
-def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | None = None) -> T:  # noqa: E501
+def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T:  # noqa: E501
 # fmt: on
     if not (plug := current_plugin.get(None)):
         raise LookupError("no plugin context found")

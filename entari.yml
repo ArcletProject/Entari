@@ -1,4 +1,5 @@
-# $schema: ./example.schema.json
+# $schema: ./entari.schema.json
+# Example configuration file for Entari framework
 basic:
   network:
     - type: websocket

@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Awaitable
 import inspect
 import itertools
 from os import PathLike
@@ -303,7 +303,7 @@ def add_service(serv: TS | type[TS]) -> TS:
     return get_plugin(1).service(serv)
 
 
-def collect_disposes(*disposes: Callable[[], None]):
+def collect_disposes(*disposes: Callable[[], None] | Callable[[], Awaitable[None]]):
     """收集副作用回收函数"""
     return get_plugin(1).collect(*disposes)
 
