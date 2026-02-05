@@ -291,7 +291,7 @@ class PluginLoader(SourceFileLoader):
         finally:
             # leave plugin context
             delattr(module, "__cached__")
-            if not plugin.is_static:
+            if not plugin.is_static or "token1" in locals():
                 scope_ctx.reset(token1)  # type: ignore
             current_plugin.reset(token)
 
