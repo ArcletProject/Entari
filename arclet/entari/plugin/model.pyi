@@ -316,4 +316,9 @@ class KeepingVariable(Generic[T]):
 @overload
 def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
 @overload
-def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
+def keeping(
+    id_: str,
+    *,
+    obj_factory: Callable[[], T],
+    dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+) -> T: ...

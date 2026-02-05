@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+import inspect
 from pathlib import Path
 import re
 import sys
 from types import ModuleType
 from typing import Any, Generic, TypeVar, cast, overload
+from typing_extensions import TypeIs
 from weakref import finalize, proxy
 
 from arclet.letoderea import (
@@ -32,7 +33,6 @@ from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
 from tarina.tools import TCallable, run_sync
-from typing_extensions import TypeIs
 
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
@@ -586,14 +586,6 @@ class KeepingVariable(Generic[T]):
         if self._dispose:
             await self._dispose(self.obj)
         del self.obj
-
-
-# @overload
-# def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
-#
-#
-# @overload
-# def keeping(id_: str, *, obj_factory: Callable[[], T], dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
 
 
 # fmt: off

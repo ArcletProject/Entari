@@ -9,18 +9,7 @@ from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
 from satori.element import At, Element
-from satori.model import (
-    Channel,
-    Guild,
-    IterablePageResult,
-    Login,
-    Member,
-    MessageObject,
-    Meta,
-    Role,
-    Upload,
-    User,
-)
+from satori.model import Channel, Guild, IterablePageResult, Login, Member, MessageObject, Meta, Role, Upload, User
 
 from .event.base import (
     FriendRequestEvent,

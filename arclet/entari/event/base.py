@@ -283,7 +283,6 @@ class ChannelRemovedEvent(ChannelEvent):
     type = EventType.CHANNEL_REMOVED
 
 
-
 class GuildMemberEvent(GuildEvent):
     user: User = attr()
 

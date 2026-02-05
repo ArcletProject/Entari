@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 import inspect
 import itertools
 from os import PathLike
