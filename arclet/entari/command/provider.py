@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from typing import Any, Literal, Union, get_args
 
@@ -70,42 +71,42 @@ class MessageJudges(Propagator):
 class AlconnaSuppiler(Propagator):
     cmd: Alconna
 
-    def __init__(self, cmd: Alconna, skip_for_unmatch: bool = True):
+    def __init__(self, cmd: Alconna, cache: dict[int, asyncio.Future], skip_for_unmatch: bool = True):
         self.cmd = cmd
+        self.cache = cache
         self.skip_for_unmatch = skip_for_unmatch
 
-    async def before_supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
+    async def supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
+        if self.cmd._hash in self.cache:
+            future = self.cache[self.cmd._hash]
+            if future.done():
+                res = future.result()
+            else:
+                res = await future
+            if res is None:
+                return STOP
+            return {"alc_result": res}
+
+        fut = asyncio.Future()
+        self.cache[self.cmd._hash] = fut
         if session:
             recv = await post(ev := CommandReceive(session, self.cmd, message, reply))
             message = recv.value if recv else ev.content
-        return {"_message": message}
-
-    async def supply(self, ctx: Contexts):
-        try:
-            _message: MessageChain = ctx.pop("_message")
-        except KeyError:
-            raise ProviderUnsatisfied("_message") from None
         with output_manager.capture(self.cmd.name) as cap:
             output_manager.set_action(lambda x: x, self.cmd.name)
             try:
-                _res = self.cmd.parse(_message)
+                _res = self.cmd.parse(message)
             except Exception as e:
-                _res = Arparma(self.cmd._hash, _message, False, error_info=e)
+                _res = Arparma(self.cmd._hash, message, False, error_info=e)
             may_help_text: str | None = cap.get("output", None)
         if not _res.head_matched:
+            fut.set_result(None)
             return STOP
         if not may_help_text and not _res.matched and self.skip_for_unmatch:
+            fut.set_result(None)
             return STOP
         if not may_help_text and _res.error_info:
             may_help_text = repr(_res.error_info)
-        return {"_result": CommandResult(self.cmd, _res, may_help_text)}
-
-    async def after_supply(self, ctx: Contexts, session: Session | None = None):
-        try:
-            alc_result: CommandResult = ctx.pop("_result")
-        except KeyError:
-            raise ProviderUnsatisfied("_result") from None
-        _res = alc_result.result
         if session:
             pres = await post(ev := CommandParse(session, self.cmd, _res))
             _res = ev.result
@@ -114,27 +115,30 @@ class AlconnaSuppiler(Propagator):
                     _res = pres.value
                 elif pres.value is False:
                     return STOP
-        if _res.matched:
-            return {"alc_result": CommandResult(self.cmd, _res, alc_result.output)}
-        if alc_result.output:
-            if session:
-                _t = str(_res.error_info) if isinstance(_res.error_info, SpecialOptionTriggered) else "error"
-                ores = await post(ev := CommandOutput(session, self.cmd, _t, alc_result.output))
-                msg = MessageChain(ev.content)
-                if ores:
-                    if ores.value is False:
-                        return STOP
-                    elif isinstance(ores.value, str | MessageChain):
-                        msg = MessageChain(ores.value)
+        if _res.matched or not may_help_text:
+            res = CommandResult(self.cmd, _res, may_help_text)
+        elif session:
+            _t = str(_res.error_info) if isinstance(_res.error_info, SpecialOptionTriggered) else "error"
+            ores = await post(ev := CommandOutput(session, self.cmd, _t, may_help_text))
+            msg = MessageChain(ev.content)
+            if ores:
+                if ores.value is False:
+                    msg = None
+                elif isinstance(ores.value, str | MessageChain):
+                    msg = MessageChain(ores.value)
+            if msg:
                 await session.send(msg)
-                return STOP
-            return {"alc_result": alc_result}
-        return STOP
+            may_help_text = None
+            res = CommandResult(self.cmd, _res, may_help_text)
+        else:
+            res = CommandResult(self.cmd, _res, may_help_text)
+        fut.set_result(res)
+        if not _res.matched and not may_help_text:
+            return STOP
+        return {"alc_result": res}
 
     def compose(self):
-        yield self.before_supply, True, 65
         yield self.supply, True, 70
-        yield self.after_supply, True, 75
 
 
 class AlconnaProvider(Provider[Any]):

@@ -79,6 +79,7 @@ class EntariCommands:
             converter=lambda x: MessageChain(x),
         )
         self.subscribers = WeakValueDictionary[str, Subscriber]()
+        self._cache = {}
 
         le.on(CommandExecute, self.execute)
 
@@ -143,7 +144,7 @@ class EntariCommands:
                     plg._extra.setdefault("commands", []).append(([], _command.command))
                 else:
                     target = self.scope.register(func, CommandDispatch, providers=providers)
-                target.propagate(AlconnaSuppiler(_command))
+                target.propagate(AlconnaSuppiler(_command, self._cache))
                 target.propagate(_after_execute, priority=0)
                 self.trie[key] = target.id
                 self.subscribers[target.id] = target
@@ -174,7 +175,7 @@ class EntariCommands:
                 plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
             else:
                 target = self.scope.register(func, providers=providers)
-            target.propagate(AlconnaSuppiler(_command))
+            target.propagate(AlconnaSuppiler(_command, self._cache))
             target.propagate(_after_execute, priority=0)
             self.subscribers[target.id] = target
             for _key in keys:

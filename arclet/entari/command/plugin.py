@@ -21,7 +21,8 @@ out_pub = define(CommandOutput)
 class AlconnaPluginDispatcher(PluginDispatcher):
     def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
-        self.supplier = AlconnaSuppiler(command, skip_for_unmatch)
+        cache = plugin._extra.setdefault("command_cache", {})
+        self.supplier = AlconnaSuppiler(command, cache, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         self.propagators.append(
             MessageJudges(need_reply_me, need_notice_me, use_config_prefix),
