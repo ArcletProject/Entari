@@ -264,7 +264,11 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
         bind (bool, optional): 是否将配置模型与配置绑定，绑定后配置模型的修改会更新配置文件,
             而配置文件的修改则直接作用在配置模型上，不再重载整个插件. Defaults to False.
     """
-    plugin = get_plugin(1)
+    _plugin = get_plugin(1).id
+    while _plugin in plugin_service._subplugined:
+        _plugin = plugin_service._subplugined[_plugin]
+    if not (plugin := find_plugin(_plugin)):
+        raise LookupError("no plugin context found")
     if model_type:
         obj = config_model_validate(model_type, plugin.config)
         if bind:
@@ -292,7 +296,11 @@ get_config = plugin_config
 
 def declare_static():
     """声明当前插件为静态插件"""
-    plugin = get_plugin(1)
+    _plugin = get_plugin(1).id
+    while _plugin in plugin_service._subplugined:
+        _plugin = plugin_service._subplugined[_plugin]
+    if not (plugin := find_plugin(_plugin)):
+        raise LookupError("no plugin context found")
     plugin.is_static = True
     if plugin._scope.subscribers:
         raise StaticPluginDispatchError("static plugin cannot dispatch events")
