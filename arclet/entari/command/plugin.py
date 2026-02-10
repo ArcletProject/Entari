@@ -5,6 +5,7 @@ from typing import Any
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import define, deref, use
 from arclet.letoderea.provider import TProviders
+from tarina import LRU
 
 from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute, CommandOutput
@@ -19,10 +20,10 @@ out_pub = define(CommandOutput)
 
 
 class AlconnaPluginDispatcher(PluginDispatcher):
-    def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
+    def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
-        cache = plugin._extra.setdefault("command_cache", {})
-        self.supplier = AlconnaSuppiler(command, cache, skip_for_unmatch)
+        self.cache = LRU(10)
+        self.supplier = AlconnaSuppiler(command, self.cache, block, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         self.propagators.append(
             MessageJudges(need_reply_me, need_notice_me, use_config_prefix),
@@ -52,9 +53,9 @@ class AlconnaPluginDispatcher(PluginDispatcher):
     Query = Query
 
 
-def mount(cmd: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, skip_for_unmatch: bool = True) -> AlconnaPluginDispatcher:  # noqa: E501
+def mount(cmd: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True) -> AlconnaPluginDispatcher:  # noqa: E501
     if not (plugin := Plugin.current()):
         raise LookupError("no plugin context found")
-    return AlconnaPluginDispatcher(plugin, cmd, need_reply_me, need_notice_me, use_config_prefix, skip_for_unmatch)  # noqa: E501
+    return AlconnaPluginDispatcher(plugin, cmd, need_reply_me, need_notice_me, use_config_prefix, block, skip_for_unmatch)  # noqa: E501
 
 # fmt: on

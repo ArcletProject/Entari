@@ -14,6 +14,7 @@ from arclet.letoderea.provider import TProviders, get_providers
 from arclet.letoderea.typing import Contexts, Result
 from nepattern import DirectPattern
 from satori.element import Text
+from tarina import LRU
 from tarina.trie import CharTrie
 
 from ..config import BasicConfModel, config_model_validate, model_field
@@ -144,7 +145,7 @@ class EntariCommands:
                     plg._extra.setdefault("commands", []).append(([], _command.command))
                 else:
                     target = self.scope.register(func, CommandDispatch, providers=providers)
-                target.propagate(AlconnaSuppiler(_command, self._cache))
+                target.propagate(AlconnaSuppiler(_command, self._cache.setdefault(_command._hash, LRU(10)), self.block))
                 target.propagate(_after_execute, priority=0)
                 self.trie[key] = target.id
                 self.subscribers[target.id] = target
@@ -175,7 +176,7 @@ class EntariCommands:
                 plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
             else:
                 target = self.scope.register(func, providers=providers)
-            target.propagate(AlconnaSuppiler(_command, self._cache))
+            target.propagate(AlconnaSuppiler(_command, self._cache.setdefault(_command._hash, LRU(10)), self.block))
             target.propagate(_after_execute, priority=0)
             self.subscribers[target.id] = target
             for _key in keys:

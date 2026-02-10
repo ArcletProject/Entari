@@ -5,11 +5,13 @@ from typing import Any, Literal, Union, get_args
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
 from arclet.alconna.builtin import generate_duplication
 from arclet.alconna.exceptions import SpecialOptionTriggered
-from arclet.letoderea import STOP, Contexts, Param, Propagator, Provider, post
+from arclet.letoderea import BLOCK, STOP, Contexts, Param, Propagator, Provider, post
 from arclet.letoderea.exceptions import ProviderUnsatisfied
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
+from satori import MessageObject
 from satori.element import Text
+from tarina import LRU
 from tarina.generic import get_origin, origin_is_union
 
 from ..config import EntariConfig
@@ -71,14 +73,24 @@ class MessageJudges(Propagator):
 class AlconnaSuppiler(Propagator):
     cmd: Alconna
 
-    def __init__(self, cmd: Alconna, cache: dict[int, asyncio.Future], skip_for_unmatch: bool = True):
+    def __init__(
+        self, cmd: Alconna, cache: "LRU[str, asyncio.Future]", block: bool = True, skip_for_unmatch: bool = True
+    ):
         self.cmd = cmd
         self.cache = cache
+        self.block = block
         self.skip_for_unmatch = skip_for_unmatch
 
-    async def supply(self, message: MessageChain, session: Session | None = None, reply: Reply | None = None):
-        if self.cmd._hash in self.cache:
-            future = self.cache[self.cmd._hash]
+    async def supply(
+        self,
+        message: MessageChain,
+        origin: MessageObject | None = None,
+        session: Session | None = None,
+        reply: Reply | None = None,
+    ):
+        source = origin.id if origin else str(message)
+        if source in self.cache:
+            future = self.cache[source]
             if future.done():
                 res = future.result()
             else:
@@ -88,7 +100,7 @@ class AlconnaSuppiler(Propagator):
             return {"alc_result": res}
 
         fut = asyncio.Future()
-        self.cache[self.cmd._hash] = fut
+        self.cache[source] = fut
         if session:
             recv = await post(ev := CommandReceive(session, self.cmd, message, reply))
             message = recv.value if recv else ev.content
@@ -101,10 +113,10 @@ class AlconnaSuppiler(Propagator):
             may_help_text: str | None = cap.get("output", None)
         if not _res.head_matched:
             fut.set_result(None)
-            return STOP
+            return BLOCK if self.block else STOP
         if not may_help_text and not _res.matched and self.skip_for_unmatch:
             fut.set_result(None)
-            return STOP
+            return BLOCK if self.block else STOP
         if not may_help_text and _res.error_info:
             may_help_text = repr(_res.error_info)
         if session:
@@ -114,7 +126,7 @@ class AlconnaSuppiler(Propagator):
                 if isinstance(pres.value, Arparma):
                     _res = pres.value
                 elif pres.value is False:
-                    return STOP
+                    return BLOCK if self.block else STOP
         if _res.matched or not may_help_text:
             res = CommandResult(self.cmd, _res, may_help_text)
         elif session:
@@ -134,7 +146,7 @@ class AlconnaSuppiler(Propagator):
             res = CommandResult(self.cmd, _res, may_help_text)
         fut.set_result(res)
         if not _res.matched and not may_help_text:
-            return STOP
+            return BLOCK if self.block else STOP
         return {"alc_result": res}
 
     def compose(self):
