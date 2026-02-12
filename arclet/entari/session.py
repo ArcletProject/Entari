@@ -129,6 +129,7 @@ class Session(Generic[TEvent]):
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
         block: bool = True,
+        priority: int = 15,
     ) -> MessageChain | None:
         """等待当前会话的下一次输入并返回
 
@@ -137,6 +138,7 @@ class Session(Generic[TEvent]):
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
             block: 是否阻塞后续的消息传递
+            priority: 消息处理优先级，数值越小优先级越高，默认为 15
 
         Returns:
             MessageChain | None: 回复的消息，若超时则返回 None
@@ -153,6 +155,7 @@ class Session(Generic[TEvent]):
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
         block: bool = True,
+        priority: int = 15,
     ) -> T | None:
         """处理当前会话的下一次输入并返回
 
@@ -162,6 +165,7 @@ class Session(Generic[TEvent]):
             timeout: 等待超时时间
             timeout_message: 超时后发送的消息
             block: 是否阻塞后续的消息传递
+            priority: 消息处理优先级，数值越小优先级越高，默认为 15
 
         Returns:
             T | None: 回复的内容，若超时则返回 None
@@ -174,6 +178,7 @@ class Session(Generic[TEvent]):
         timeout: float = 120,
         timeout_message: str | Iterable[str | Element] = "等待超时",
         block: bool = True,
+        priority: int = 15,
     ):
         if not args:
             handler, message = None, None
@@ -188,7 +193,7 @@ class Session(Generic[TEvent]):
             await self.send(message)
 
         if handler:
-            step = step_out(MessageCreatedEvent, handler, block=block)
+            step = step_out(MessageCreatedEvent, handler, block=block, priority=priority)
         else:
 
             async def waiter(content: MessageChain, session: Session[MessageCreatedEvent]):
@@ -200,7 +205,7 @@ class Session(Generic[TEvent]):
 
             waiter.__annotations__ = {"content": MessageChain, "session": self.__class__}
 
-            step = step_out(MessageCreatedEvent, waiter, block=block)
+            step = step_out(MessageCreatedEvent, waiter, block=block, priority=priority)
 
         result = await step.wait(timeout=timeout)
         if result is None:
