@@ -50,11 +50,14 @@ class SessionProviderFactory(ProviderFactory):
             self.target_type = target_type
 
         async def __call__(self, context: Contexts):
-            if self.target_type and not generic_isinstance(context["$event"], self.target_type):
-                return
             if "$session" in context and isinstance(context["$session"], Session):
+                sess = context["$session"]
+                if self.target_type and not generic_isinstance(sess.event, self.target_type):
+                    return
                 return context["$session"]
             if "$origin_event" in context and "$account" in context:
+                if self.target_type and not generic_isinstance(context["$event"], self.target_type):
+                    return
                 session = Session(context["$account"], context["$event"])
                 if "$message_content" in context:
                     session.elements = context["$message_content"]

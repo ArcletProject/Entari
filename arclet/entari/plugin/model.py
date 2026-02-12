@@ -27,7 +27,7 @@ from arclet.letoderea import (
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.core import add_task
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
-from arclet.letoderea.publisher import Publisher, _publishers
+from arclet.letoderea.publisher import Publisher, _publishers, filter_publisher
 from arclet.letoderea.scope import RegisterWrapper
 from creart import it
 from launart import Launart, Service
@@ -68,7 +68,7 @@ def _make_scope(plugin: Plugin):
 
 class PluginDispatcher(Generic[T]):
     def __init__(self, plugin: Plugin, event: type, name: str | None = None):
-        self.publisher = define(event, name=name)
+        self.publisher = filter_publisher(event) or define(event, name=name)
         self.plugin = plugin
         self._event = event
         self.providers: list[Provider[Any] | ProviderFactory] = []

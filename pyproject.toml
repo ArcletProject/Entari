@@ -6,7 +6,7 @@ authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
 ]
 dependencies = [
-    "arclet-letoderea<0.21.0,>=0.20.2",
+    "arclet-letoderea<0.21.0,>=0.20.4",
     "arclet-alconna<2.0.0,>=1.8.42",
     "satori-python-core>=0.18.0",
     "satori-python-client>=0.18.0",
