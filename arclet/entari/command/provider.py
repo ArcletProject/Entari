@@ -38,7 +38,7 @@ def _remove_config_prefix(message: MessageChain):
     if not (command_prefix := EntariConfig.instance.basic.prefix):
         return message
     if message and isinstance(message[0], Text):
-        text = message[0].text.lstrip()  # type: ignore
+        text = message[0].text.lstrip()
         for prefix in command_prefix:
             if not prefix:
                 return message

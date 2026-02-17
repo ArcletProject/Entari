@@ -42,7 +42,7 @@ def field(*, default=MISSING, default_factory=MISSING, init=True, repr=True, des
         raise ValueError("cannot specify both default and default_factory")
     if metadata is None and description is not None:
         metadata = {"description": description}
-    data = {"default": default, "default_factory": default_factory, "init": init, "repr": repr, "hash": hash, "compare": compare, "metadata": metadata, "kw_only": True}  # noqa: E501
+    data: dict = {"default": default, "default_factory": default_factory, "init": init, "repr": repr, "hash": hash, "compare": compare, "metadata": metadata, "kw_only": True}  # noqa: E501
     return Field(**{k: v for k, v in data.items() if k in _available_field_attrs})
 
 # fmt: on

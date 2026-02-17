@@ -49,8 +49,8 @@ class EmptyTypedDict(t.TypedDict):
 
 
 @t.runtime_checkable
-class DataClass(t.Protocol):
-    __dataclass_fields__: t.ClassVar[dict[str, dataclasses.Field]]
+class DataclassInstance(t.Protocol):
+    __dataclass_fields__: t.ClassVar[dict[str, dataclasses.Field[t.Any]]]
 
 
 def is_sub_type(sub: t.Any, parent: t.Any) -> bool:
@@ -74,7 +74,7 @@ SCHEMA_ANNO_KEY_MAP = {
 }
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Schema:
     title: str | None = None
     description: str | None = None
@@ -85,7 +85,7 @@ class Schema:
         return {SCHEMA_ANNO_KEY_MAP.get(k, k): v for k, v in dataclasses.asdict(self).items() if v is not None}
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class StringSchema(Schema):
     min_length: int | None = None
     max_length: int | None = None
@@ -93,7 +93,7 @@ class StringSchema(Schema):
     format: _Format | None = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class NumberSchema(Schema):
     minimum: numbers.Number | None = None
     maximum: numbers.Number | None = None
@@ -102,7 +102,7 @@ class NumberSchema(Schema):
     multiple_of: numbers.Number | None = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class ContainerSchema(Schema):
     min_items: int | None = None
     max_items: int | None = None
@@ -110,7 +110,7 @@ class ContainerSchema(Schema):
 
 
 class SchemaGenerator:
-    def __init__(self, dc: type[DataClass] | None = None, ref_root: str = "/") -> None:
+    def __init__(self, dc: type[DataclassInstance] | None = None, ref_root: str = "/") -> None:
         self.root = dc
         self.seen_root = False
         self.ref_root = ref_root
@@ -120,7 +120,7 @@ class SchemaGenerator:
         return description
 
     @classmethod
-    def from_dc(cls, dc: type[DataClass], ref_root: str = "/") -> dict[str, t.Any]:
+    def from_dc(cls, dc: type[DataclassInstance], ref_root: str = "/") -> dict[str, t.Any]:
         generator = cls(dc, ref_root)
         schema = generator.get_dc_schema(dc)
         if generator.defs:
@@ -128,7 +128,7 @@ class SchemaGenerator:
 
         return schema
 
-    def get_dc_schema(self, dc: type[DataClass]) -> dict[str, t.Any]:
+    def get_dc_schema(self, dc: type[DataclassInstance]) -> dict[str, t.Any]:
         if dc == self.root:
             if self.seen_root:
                 return {"$ref": f"#{self.ref_root}/"}
@@ -141,7 +141,7 @@ class SchemaGenerator:
                 self.defs[name] = schema
             return {"$ref": f"#{self.ref_root}$defs/{name}"}
 
-    def create_dc_schema(self, dc: type[DataClass]):
+    def create_dc_schema(self, dc: type[DataclassInstance]):
         schema = {
             "type": "object",
             "title": dc.__qualname__,
@@ -159,17 +159,13 @@ class SchemaGenerator:
             schema["description"] = dc.__doc__
         for field in dataclasses.fields(dc):
             typ: t.Any = type_hints[field.name]
-            field.type = typ  # type: ignore[assignment]
+            field.type = typ
             default_ = field.default_factory() if field.default_factory is not _MISSING else field.default
             if (f_description := field.metadata.get("description")) is not None:
                 f_a: Schema
                 base, f_a = t.get_args(typ) if t.get_origin(typ) == t.Annotated else (typ, Schema())
                 if f_a.description is None:
-                    object.__setattr__(
-                        f_a,
-                        "description",
-                        self.format_docstring_description(field, f_description),
-                    )
+                    f_a.description = self.format_docstring_description(field, f_description)
                 typ = t.Annotated[base, f_a]
             schema["properties"][field.name] = self.get_field_schema(typ, default_)
             schema["properties"][field.name]["title"] = field.name.title().replace("_", " ")
@@ -180,7 +176,7 @@ class SchemaGenerator:
             schema.pop("required")
         return schema
 
-    def get_simple_schema(self, typ: type, default: t.Any):
+    def get_simple_schema(self, typ, default: t.Any):
         if typ is t.Any:
             return self.get_any_schema(default)
         elif typ in (None, type(None)):
@@ -224,7 +220,7 @@ class SchemaGenerator:
         elif is_sub_type(typ, set):
             return self.get_set_schema(typ)
 
-    def get_field_schema(self, typ: type, default: t.Any):
+    def get_field_schema(self, typ, default: t.Any):
         if (schema := self.get_simple_schema(typ, default)) is not None:
             return schema
         if (schema := self.get_complex_schema(typ, default)) is not None:
@@ -293,7 +289,7 @@ class SchemaGenerator:
             if t_e.get_origin(anno) in (t_e.Required, t_e.NotRequired):
                 anno = t_e.get_args(anno)[0]
             fields.append((name, (anno if schema_anno is None else t.Annotated[anno, schema_anno])))
-        dc: type[DataClass] = t.cast(type[DataClass], dataclasses.make_dataclass(typ.__qualname__, fields))
+        dc = t.cast(type[DataclassInstance], dataclasses.make_dataclass(typ.__qualname__, fields))
         dc.__module__ = typ.__module__
         store_field_description(typ, dc.__dataclass_fields__)
         dc_schema = self.get_dc_schema(dc)
