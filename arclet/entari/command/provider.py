@@ -113,7 +113,7 @@ class AlconnaSuppiler(Propagator):
             may_help_text: str | None = cap.get("output", None)
         if not _res.head_matched:
             fut.set_result(None)
-            return BLOCK if self.block else STOP
+            return STOP
         if not may_help_text and not _res.matched and self.skip_for_unmatch:
             fut.set_result(None)
             return BLOCK if self.block else STOP

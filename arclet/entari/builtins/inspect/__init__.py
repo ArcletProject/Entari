@@ -46,13 +46,11 @@ async def inspect(session: Session[MessageEvent], target: Match["At | Sharp"]):
         elif isinstance(target.result, Sharp) and target.result.id:
             texts["channel"] = Lang.entari_plugin_inspect.channel(channel_id=target.result.id)
         else:
-            await session.send_message(Lang.entari_plugin_inspect.invalid())
-            return
+            return Lang.entari_plugin_inspect.invalid()
     if "user" not in texts:
         if event.quote and (authors := select(event.quote, Author)):
             texts["user"] = Lang.entari_plugin_inspect.user(user_id=authors[0].id)
         else:
             texts["user"] = Lang.entari_plugin_inspect.user(user_id=session.user.id)
 
-    await session.send_message(TP.format(**texts))
-    return
+    return TP.format(**texts)
