@@ -264,13 +264,19 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
         bind (bool, optional): 是否将配置模型与配置绑定，绑定后配置模型的修改会更新配置文件,
             而配置文件的修改则直接作用在配置模型上，不再重载整个插件. Defaults to False.
     """
-    _plugin = get_plugin(1).id
-    while _plugin in plugin_service._subplugined:
-        _plugin = plugin_service._subplugined[_plugin]
-    if not (plugin := find_plugin(_plugin)):
+    _plugin = get_plugin(1)
+    _plugin_id = _plugin.id
+    while _plugin_id in plugin_service._subplugined:
+        _plugin_id = plugin_service._subplugined[_plugin_id]
+    if not (plugin := find_plugin(_plugin_id)):
         raise LookupError("no plugin context found")
+    plg_config = plugin.config
+    for key in plg_config:
+        if key.startswith(".") and f"{_plugin_id}{key}" == _plugin.id:
+            plg_config = plg_config[key]
+            break
     if model_type:
-        obj = config_model_validate(model_type, plugin.config)
+        obj = config_model_validate(model_type, plg_config)
         if bind:
             plugin_key = plugin._config_key
 
@@ -279,7 +285,12 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
                     return
                 if event.key != plugin_key:
                     return
-                new = config_model_validate(model_type, event.value)
+                new_plg_config = event.value
+                for key in new_plg_config:
+                    if key.startswith(".") and f"{_plugin_id}{key}" == plugin.id:
+                        new_plg_config = new_plg_config[key]
+                        break
+                new = config_model_validate(model_type, new_plg_config)
                 nest_obj_update(obj, new, config_model_keys(new))
                 return True
 
@@ -288,7 +299,7 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
             plugin.collect(lambda: delattr(proxy, "_Proxy__origin"), sub.dispose)
             return proxy
         return obj
-    return plugin.config
+    return plg_config
 
 
 get_config = plugin_config
