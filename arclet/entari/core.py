@@ -210,7 +210,7 @@ class Entari(App):
         self._ref_tasks = set()
         self.gen_schema = gen_schema
 
-        le.on(ConfigReload, self.reset_self)
+        le.on(ConfigReload, self.reset_self, priority=0)
 
         self._path_scale = ()
         _external = [str(Path(d).resolve()) for d in external_dirs or []]

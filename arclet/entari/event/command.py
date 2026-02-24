@@ -82,7 +82,7 @@ class CommandParse:
 
     session: Session
     command: Alconna
-    result: Arparma
+    result: Arparma[MessageChain]
 
     async def gather(self, context: Contexts):
         context["$session"] = self.session

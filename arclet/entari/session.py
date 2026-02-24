@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Generic, NoReturn, cast, overload
 from typing_extensions import TypeVar
 
-from arclet.letoderea import STOP, es, step_out, defer
+from arclet.letoderea import STOP, defer, es, step_out
 from satori import ChannelType, Quote
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol

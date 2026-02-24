@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from typing import TypeAlias, TypeVar, cast, overload
 from weakref import WeakValueDictionary
 
-from arclet.alconna import Alconna, Arg, Args, CommandMeta, Namespace, command_manager, config
+from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, Namespace, command_manager, config
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
@@ -19,8 +19,9 @@ from tarina.trie import CharTrie
 
 from ..config import BasicConfModel, config_model_validate, model_field
 from ..event.base import MessageCreatedEvent
-from ..event.command import CommandExecute
+from ..event.command import CommandExecute, CommandParse
 from ..event.config import ConfigReload
+from ..logger import DEBUG_NO, log
 from ..message import MessageChain
 from ..plugin import RootlessPlugin, get_plugin, metadata, plugin_config
 from ..session import Session
@@ -237,9 +238,26 @@ def _(plg: RootlessPlugin):
 
     plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
 
+    async def _inspect(result: Arparma[MessageChain]):
+        log.command.debug(f"{result.origin.display()!r} parsed result: {result}")
+
+    if log.levelno <= DEBUG_NO:
+        sub = plg.dispatch(CommandParse).handle(_inspect)
+    else:
+        sub = None
+
     @plg.dispatch(ConfigReload).handle
     def update(event: ConfigReload):
-        if event.scope != "plugin":
+        nonlocal sub
+        if event.scope == "basic":
+            if event.key != "log":
+                return
+            if sub is not None:
+                sub.dispose()
+            if log.levelno <= DEBUG_NO:
+                sub = plg.dispatch(CommandParse).handle(_inspect)
+            else:
+                sub = None
             return
         if event.key != ".commands":
             return
