@@ -11,7 +11,6 @@ from tarina import is_coroutinefunction
 from . import common, message
 from ..message import MessageChain
 from ..session import Session
-from .common import parse as parse
 
 _SessionFilter: TypeAlias = Callable[[Session], bool] | Callable[[Session], Awaitable[bool]]
 

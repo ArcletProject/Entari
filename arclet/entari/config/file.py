@@ -313,15 +313,21 @@ class EntariConfig:
         return ans  # type: ignore
 
     def generate_schema(self, plugins: list["Plugin"]):
+        plugins_properties = {}
         # fmt: off
+        plugin_meta_properties = {"$disable": {"type": "boolean", "description": "Whether disable this plugin"}, "$optional": {"type": "boolean", "description": "Whether this plugin is optional (won't cause error if not found)"}, "$prefix": {"type": "string", "description": "Plugin name prefix"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
+        for plug in plugins:
+            if plug.metadata is not None:
+                if plug.metadata.config:
+                    schema = config_model_schema(plug.metadata.config, ref_root=f"/properties/plugins/properties/{plug._config_key}/")  # noqa: E501
+                    schema["properties"].update(plugin_meta_properties)
+                    plugins_properties[plug._config_key] = schema
+                else:
+                    plugins_properties[plug._config_key] = {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
+            else:
+                plugins_properties[plug._config_key] = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
         schemas = {
-            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"),
-            "plugins": {
-                "type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **{plug._config_key: ((config_model_schema(plug.metadata.config, ref_root=f"/properties/plugins/properties/{plug._config_key}/") if plug.metadata.config is not None else {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True}) if plug.metadata else {"type": "object", "description": "No configuration required", "additionalProperties": True}) for plug in plugins}}  # noqa: E501
-            },
-            "adapters": {
-                "type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}  # noqa: E501
-            }
+            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
             json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501
@@ -380,6 +386,7 @@ def yaml_dumper(origin: dict, indent: int):
     yaml = YAML()
     yaml.preserve_quotes = True
     yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
+    yaml.width = 4096
     sio = StringIO()
     yaml.dump(origin, sio)
     return sio.getvalue()

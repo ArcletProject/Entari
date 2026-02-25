@@ -151,29 +151,29 @@ class Watcher(Service):
                         continue
                     pid = plugin_name.replace("::", "arclet.entari.builtins.")
                     if plugin_name not in EntariConfig.instance.plugin:
-                        if plugin := find_plugin(pid):
-                            if plugin.is_static:
-                                logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
+                        if plg := find_plugin(pid):
+                            if plg.is_static:
+                                logger.info(f"Plugin <y>{plg.id!r}</y> is static, ignored.")
                             else:
-                                del plugin
+                                del plg
                                 await unload_plugin_async(pid)
                                 logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
                         continue
                     old_conf = EntariConfig._clean(old_plugin[plugin_name])
                     new_conf = EntariConfig.instance.plugin[plugin_name]
                     if old_conf != new_conf:
-                        if plugin := find_plugin(pid):
+                        if plg := find_plugin(pid):
                             added = set(new_conf) - set(old_conf)
                             removed = set(old_conf) - set(new_conf)
                             changed = {k for k in set(new_conf) & set(old_conf) if new_conf[k] != old_conf[k]}
                             changes = added | removed | changed
                             if "$disable" in changes:
-                                plugin.disable() if new_conf.get("$disable", False) else plugin.enable()
+                                plg.disable() if new_conf.get("$disable", False) else plg.enable()
                                 changes.remove("$disable")
                             if "$dry" in changes:
                                 changes.remove("$dry")
                                 if new_conf.get("$dry", False):
-                                    logger.debug(f"Plugin <y>{plugin.id!r}</y> is dry, ignored.")
+                                    logger.debug(f"Plugin <y>{plg.id!r}</y> is dry, ignored.")
                                     continue
                             if not changes:
                                 continue
@@ -187,18 +187,18 @@ class Watcher(Service):
                             if res and res.value:
                                 logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
                                 continue
-                            if plugin.is_static:
-                                logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
+                            if plg.is_static:
+                                logger.info(f"Plugin <y>{plg.id!r}</y> is static, ignored.")
                                 continue
                             logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
-                            plugin_file = str(plugin.module.__file__)
-                            _conf = plugin.config.copy()
+                            plugin_file = str(plg.module.__file__)
+                            _conf = plg.config.copy()
 
                             async def _():
                                 await unload_plugin_async(pid)
-                                if plugin := load_plugin(plugin_name, new_conf):
-                                    logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
-                                    del plugin
+                                if plg := load_plugin(plugin_name, new_conf):
+                                    logger.info(f"Reloaded <blue>{plg.id!r}</blue>")
+                                    del plg
                                 else:
                                     logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
                                     self.fail[plugin_file] = (pid, _conf)
@@ -211,9 +211,9 @@ class Watcher(Service):
                     for plugin_name in new:
                         if plugin_name.startswith("$") or plugin_name.startswith("~"):
                             continue
-                        if not (plugin := load_plugin(plugin_name)):
+                        if not (plg := load_plugin(plugin_name)):
                             continue
-                        del plugin
+                        del plg
 
     async def launch(self, manager: Launart):
         async with self.stage("preparing"):

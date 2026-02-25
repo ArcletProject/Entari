@@ -37,7 +37,7 @@ from tarina.tools import TCallable, run_sync
 from ..config import config_model_schema
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..filter import parse
+from ..filter.parse import parse_filter
 from ..logger import log
 from .service import plugin_service
 
@@ -349,15 +349,8 @@ class Plugin:
         self._scope = _make_scope(self).of(self.id)
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
-        allow = self.config.get("$allow", {})
-        deny = self.config.get("$deny", {})
-        pat = {}
-        if allow:
-            pat["$and"] = allow
-        if deny:
-            pat["$not"] = deny
-        if pat:
-            self._scope.propagators.append(parse(pat))
+        if filter_expr := self.config.get("$filter", ""):
+            self._scope.propagators.append(enter_if(parse_filter(filter_expr)))
         # if self._metadata and self._metadata.depend_services:
         #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
         #     self._extra["injected_services"] = [

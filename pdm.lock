@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:1291bf340e88cb93b1c05369057e49b945e9914c4026c916a75d8251e8b9f41b"
+content_hash = "sha256:d95385f156a49a194298d697380f4ae483da6144d2903e450b65d39d5e06be2f"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -1213,6 +1213,17 @@ dependencies = [
 files = [
     {file = "satori_python_core-0.18.0-py3-none-any.whl", hash = "sha256:64e1c0f09ea8263a2960983300170e65d65a8d964d20438d44d685819c4e7f1c"},
     {file = "satori_python_core-0.18.0.tar.gz", hash = "sha256:f547a9ce428b2ea5e7f1f9dfdede0bda3acd64dffa1c4780b4d5779df0835e5d"},
+]
+
+[[package]]
+name = "simpleeval"
+version = "1.0.3"
+requires_python = ">=3.9"
+summary = "A simple, safe single expression evaluator library."
+groups = ["default"]
+files = [
+    {file = "simpleeval-1.0.3-py3-none-any.whl", hash = "sha256:e3bdbb8c82c26297c9a153902d0fd1858a6c3774bf53ff4f134788c3f2035c38"},
+    {file = "simpleeval-1.0.3.tar.gz", hash = "sha256:67bbf246040ac3b57c29cf048657b9cf31d4e7b9d6659684daa08ca8f1e45829"},
 ]
 
 [[package]]
