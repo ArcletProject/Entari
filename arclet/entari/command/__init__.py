@@ -229,6 +229,7 @@ def _(plg: RootlessPlugin):
         ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
         config=CommandsConfig,
     )
+    logger = log.wrapper("[commands]")
 
     conf = plugin_config(CommandsConfig)
     _commands.block = conf.block
@@ -239,7 +240,7 @@ def _(plg: RootlessPlugin):
     plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
 
     async def _inspect(result: Arparma[MessageChain]):
-        log.command.debug(f"{result.origin.display()!r} parsed result: {result}")
+        logger.debug(f"{result.origin.display()!r} parsed result: {result}")
 
     if log.levelno <= DEBUG_NO:
         sub = plg.dispatch(CommandParse).handle(_inspect)

@@ -11,6 +11,7 @@ from launart import Launart, Service, any_completed
 from launart.status import Phase
 
 from .plugin import RootlessPlugin, get_plugin, metadata
+from .logger import log
 
 
 @make_event(name="entari.event/internal/schedule")
@@ -20,6 +21,7 @@ class _ScheduleEvent:
 
 scope = Scope.of("entari.scheduler")
 contexts: Contexts = {"$event": _ScheduleEvent()}  # type: ignore
+logger = log.wrapper("[scheduler]")
 
 
 class TimerTask:
@@ -61,6 +63,7 @@ class Scheduler(Service):
                 continue
             task.start(self.queue)
             if task.sub.available:
+                logger.debug(f"Executing scheduled task: <{task.sub.__repr__()[13:]}")
                 try:
                     await task.sub.handle(contexts.copy())
                 except Exception:

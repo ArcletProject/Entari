@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import sys
 from types import ModuleType
-from typing import Any, Generic, TypeVar, cast, overload
+from typing import Any, Generic, TypeVar, cast
 from typing_extensions import TypeIs
 from weakref import finalize, proxy
 
@@ -76,7 +76,7 @@ class PluginDispatcher(Generic[T]):
 
     # fmt: off
 
-    def waiter(self, event: Any = None, providers: TProviders | None = None, priority: int = 15, block: bool = False) -> Callable[[Callable[..., R]], StepOut[R]]:  # noqa: E501
+    def waiter(self, event: type | None = None, providers: TProviders | None = None, priority: int = 15, block: bool = False) -> Callable[[Callable[..., R]], StepOut[R]]:  # noqa: E501
         if event is None:
             def decorator1(func: Callable[..., R], /) -> StepOut[R]:
                 if isinstance(func, Subscriber):
@@ -160,7 +160,7 @@ def inject(*services: type[Service] | str | dict, _is_global: bool = False):
             else:
                 serv_id = service if isinstance(service, str) else service.id
                 stage = "prepared"
-            sub = f"{ctx[SUBSCRIBER].callable_target.__module__}:{ctx[SUBSCRIBER].callable_target.__qualname__}"
+            sub = f"{ctx[SUBSCRIBER].__repr__()[13:-1]}"
             log.plugin.trace(f"<y>{sub}</y> waiting for service <w><u>{serv_id}</u></w> to be <g>{stage!r}</g>")
             await plugin_service.service_waiter.wait_for(serv_id)
             serv = launart.components[serv_id]
@@ -518,14 +518,6 @@ class Plugin:
 
 class RootlessPlugin(Plugin):
     # fmt: off
-    @classmethod
-    @overload
-    def apply(cls, id: str, *, default: bool = False) -> Callable[[Callable[[RootlessPlugin], Any]], Callable[[], None]]: ...  # noqa: E501
-
-    @classmethod
-    @overload
-    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any], *, default: bool = False) -> Callable[[], None]: ...
-
     @classmethod
     def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None, *, default: bool = False) -> Any:  # noqa: E501
     # fmt: on

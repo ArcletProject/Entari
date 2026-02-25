@@ -33,7 +33,7 @@ class PluginDispatcher(Generic[T]):
 
     def __init__(self, plugin: Plugin, event: type, name: str | None = None): ...
     def waiter(
-        self, event: Any = None, providers: TProviders | None = None, priority: int = 15, block: bool = False
+        self, event: type | None = None, providers: TProviders | None = None, priority: int = 15, block: bool = False
     ) -> Callable[[Callable[..., R]], StepOut[R]]: ...
     @overload
     def register(

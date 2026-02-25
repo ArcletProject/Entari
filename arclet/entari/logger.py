@@ -40,7 +40,6 @@ class LoggerManager:
         self.fork("[plugin]")
         self.fork("[message]")
         self.fork("[error]")
-        self.fork("[command]")
         self.log_level = "INFO"
         self.levelno = logger.level("INFO").no
         self.ignores = set()
@@ -67,10 +66,6 @@ class LoggerManager:
     @property
     def error(self):
         return self.loggers["[error]"]
-
-    @property
-    def command(self):
-        return self.loggers["[command]"]
 
     def wrapper(self, name: str, color: str = "blue"):
         name = escape_tag(name)
