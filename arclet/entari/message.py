@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex
 
 from satori import select as satori_select
-from satori.element import At, Element, Link, Sharp, Style, Text, transform
+from satori.element import At, Element, Link, Sharp, Style, Quote, Text, transform
 from satori.parser import parse
 
 T = TypeVar("T")
@@ -620,7 +620,7 @@ class MessageChain(list[TE]):
 
     def display(self):
         return "".join(
-            str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link)) else elem.__class__.__name__  # noqa: UP038
+            str(elem) if isinstance(elem, (Text, Style, At, Sharp, Link, Quote)) else f"<{elem.__class__.__name__.lower()}/>"  # noqa: UP038
             for elem in self
         )
 

@@ -1,4 +1,4 @@
-from arclet.alconna import Arparma
+from arclet.alconna import store_true
 
 from arclet.entari import MessageChain, command, metadata
 from arclet.entari.command import Match
@@ -24,14 +24,14 @@ metadata(
 
 @(
     command.command("echo <...content>", "显示消息")
-    .option("escape", "-e|--escape # 发送转义消息")
-    .option("unescape", "-E|--unescape # 发送反转义消息")
+    .option("escape", "-e|--escape # 发送转义消息", default=False, action=store_true)
+    .option("unescape", "-E|--unescape # 发送反转义消息", default=False, action=store_true)
     .config(compact=True)
 )
-async def echo(content: Match[MessageChain], arp: Arparma):
-    if arp.find("unescape"):
+async def echo(content: Match[MessageChain], escape: bool, unescape: bool):
+    if unescape:
         return MessageChain.of(content.result.extract_plain_text())
-    elif arp.find("escape"):
+    elif escape:
         return MessageChain(str(content.result))
     else:
         return content.result

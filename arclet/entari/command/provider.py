@@ -12,7 +12,7 @@ from nepattern.util import CUnionType
 from satori import MessageObject
 from satori.element import Text
 from tarina import LRU
-from tarina.generic import get_origin, origin_is_union
+from tarina.generic import get_origin, origin_is_union, generic_isinstance
 
 from ..config import EntariConfig
 from ..event.base import Reply
@@ -167,37 +167,43 @@ class AlconnaProvider(Provider[Any]):
             if self.type == "args":
                 return
             raise ProviderUnsatisfied("alc_result")
-        result: CommandResult = context["alc_result"]
+        alc_result: CommandResult = context["alc_result"]
         if self.type == "result":
-            return result
+            return alc_result
         if self.type == "arparma":
-            return result.result
+            return alc_result.result
         if self.type == "alconna":
-            return result.source
+            return alc_result.source
         if self.type == "default_duplication":
-            return generate_duplication(result.source)(result.result)
+            return generate_duplication(alc_result.source)(alc_result.result)
         if self.type == "duplication":
-            return self.extra["duplication"](result.result)
+            return self.extra["duplication"](alc_result.result)
         if self.type == "match":
             default_ = Empty
             if _is_optional(self.extra["anno"]):
                 default_ = None
-            target = result.result.all_matched_args.get(self.extra["name"], default_)
+            target = alc_result.result.all_matched_args.get(self.extra["name"], default_)
             return Match(target, target != Empty)
         if self.type == "query":
             default_ = self.extra["query"].result
             if _is_optional(self.extra["anno"]):
                 default_ = None
             q = Query(self.extra["query"].path, default_)
-            res = result.result.query(q.path, Empty)
+            res = alc_result.result.query(q.path, Empty)
             q.available = res != Empty
             if q.available:
                 q.result = res  # type: ignore
             elif self.extra["query"].result != Empty:
                 q.available = True
             return q
-        if self.extra["name"] in result.result.all_matched_args:
-            return result.result.all_matched_args[self.extra["name"]]
+        name = self.extra["name"]
+        res = alc_result.result.all_matched_args.get(name, Empty)
+        if res == Empty:
+            res = alc_result.result.query(name + ".value", Empty)
+        if res == Empty:
+            return
+        if generic_isinstance(res, self.extra["anno"]):
+            return res
 
 
 _seminal = type("_seminal", (object,), {})
