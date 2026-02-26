@@ -13,7 +13,6 @@ from arclet.letoderea import RESULT, ExitState, Scope, Subscriber, make_event
 from arclet.letoderea.provider import TProviders, get_providers
 from arclet.letoderea.typing import Contexts, Result
 from nepattern import DirectPattern
-from satori.element import Text
 from tarina import LRU
 from tarina.trie import CharTrie
 
@@ -62,7 +61,6 @@ async def _after_execute(ctx: Contexts, session: Session | None = None):
 
 
 class EntariCommands:
-    __namespace__ = "Entari"
 
     def __init__(
         self,
@@ -71,15 +69,10 @@ class EntariCommands:
         need_reply_me: bool = False,
         use_config_prefix: bool = True,
     ):
-        self.trie: CharTrie[str] = CharTrie()
+        self.trie: CharTrie[list[str]] = CharTrie()
         self.scope = Scope("entari.command")
         self.block = block
         self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
-        config.namespaces["Entari"] = Namespace(
-            self.__namespace__,
-            to_text=lambda x: x.text if x.__class__ is Text else None,
-            converter=lambda x: MessageChain(x),
-        )
         self.subscribers = WeakValueDictionary[str, Subscriber]()
         self._cache = {}
 
@@ -87,10 +80,10 @@ class EntariCommands:
 
     @property
     def all_helps(self) -> str:
-        return command_manager.all_command_help(namespace=self.__namespace__)
+        return command_manager.all_command_help()
 
-    def get_help(self, command: str) -> str:
-        return command_manager.get_command(f"{self.__namespace__}::{command}").get_help()
+    def get_help(self, name: str) -> str:
+        return command_manager.get_command(name).get_help()
 
     async def execute(self, message: MessageChain, ctx: Contexts):
         msg = str(message).lstrip()
@@ -98,7 +91,7 @@ class EntariCommands:
             return
         subs = self.subscribers
         if matches := list(self.trie.prefixes(msg)):
-            subs = {res.value: self.subscribers[res.value] for res in matches if res.value in self.subscribers}
+            subs = {sub_id: self.subscribers[sub_id] for res in matches for sub_id in res.value if sub_id in self.subscribers}
         results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs.values()))
         for result in results:
             if result is ExitState.stop:
@@ -137,7 +130,14 @@ class EntariCommands:
                 mapping = {arg.name: arg.value for arg in Args.from_callable(func)[0]}
                 mapping.update(args or {})  # type: ignore
                 _command = alconna_from_format(cmd, mapping, meta, union=False)
-                _command.reset_namespace(self.__namespace__)
+                try:
+                    exist = command_manager.get_command(_command.path)
+                    if exist != _command:
+                        exist.formatter.remove(_command)
+                        _command.formatter = _command.formatter.__class__()
+                        _command.formatter.add(_command)
+                except ValueError:
+                    pass
                 key = _command.name + "".join(
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
@@ -148,12 +148,14 @@ class EntariCommands:
                     target = self.scope.register(func, CommandDispatch, providers=providers)
                 target.propagate(AlconnaSuppiler(_command, self._cache.setdefault(_command._hash, LRU(10)), self.block))
                 target.propagate(_after_execute, priority=0)
-                self.trie[key] = target.id
+                self.trie.setdefault(key, []).append(target.id)
                 self.subscribers[target.id] = target
 
                 def _remove(_):
                     command_manager.delete(get_cmd(_))
-                    self.trie.pop(key, None)  # type: ignore
+                    self.trie[key].remove(target.id)  # type: ignore
+                    if not self.trie[key]:
+                        self.trie.pop(key, None)  # type: ignore
                     self.subscribers.pop(target.id, None)
 
                 target._attach_disposes(_remove)
@@ -162,7 +164,6 @@ class EntariCommands:
             _command = cast(Alconna, cmd)
             if not isinstance(cmd.command, str):
                 raise TypeError("Command name must be a string.")
-            _command.reset_namespace(self.__namespace__)
             keys = []
             if not _command.prefixes:
                 keys.append(_command.command)
@@ -181,13 +182,15 @@ class EntariCommands:
             target.propagate(_after_execute, priority=0)
             self.subscribers[target.id] = target
             for _key in keys:
-                self.trie[_key] = target.id
+                self.trie.setdefault(_key, []).append(target.id)
 
             def _remove(_):
                 command_manager.delete(get_cmd(_))
                 self.subscribers.pop(target.id, None)
                 for _key in keys:
-                    self.trie.pop(_key, None)  # type: ignore
+                    self.trie[_key].remove(target.id)  # type: ignore
+                    if not self.trie[_key]:
+                        self.trie.pop(_key, None)  # type: ignore
 
             target._attach_disposes(_remove)
             return target

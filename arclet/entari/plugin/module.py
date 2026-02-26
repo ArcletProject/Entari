@@ -244,14 +244,20 @@ class PluginLoader(SourceFileLoader):
     def exec_module(self, module: ModuleType, config: dict[str, str] | None = None) -> None:
         is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
-            plugin.subplugins.add(module.__name__)
-            plugin_service._subplugined[module.__name__] = plugin.id
+            plugin.subplugins.add(self.plugin_id)
+            plugin_service._subplugined[self.plugin_id] = plugin.id
             is_sub = True
+            if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
+                config = plugin.config.copy()
+            for key in config:
+                if key.startswith(".") and self.plugin_id.endswith(key):
+                    config = config[key]
+                    break
 
         if self.loaded:
             return
 
-        if config is None:
+        if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
             key = module.__name__
             if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
                 key = f"::{key[23:]}"
