@@ -350,7 +350,7 @@ class Plugin:
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
         if filter_expr := self.config.get("$filter", ""):
-            self._scope.propagators.append(enter_if(parse_filter(filter_expr)))
+            self._scope.propagators.append(enter_if.priority(0) & parse_filter(filter_expr))
         # if self._metadata and self._metadata.depend_services:
         #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
         #     self._extra["injected_services"] = [

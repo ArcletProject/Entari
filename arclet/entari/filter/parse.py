@@ -1,4 +1,5 @@
 import ast
+import re
 import operator
 import os
 
@@ -21,6 +22,7 @@ NAMES = {
     "voice": ChannelType.VOICE,
     "category": ChannelType.CATEGORY,
     "env": GetattrDict(os.environ),
+    "message": "abcdefg",
     "reply_me": True,
     "notice_me": False,
     "to_me": True,
@@ -37,10 +39,11 @@ base.operators.pop(ast.FloorDiv, None)
 # 禁用位运算
 for op in (ast.BitAnd, ast.BitOr, ast.BitXor, ast.LShift, ast.RShift, ast.Invert):
     base.operators.pop(op, None)
+base.functions["regex"] = lambda pattern, string: re.match(pattern, string)
 
 
 def parse_filter(expr: str):
-    s = simpleeval.EvalWithCompoundTypes(operators=base.operators)
+    s = simpleeval.EvalWithCompoundTypes(operators=base.operators, functions=base.functions)
     s.expr = expr
     s.names = NAMES
 
@@ -67,10 +70,11 @@ def parse_filter(expr: str):
             "voice": ChannelType.VOICE,
             "category": ChannelType.CATEGORY,
             "env": GetattrDict(os.environ),
+            "message": session.event.message.content if session.event.message else None,
             "reply_me": is_reply_me,
             "notice_me": is_notice_me,
             "to_me": is_reply_me or is_notice_me,
         }
-        return s._eval(parsed)
+        return bool(s._eval(parsed))
 
     return check
