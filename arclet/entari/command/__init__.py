@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from typing import TypeAlias, TypeVar, cast, overload
 from weakref import WeakValueDictionary
 
-from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, Namespace, command_manager, config
+from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, command_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 import arclet.letoderea as le
@@ -91,7 +91,12 @@ class EntariCommands:
             return
         subs = self.subscribers
         if matches := list(self.trie.prefixes(msg)):
-            subs = {sub_id: self.subscribers[sub_id] for res in matches for sub_id in res.value if sub_id in self.subscribers}
+            subs = {
+                sub_id: self.subscribers[sub_id]
+                for res in matches
+                for sub_id in res.value
+                if sub_id in self.subscribers
+            }
         results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs.values()))
         for result in results:
             if result is ExitState.stop:

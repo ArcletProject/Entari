@@ -1,13 +1,12 @@
 import ast
-import os
 import operator
+import os
 
-from satori import ChannelType, Channel, Guild, User
-from arclet.entari.session import Session
-from arclet.entari.config.util import GetattrDict
-
+from satori import Channel, ChannelType, Guild, User
 import simpleeval
 
+from arclet.entari.config.util import GetattrDict
+from arclet.entari.session import Session
 
 NAMES = {
     "channel": Channel(id="123", type=ChannelType.TEXT),

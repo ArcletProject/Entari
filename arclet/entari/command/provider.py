@@ -159,6 +159,9 @@ class AlconnaProvider(Provider[Any]):
         self.type = type_
         self.extra = extra or {}
 
+    def __repr__(self):
+        return f"AlconnaProvider(type={self.type}, extra={self.extra})"
+
     async def __call__(self, context: Contexts):
         if "alc_result" not in context:
             if self.type == "args":

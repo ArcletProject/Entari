@@ -146,75 +146,6 @@ class SatoriEvent:
             if "$event" in context:
                 return context["$event"].timestamp
 
-    class OperatorProvider(Provider[User]):
-        priority = 10
-
-        def validate(self, param: Param):
-            return param.name == "operator" and super().validate(param)
-
-        async def __call__(self, context: Contexts):
-            if "$operator" in context:
-                return context["$operator"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].operator
-
-    class UserProvider(Provider[User]):
-        async def __call__(self, context: Contexts):
-            if "$user" in context:
-                return context["$user"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].user
-
-    class MessageProvider(Provider[MessageObject]):
-        async def __call__(self, context: Contexts):
-            if "$message_origin" in context:
-                return context["$message_origin"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].message
-
-    class ChannelProvider(Provider[Channel]):
-        async def __call__(self, context: Contexts):
-            if "$channel" in context:
-                return context["$channel"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].channel
-
-    class GuildProvider(Provider[Guild]):
-        async def __call__(self, context: Contexts):
-            if "$guild" in context:
-                return context["$guild"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].guild
-
-    class MemberProvider(Provider[Member]):
-        async def __call__(self, context: Contexts):
-            if "$member" in context:
-                return context["$member"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].member
-
-    class RoleProvider(Provider[Role]):
-        async def __call__(self, context: Contexts):
-            if "$role" in context:
-                return context["$role"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].role
-
-    class LoginProvider(Provider[Login]):
-        async def __call__(self, context: Contexts):
-            if "$login" in context:
-                return context["$login"]
-            if "$origin_event" not in context:
-                return
-            return context["$origin_event"].login
-
     def __repr__(self):
         return f"<{self.__class__.__name__.removesuffix('Event')}{self._origin!r}>"
 
@@ -337,13 +268,6 @@ class LoginUpdatedEvent(LoginEvent):
     type = EventType.LOGIN_UPDATED
 
 
-class MessageContentProvider(Provider[MessageChain]):
-    priority = 30
-
-    async def __call__(self, context: Contexts):
-        return context.get("$message_content")
-
-
 class ReplyProvider(Provider[Reply]):
     async def __call__(self, context: Contexts):
         return context.get("$message_reply")
@@ -357,7 +281,7 @@ class MessageEvent(SatoriEvent):
     content: MessageChain
     quote: Quote | None = None
 
-    providers = [MessageContentProvider, ReplyProvider]
+    providers = [ReplyProvider]
 
     def __init__(self, account: Account, origin: OriginEvent):
         super().__init__(account, origin)
