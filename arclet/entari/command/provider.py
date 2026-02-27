@@ -12,7 +12,7 @@ from nepattern.util import CUnionType
 from satori import MessageObject
 from satori.element import Text
 from tarina import LRU
-from tarina.generic import get_origin, origin_is_union, generic_isinstance
+from tarina.generic import generic_isinstance, get_origin, origin_is_union
 
 from ..config import EntariConfig
 from ..event.base import Reply

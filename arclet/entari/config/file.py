@@ -205,7 +205,8 @@ class EntariConfig:
             value = self.plugin.pop(key)
             if key.startswith("~"):
                 key = key[1:]
-                value["$disable"] = True
+                if "$disable" not in value or isinstance(value["$disable"], bool):
+                    value["$disable"] = True
             elif key.startswith("?"):
                 key = key[1:]
                 value["$optional"] = True
@@ -251,7 +252,7 @@ class EntariConfig:
             if key.startswith("$"):
                 continue
             value = self.plugin.pop(key)
-            if "$disable" in value:
+            if "$disable" in value and isinstance(value["$disable"], bool):
                 key = f"~{key}" if value["$disable"] else key
                 value.pop("$disable", None)
             if "$optional" in value:
@@ -315,7 +316,7 @@ class EntariConfig:
     def generate_schema(self, plugins: list["Plugin"]):
         plugins_properties = {}
         # fmt: off
-        plugin_meta_properties = {"$disable": {"type": "boolean", "description": "Whether disable this plugin"}, "$optional": {"type": "boolean", "description": "Whether this plugin is optional (won't cause error if not found)"}, "$prefix": {"type": "string", "description": "Plugin name prefix"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
+        plugin_meta_properties = {"$disable": {"type": "string", "description": "Expression for whether disable this plugin"}, "$prefix": {"type": "string", "description": "Plugin name prefix"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
         for plug in plugins:
             if plug.metadata is not None:
                 if plug.metadata.config:

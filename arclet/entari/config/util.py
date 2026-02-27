@@ -13,13 +13,19 @@ class GetattrDict:
         self._source = source
 
     def __getitem__(self, item):
-        return self._source[item]
+        ans = self._source[item]
+        if isinstance(ans, Mapping):
+            return GetattrDict(ans)
+        return ans
 
     def __getattr__(self, item):
         try:
-            return self._source[item]
+            ans = self._source[item]
         except KeyError as e:
             raise AttributeError(f"{item} not found") from e
+        if isinstance(ans, Mapping):
+            return GetattrDict(ans)
+        return ans
 
 
 def cleanup_src(src: str) -> str:

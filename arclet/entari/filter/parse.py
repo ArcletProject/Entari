@@ -1,13 +1,14 @@
 import ast
-import re
 import operator
 import os
+import re
 
 from satori import Channel, ChannelType, Guild, User
 import simpleeval
 
-from arclet.entari.config.util import GetattrDict
-from arclet.entari.session import Session
+from ..config import EntariConfig
+from ..config.util import GetattrDict
+from ..session import Session
 
 NAMES = {
     "channel": Channel(id="123", type=ChannelType.TEXT),
@@ -40,6 +41,20 @@ base.operators.pop(ast.FloorDiv, None)
 for op in (ast.BitAnd, ast.BitOr, ast.BitXor, ast.LShift, ast.RShift, ast.Invert):
     base.operators.pop(op, None)
 base.functions["regex"] = lambda pattern, string: re.match(pattern, string)
+
+
+def evaluate_disable(expr: str):
+    s = simpleeval.EvalWithCompoundTypes(operators=base.operators, functions=base.functions)
+    s.names = {
+        "env": GetattrDict(os.environ),
+        "basic": EntariConfig.instance.basic,
+        "adapters": GetattrDict(EntariConfig.instance.data.get("adapters", {})),
+    }
+
+    try:
+        return bool(s.eval(expr))
+    except (simpleeval.InvalidExpression, TypeError, ValueError, NameError, SyntaxError):
+        raise RuntimeError(f"Invalid disable expression: {expr}") from None
 
 
 def parse_filter(expr: str):

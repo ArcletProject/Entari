@@ -95,7 +95,7 @@ class EntariCommands:
                 sub_id: self.subscribers[sub_id]
                 for res in matches
                 for sub_id in res.value
-                if sub_id in self.subscribers
+                if sub_id in self.subscribers and self.subscribers[sub_id].available
             }
         results = await asyncio.gather(*(sub.handle(ctx.copy(), inner=True) for sub in subs.values()))
         for result in results:

@@ -316,8 +316,7 @@ class PluginLoader(SourceFileLoader):
         if plugin_service.status.blocking:
             if plugin._apply:
                 plugin.exec_apply()
-            if plugin.config.get("$disable", False):
-                plugin.disable()
+            plugin.check_disable()
             publish(Ready(), plugin._scope)
         publish(PluginLoadedSuccess(self.plugin_id))
         return

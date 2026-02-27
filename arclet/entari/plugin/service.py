@@ -75,8 +75,7 @@ class PluginManagerService(Service):
             for serv in plug._services.values():
                 manager.add_component(serv)
                 self.service_waiter.assign(serv.id)
-            if plug.config.get("$disable", False):
-                plug.disable()
+            plug.check_disable()
 
         async with self.stage("preparing"):
             es.publish(Startup())
@@ -85,8 +84,7 @@ class PluginManagerService(Service):
                 if not plug._apply:
                     continue
                 plug.exec_apply()
-                if plug.config.get("$disable", False):
-                    plug.disable()
+                plug.check_disable()
             es.publish(Ready())
             await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):

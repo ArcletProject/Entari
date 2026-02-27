@@ -168,7 +168,7 @@ class Watcher(Service):
                             changed = {k for k in set(new_conf) & set(old_conf) if new_conf[k] != old_conf[k]}
                             changes = added | removed | changed
                             if "$disable" in changes:
-                                plg.disable() if new_conf.get("$disable", False) else plg.enable()
+                                plg.check_disable()
                                 changes.remove("$disable")
                             if "$dry" in changes:
                                 changes.remove("$dry")

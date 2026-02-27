@@ -21,6 +21,7 @@ from arclet.letoderea import (
     Subscriber,
     define,
     enter_if,
+    on,
     propagate,
     publish,
 )
@@ -35,9 +36,10 @@ from tarina import ContextModel
 from tarina.tools import TCallable, run_sync
 
 from ..config import config_model_schema
+from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..filter.parse import parse_filter
+from ..filter.parse import evaluate_disable, parse_filter
 from ..logger import log
 from .service import plugin_service
 
@@ -271,7 +273,8 @@ class Plugin:
         if self._scope.available:
             return
         self._scope.enable()
-        self.config.pop("$disable", None)
+        if "$disable" in self.config and isinstance(self.config["$disable"], bool):
+            self.config.pop("$disable", None)
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
@@ -317,8 +320,33 @@ class Plugin:
         t.add_done_callback(tasks.discard)
         tasks.add(t)
         self._scope.disable()
-        self.config["$disable"] = True
+        if "$disable" not in self.config or isinstance(self.config["$disable"], bool):
+            self.config["$disable"] = True
         return tasks
+
+    def check_disable(self):
+        if "$disable" not in self.config:
+            if not self._scope.available:
+                return self.enable()
+            return
+        if isinstance(self.config["$disable"], bool):
+            if self.config["$disable"] and self._scope.available:
+                return self.disable()
+            if not self.config["$disable"] and not self._scope.available:
+                return self.enable()
+            return
+        # eval expr
+        try:
+            ans = evaluate_disable(self.config["$disable"])
+        except Exception as e:
+            log.plugin.error(f"failed to evaluate disable expression for plugin <y>{self.id}</y>: {e!r}")
+            return
+
+        if ans and self._scope.available:
+            return self.disable()
+        if not ans and not self._scope.available:
+            return self.enable()
+        return
 
     def collect(self, *disposes: Callable[[], None] | Callable[[], Awaitable[None]]):
         """收集副作用回收函数"""
@@ -356,6 +384,15 @@ class Plugin:
         #     self._extra["injected_services"] = [
         #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
         #     ]
+        if "$disable" in self.config and isinstance(self.config["$disable"], str):
+
+            async def _check_reload(event: ConfigReload):
+                if event.scope == "basic":
+                    self.check_disable()
+
+            sub = on(ConfigReload, _check_reload)
+            self.collect(sub.dispose)
+
         self.is_static = self.config.pop("$static", False)
         if self.id not in plugin_service._keep_values:
             plugin_service._keep_values[self.id] = {}
