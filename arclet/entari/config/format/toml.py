@@ -20,10 +20,15 @@ def toml_loader(text: str) -> dict[str, Any]:
 
 
 @register_dumper("toml")
-def toml_dumper(origin: dict[str, Any], indent: int = 4):
+def toml_dumper(origin: dict[str, Any], indent: int, schema_file: str | None) -> tuple[str, bool]:
     """
     Dump a dictionary to a TOML file.
     """
     if dumps is None:
         raise RuntimeError("tomlkit is not installed. Please install with `arclet-entari[toml]`")
-    return dumps(origin)
+    ans = dumps(origin)
+    schema_applied = False
+    if schema_file and not ans.startswith("# schema: "):
+        ans = f"# schema: {schema_file}\n{ans}"
+        schema_applied = True
+    return ans, schema_applied

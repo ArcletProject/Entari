@@ -106,7 +106,7 @@ class BasicConfig(BasicConfModel):
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
-_dumpers: dict[str, Callable[[dict, int], str]] = {}
+_dumpers: dict[str, Callable[[dict, int, str | None], tuple[str, bool]]] = {}
 
 
 @dataclass
@@ -144,7 +144,7 @@ class EntariConfig:
 
         raise ValueError(f"Unsupported file format: {path.suffix}")
 
-    def dumper(self, path: Path, save_path: Path, data: dict, indent: int):
+    def dumper(self, path: Path, save_path: Path, data: dict, indent: int, apply_schema: bool):
         if not path.exists():
             return
         origin = self.loader(path)
@@ -153,12 +153,15 @@ class EntariConfig:
         else:
             origin = data
         end = save_path.suffix.split(".")[-1]
+        schema_file = None
+        if apply_schema:
+            schema_file = f"{save_path.stem}.schema.json"
         if end in _dumpers:
-            ans = _dumpers[end](origin, indent)
+            ans, applied = _dumpers[end](origin, indent, schema_file)
             if self._env_replaced:
                 lines = ans.splitlines(keepends=True)
                 for i, line in self._env_replaced.items():
-                    lines[i] = line
+                    lines[i + applied] = line
                 ans = "".join(lines)
             with save_path.open("w", encoding="utf-8") as f:
                 f.write(ans)
@@ -243,11 +246,11 @@ class EntariConfig:
             for file in self.plugin_extra_files:
                 path = Path(file)
                 if path.is_file():
-                    self.dumper(path, path, self._clean(self.plugin.pop(path.stem)), indent)
+                    self.dumper(path, path, self._clean(self.plugin.pop(path.stem)), indent, False)
                 else:
                     for _path in path.iterdir():
                         if _path.is_file():
-                            self.dumper(_path, _path, self._clean(self.plugin.pop(_path.stem)), indent)
+                            self.dumper(_path, _path, self._clean(self.plugin.pop(_path.stem)), indent, False)
         for key in list(self.plugin.keys()):
             if key.startswith("$"):
                 continue
@@ -261,9 +264,9 @@ class EntariConfig:
             self.plugin[key] = self._clean(value)
         return self._origin_data
 
-    def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2):
+    def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2, apply_schema: bool = False):
         self.save_flag = True
-        self.dumper(self.path, Path(path or self.path), self.dump(indent), indent)
+        self.dumper(self.path, Path(path or self.path), self.dump(indent), indent, apply_schema)
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> "EntariConfig":
@@ -352,7 +355,7 @@ def register_loader(*ext: str):
 def register_dumper(*ext: str):
     """Register a dumper for a specific file extension."""
 
-    def decorator(func: Callable[[dict, int], str]):
+    def decorator(func: Callable[[dict, int, str | None], tuple[str, bool]]):
         for e in ext:
             _dumpers[e] = func
         return func
@@ -366,8 +369,12 @@ def json_loader(text: str) -> dict:
 
 
 @register_dumper("json")
-def json_dumper(origin: dict, indent: int):
-    return json.dumps(origin, indent=indent, ensure_ascii=False)
+def json_dumper(origin: dict, indent: int, schema_file: str | None = None) -> tuple[str, bool]:
+    schema_applied = False
+    if schema_file and "$schema" not in origin:
+        origin = {"$schema": f"{schema_file}", **origin}
+        schema_applied = True
+    return json.dumps(origin, indent=indent, ensure_ascii=False), schema_applied
 
 
 @register_loader("yaml", "yml")
@@ -381,7 +388,7 @@ def yaml_loader(text: str) -> dict:
 
 
 @register_dumper("yaml", "yml")
-def yaml_dumper(origin: dict, indent: int):
+def yaml_dumper(origin: dict, indent: int, schema_file: str | None = None) -> tuple[str, bool]:
     if YAML is None:
         raise RuntimeError("yaml is not installed. Please install with `arclet-entari[yaml]`")
     yaml = YAML()
@@ -390,4 +397,15 @@ def yaml_dumper(origin: dict, indent: int):
     yaml.width = 4096
     sio = StringIO()
     yaml.dump(origin, sio)
-    return sio.getvalue()
+    ans = sio.getvalue()
+    schema_applied = False
+    if schema_file:
+        root = Path.cwd()
+        if (root / ".vscode").exists():
+            if not ans.startswith("# yaml-language-server: $schema="):
+                ans = f"# yaml-language-server: $schema={schema_file}\n{ans}"
+                schema_applied = True
+        elif not ans.startswith("# $schema:"):
+            ans = f"# $schema: {schema_file}\n{ans}"
+            schema_applied = True
+    return ans, schema_applied

@@ -416,7 +416,7 @@ class Entari(App):
         if self._path_scale:
             del sys.path[self._path_scale[0] : self._path_scale[1]]
         if EntariConfig.instance.path.exists():
-            EntariConfig.instance.save()
+            EntariConfig.instance.save(apply_schema=self.gen_schema)
         log.core.info("Entari Shutdown.")
 
     @classmethod
