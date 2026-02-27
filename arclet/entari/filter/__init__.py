@@ -8,7 +8,7 @@ from typing_extensions import ParamSpec
 from arclet.letoderea import STOP, Propagator, enter_if
 from tarina import is_coroutinefunction
 
-from . import common, message
+from . import common
 from ..message import MessageChain
 from ..session import Session
 
@@ -31,14 +31,14 @@ class _Filter:
     channel = staticmethod(_check_wrapper(common.channel))
     self_ = staticmethod(_check_wrapper(common.account))
     platform = staticmethod(_check_wrapper(common.platform))
-    direct = enter_if(message.direct_message)
-    private = enter_if(message.direct_message)
-    direct_message = enter_if(message.direct_message)
-    public = enter_if(message.public_message)
-    public_message = enter_if(message.public_message)
-    notice_me = enter_if(message.notice_me)
-    reply_me = enter_if(message.reply_me)
-    to_me = enter_if(message.to_me)
+    direct = enter_if(common.direct_message)
+    private = enter_if(common.direct_message)
+    direct_message = enter_if(common.direct_message)
+    public = enter_if(common.public_message)
+    public_message = enter_if(common.public_message)
+    notice_me = enter_if(common.notice_me)
+    reply_me = enter_if(common.reply_me)
+    to_me = enter_if(common.to_me)
 
     def __call__(self, func: _SessionFilter):
         sig = inspect.signature(func)

@@ -284,16 +284,14 @@ class PluginLoader(SourceFileLoader):
             plugin.dispose()
             publish(PluginLoadedFailed(self.plugin_id, e))
             raise
-        except (ImportError, StaticPluginDispatchError, ReusablePluginError) as e:
-            log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>: {e.args[0]}")
-            plugin.dispose()
-            publish(PluginLoadedFailed(self.plugin_id, e))
-            raise
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
             publish(PluginLoadedFailed(self.plugin_id, e))
-            raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path) from None
+            if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
+                raise
+            else:
+                raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path) from None
         finally:
             # leave plugin context
             delattr(module, "__cached__")

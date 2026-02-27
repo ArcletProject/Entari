@@ -3,7 +3,7 @@ import operator
 import os
 import re
 
-from satori import Channel, ChannelType, Guild, User
+from satori import Channel, ChannelType, EventType, Guild, Role, User
 import simpleeval
 
 from ..config import EntariConfig
@@ -11,6 +11,7 @@ from ..config.util import GetattrDict
 from ..session import Session
 
 NAMES = {
+    "type": EventType.MESSAGE_CREATED,
     "channel": Channel(id="123", type=ChannelType.TEXT),
     "guild": Guild(id="321"),
     "user": User(id="789"),
@@ -22,6 +23,7 @@ NAMES = {
     "public": ChannelType.TEXT,
     "voice": ChannelType.VOICE,
     "category": ChannelType.CATEGORY,
+    "role": Role(id="987"),
     "env": GetattrDict(os.environ),
     "message": "abcdefg",
     "reply_me": True,
@@ -42,14 +44,30 @@ for op in (ast.BitAnd, ast.BitOr, ast.BitXor, ast.LShift, ast.RShift, ast.Invert
     base.operators.pop(op, None)
 base.functions["regex"] = lambda pattern, string: re.match(pattern, string)
 
+_op_translate = {
+    " exists": " is not None",
+    " eq ": " == ",
+    " ne ": " != ",
+    " neq ": " != ",
+    " gt ": " > ",
+    " lt ": " < ",
+    " ge ": " >= ",
+    " gte ": " >= ",
+    " le ": " <= ",
+    " lte ": " <= ",
+    " nin ": " not in ",
+}
+
+
+def regex_batch_replace(text, replace_dict):
+    pattern = re.compile("|".join(map(re.escape, replace_dict.keys())))
+    return pattern.sub(lambda m: replace_dict[m.group()], text)
+
 
 def evaluate_disable(expr: str):
+    expr = regex_batch_replace(expr, _op_translate)
     s = simpleeval.EvalWithCompoundTypes(operators=base.operators, functions=base.functions)
-    s.names = {
-        "env": GetattrDict(os.environ),
-        "basic": EntariConfig.instance.basic,
-        "adapters": GetattrDict(EntariConfig.instance.data.get("adapters", {})),
-    }
+    s.names = {"env": GetattrDict(os.environ), "config": GetattrDict(EntariConfig.instance.data)}
 
     try:
         return bool(s.eval(expr))
@@ -58,6 +76,7 @@ def evaluate_disable(expr: str):
 
 
 def parse_filter(expr: str):
+    expr = regex_batch_replace(expr, _op_translate)
     s = simpleeval.EvalWithCompoundTypes(operators=base.operators, functions=base.functions)
     s.expr = expr
     s.names = NAMES
@@ -73,6 +92,7 @@ def parse_filter(expr: str):
             return True
 
         s.names = {
+            "type": session.event.type,
             "channel": session.event.channel,
             "guild": session.event.guild,
             "user": session.event.user,
@@ -84,6 +104,7 @@ def parse_filter(expr: str):
             "public": ChannelType.TEXT,
             "voice": ChannelType.VOICE,
             "category": ChannelType.CATEGORY,
+            "role": session.event.role,
             "env": GetattrDict(os.environ),
             "message": session.event.message.content if session.event.message else None,
             "reply_me": is_reply_me,
