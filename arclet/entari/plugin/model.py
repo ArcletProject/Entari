@@ -287,6 +287,7 @@ class Plugin:
             if ret not in plugin_service.plugins:
                 continue
             plugin_service.plugins[ret].enable()
+        log.plugin.debug(f"plugin <y>{self.id}</y> enabled")
         if plugin_service.status.blocking:
             tasks = set()
             for serv in self._services.values():
@@ -322,6 +323,7 @@ class Plugin:
         self._scope.disable()
         if "$disable" not in self.config or isinstance(self.config["$disable"], bool):
             self.config["$disable"] = True
+        log.plugin.debug(f"plugin <y>{self.id}</y> disabled")
         return tasks
 
     def check_disable(self):

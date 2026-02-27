@@ -72,10 +72,12 @@ class PluginManagerService(Service):
     async def launch(self, manager: Launart):
 
         for plug in self.plugins.values():
-            for serv in plug._services.values():
-                manager.add_component(serv)
-                self.service_waiter.assign(serv.id)
-            plug.check_disable()
+            if tasks := plug.check_disable():
+                await asyncio.wait(tasks)
+            else:
+                for serv in plug._services.values():
+                    manager.add_component(serv)
+                    self.service_waiter.assign(serv.id)
 
         async with self.stage("preparing"):
             es.publish(Startup())
@@ -84,7 +86,8 @@ class PluginManagerService(Service):
                 if not plug._apply:
                     continue
                 plug.exec_apply()
-                plug.check_disable()
+                if tasks := plug.check_disable():
+                    await asyncio.wait(tasks)
             es.publish(Ready())
             await manager.status.wait_for_sigexit()
         async with self.stage("cleanup"):
