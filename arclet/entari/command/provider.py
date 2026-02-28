@@ -15,6 +15,7 @@ from tarina import LRU
 from tarina.generic import generic_isinstance, get_origin, origin_is_union
 
 from ..config import EntariConfig
+from ..const import ITEM_MESSAGE_CONTENT
 from ..event.base import Reply
 from ..event.command import CommandOutput, CommandParse, CommandReceive
 from ..message import MessageChain
@@ -62,8 +63,8 @@ class MessageJudges(Propagator):
             return STOP
         if self.use_config_prefix and not (message := _remove_config_prefix(message)):
             return STOP
-        if "$message_content" in ctx:
-            return {"$message_content": message}
+        if ITEM_MESSAGE_CONTENT in ctx:
+            return {ITEM_MESSAGE_CONTENT: message}
         return {"$message": message}
 
     def compose(self):

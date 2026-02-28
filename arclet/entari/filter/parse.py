@@ -3,7 +3,7 @@ import operator
 import os
 import re
 
-from satori import Channel, ChannelType, EventType, Guild, Role, User
+from satori import Channel, ChannelType, EventType, Guild, Member, Role, User
 import simpleeval
 
 from ..config import EntariConfig
@@ -15,6 +15,7 @@ NAMES = {
     "channel": Channel(id="123", type=ChannelType.TEXT),
     "guild": Guild(id="321"),
     "user": User(id="789"),
+    "member": Member(User(id="789")),
     "platform": "satori",
     "self_id": "456",
     "direct": ChannelType.DIRECT,
@@ -23,7 +24,7 @@ NAMES = {
     "public": ChannelType.TEXT,
     "voice": ChannelType.VOICE,
     "category": ChannelType.CATEGORY,
-    "role": Role(id="987"),
+    "role": Role(id="member"),
     "env": GetattrDict(os.environ),
     "message": "abcdefg",
     "reply_me": True,
@@ -96,6 +97,7 @@ def parse_filter(expr: str):
             "channel": session.event.channel,
             "guild": session.event.guild,
             "user": session.event.user,
+            "member": session.event.member,
             "platform": session.account.platform,
             "self_id": session.account.self_id,
             "direct": ChannelType.DIRECT,

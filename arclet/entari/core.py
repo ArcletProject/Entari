@@ -7,9 +7,10 @@ import signal
 import sys
 from typing import get_args
 
+from arclet.alconna import Alconna
 from arclet.alconna import config as alconna_config
 import arclet.letoderea as le
-from arclet.letoderea import Contexts, Param, Provider, ProviderFactory, global_providers
+from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, global_providers
 from arclet.letoderea.scope import configure
 from creart import it
 from graia.amnesia.builtins.memcache import MemcacheService
@@ -19,12 +20,30 @@ from satori.client import App
 from satori.client.account import Account
 from satori.client.config import Config, WebhookInfo, WebsocketsInfo
 from satori.client.protocol import ApiProtocol
-from satori.model import Event, Guild, Login, Member, MessageObject, Role, User
+from satori.model import EmojiObject, Event, Friend, Guild, Login, Member, MessageObject, Role, User
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
 from .config import BasicConfModel, EntariConfig
 from .config.file import LogInfo
 from .config.model import config_model_validate
+from .const import (
+    ITEM_ACCOUNT,
+    ITEM_ALCONNA,
+    ITEM_CHANNEL,
+    ITEM_EMOJI_OBJECT,
+    ITEM_FRIEND,
+    ITEM_GUILD,
+    ITEM_LOGIN,
+    ITEM_MEMBER,
+    ITEM_MESSAGE_CONTENT,
+    ITEM_MESSAGE_ORIGIN,
+    ITEM_MESSAGE_REPLY,
+    ITEM_OPERATOR,
+    ITEM_ORIGIN_EVENT,
+    ITEM_ROLE,
+    ITEM_SESSION,
+    ITEM_USER,
+)
 from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate
@@ -40,7 +59,7 @@ from .session import EntariProtocol, Session
 
 class ApiProtocolProvider(Provider[ApiProtocol]):
     async def __call__(self, context: Contexts):
-        if account := context.get("$account"):
+        if account := context.get(ITEM_ACCOUNT):
             return account.protocol
 
 
@@ -51,20 +70,20 @@ class SessionProviderFactory(ProviderFactory):
             self.target_type = target_type
 
         async def __call__(self, context: Contexts):
-            if "$session" in context and isinstance(context["$session"], Session):
-                sess = context["$session"]
+            if ITEM_SESSION in context and isinstance(context[ITEM_SESSION], Session):
+                sess = context[ITEM_SESSION]
                 if self.target_type and not generic_isinstance(sess.event, self.target_type):
                     return
-                return context["$session"]
-            if "$origin_event" in context and "$account" in context:
-                if self.target_type and not generic_isinstance(context["$event"], self.target_type):
+                return sess
+            if ITEM_ORIGIN_EVENT in context and ITEM_ACCOUNT in context:
+                if self.target_type and not generic_isinstance(context[EVENT], self.target_type):
                     return
-                session = Session(context["$account"], context["$event"])
-                if "$message_content" in context:
-                    session.elements = context["$message_content"]
-                if "$message_reply" in context:
-                    session.reply = context["$message_reply"]
-                context["$session"] = session
+                session = Session(context[ITEM_ACCOUNT], context[EVENT])
+                if ITEM_MESSAGE_CONTENT in context:
+                    session.elements = context[ITEM_MESSAGE_CONTENT]
+                if ITEM_MESSAGE_REPLY in context:
+                    session.reply = context[ITEM_MESSAGE_REPLY]
+                context[ITEM_SESSION] = session
                 return session
 
     def validate(self, param: Param):
@@ -78,8 +97,8 @@ class SessionProviderFactory(ProviderFactory):
 
 class AccountProvider(Provider[Account]):
     async def __call__(self, context: Contexts):
-        if "$account" in context:
-            return context["$account"]
+        if ITEM_ACCOUNT in context:
+            return context[ITEM_ACCOUNT]
 
 
 class OperatorProvider(Provider[User]):
@@ -89,81 +108,104 @@ class OperatorProvider(Provider[User]):
         return param.name == "operator" and super().validate(param)
 
     async def __call__(self, context: Contexts):
-        if "$operator" in context:
-            return context["$operator"]
-        if "$origin_event" not in context:
+        if ITEM_OPERATOR in context:
+            return context[ITEM_OPERATOR]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].operator
+        return context[ITEM_ORIGIN_EVENT].operator
 
 
 class UserProvider(Provider[User]):
     async def __call__(self, context: Contexts):
-        if "$user" in context:
-            return context["$user"]
-        if "$origin_event" not in context:
+        if ITEM_USER in context:
+            return context[ITEM_USER]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].user
+        return context[ITEM_ORIGIN_EVENT].user
 
 
 class MessageProvider(Provider[MessageObject]):
     async def __call__(self, context: Contexts):
-        if "$message_origin" in context:
-            return context["$message_origin"]
-        if "$origin_event" not in context:
+        if ITEM_MESSAGE_ORIGIN in context:
+            return context[ITEM_MESSAGE_ORIGIN]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].message
+        return context[ITEM_ORIGIN_EVENT].message
 
 
 class ChannelProvider(Provider[Channel]):
     async def __call__(self, context: Contexts):
-        if "$channel" in context:
-            return context["$channel"]
-        if "$origin_event" not in context:
+        if ITEM_CHANNEL in context:
+            return context[ITEM_CHANNEL]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].channel
+        return context[ITEM_ORIGIN_EVENT].channel
 
 
 class GuildProvider(Provider[Guild]):
     async def __call__(self, context: Contexts):
-        if "$guild" in context:
-            return context["$guild"]
-        if "$origin_event" not in context:
+        if ITEM_GUILD in context:
+            return context[ITEM_GUILD]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].guild
+        return context[ITEM_ORIGIN_EVENT].guild
 
 
 class MemberProvider(Provider[Member]):
     async def __call__(self, context: Contexts):
-        if "$member" in context:
-            return context["$member"]
-        if "$origin_event" not in context:
+        if ITEM_MEMBER in context:
+            return context[ITEM_MEMBER]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].member
+        return context[ITEM_ORIGIN_EVENT].member
 
 
 class RoleProvider(Provider[Role]):
     async def __call__(self, context: Contexts):
-        if "$role" in context:
-            return context["$role"]
-        if "$origin_event" not in context:
+        if ITEM_ROLE in context:
+            return context[ITEM_ROLE]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].role
+        return context[ITEM_ORIGIN_EVENT].role
+
+
+class EmojiProvider(Provider[EmojiObject]):
+    async def __call__(self, context: Contexts):
+        if ITEM_EMOJI_OBJECT in context:
+            return context[ITEM_EMOJI_OBJECT]
+        if ITEM_ORIGIN_EVENT not in context:
+            return
+        return context[ITEM_ORIGIN_EVENT].emoji
 
 
 class LoginProvider(Provider[Login]):
     async def __call__(self, context: Contexts):
-        if "$login" in context:
-            return context["$login"]
-        if "$origin_event" not in context:
+        if ITEM_LOGIN in context:
+            return context[ITEM_LOGIN]
+        if ITEM_ORIGIN_EVENT not in context:
             return
-        return context["$origin_event"].login
+        return context[ITEM_ORIGIN_EVENT].login
 
 
 class MessageContentProvider(Provider[MessageChain]):
     priority = 30
 
     async def __call__(self, context: Contexts):
-        return context.get("$message_content")
+        return context.get(ITEM_MESSAGE_CONTENT)
+
+
+class FriendProvider(Provider[Friend]):
+    async def __call__(self, context: Contexts):
+        if ITEM_FRIEND in context:
+            return context[ITEM_FRIEND]
+
+
+class AlconnaProvider(Provider[Alconna]):
+    priority = 20
+
+    async def __call__(self, context: Contexts):
+        if ITEM_ALCONNA in context:
+            return context[ITEM_ALCONNA]
 
 
 global_providers.extend(
@@ -180,6 +222,9 @@ global_providers.extend(
         RoleProvider(),
         LoginProvider(),
         MessageContentProvider(),
+        FriendProvider(),
+        EmojiProvider(),
+        AlconnaProvider(),
     ]
 )
 

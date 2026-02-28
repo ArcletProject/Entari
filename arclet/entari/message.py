@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex
 
 from satori import select as satori_select
-from satori.element import At, Element, Link, Quote, Sharp, Style, Text, transform
+from satori.element import At, Element, Emoji, Link, Quote, Sharp, Style, Text, transform
+from satori.model import MessageObject
 from satori.parser import parse
 
 T = TypeVar("T")
@@ -622,7 +624,7 @@ class MessageChain(list[TE]):
         return "".join(
             (
                 str(elem)
-                if isinstance(elem, (Text, Style, At, Sharp, Link, Quote))
+                if isinstance(elem, (Text, Style, At, Sharp, Link, Quote, Emoji))
                 else f"<{elem.__class__.__name__.lower()}/>"
             )  # noqa: UP038
             for elem in self
@@ -631,3 +633,9 @@ class MessageChain(list[TE]):
     @staticmethod
     def of(text: str) -> MessageChain:
         return MessageChain(transform(parse(text)))
+
+
+@dataclass
+class Reply:
+    quote: Quote
+    origin: MessageObject

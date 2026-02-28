@@ -36,6 +36,7 @@ class WebsocketsInfo(BasicConfModel):
     host: str = model_field(default="localhost", description="WebSocket server host")
     port: int = model_field(default=5140, description="WebSocket server port")
     path: str = model_field(default="", description="WebSocket server endpoint path")
+    secure: bool = model_field(default=False, description="Whether to use HTTPS and WSS for the server connection")
     token: str | None = model_field(default=None, description="Authentication token for the WebSocket server")
     timeout: float | None = model_field(default=None, description="Connection timeout in seconds")
 
@@ -47,6 +48,7 @@ class WebhookInfo(BasicConfModel):
     host: str = model_field(default="127.0.0.1", description="Webhook self-server host")
     port: int = model_field(default=8080, description="Webhook self-server port")
     path: str = model_field(default="v1/events", description="Webhook self-server endpoint path")
+    secure: bool = model_field(default=False, description="Whether to use HTTPS for the server connection")
     token: str | None = model_field(default=None, description="Authentication token for the webhook")
     server_host: str = model_field(default="localhost", description="Target server host")
     server_port: int = model_field(default=5140, description="Target server port")

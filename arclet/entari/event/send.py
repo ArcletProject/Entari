@@ -5,6 +5,7 @@ from arclet.letoderea import Contexts, Result, define, provide
 from satori.client import Account
 from satori.model import MessageObject
 
+from ..const import ITEM_ACCOUNT, ITEM_CHANNEL, ITEM_MESSAGE_CONTENT, ITEM_SESSION
 from ..message import MessageChain
 
 if TYPE_CHECKING:
@@ -24,16 +25,15 @@ class SendRequest:
 
 
 before_send_pub = define(SendRequest, name="entari.event/before_send")
-before_send_pub.bind(provide(MessageChain, call="$message"))
 
 
 @before_send_pub.gather
 async def req_gather(req: SendRequest, context: Contexts):
-    context["$account"] = req.account
-    context["$channel"] = await req.account.channel_get(req.channel)
-    context["$message"] = req.message
+    context[ITEM_ACCOUNT] = req.account
+    context[ITEM_CHANNEL] = await req.account.channel_get(req.channel)
+    context[ITEM_MESSAGE_CONTENT] = req.message
     if req.session:
-        context["$session"] = req.session
+        context[ITEM_SESSION] = req.session
 
 
 @dataclass
@@ -46,15 +46,14 @@ class SendResponse:
 
 
 send_pub = define(SendResponse, name="entari.event/after_send")
-send_pub.bind(provide(MessageChain, call="$message"))
 send_pub.bind(provide(list[MessageObject], call="$resp_result"))
 
 
 @send_pub.gather
 async def resp_gather(resp: SendResponse, context: Contexts):
-    context["$account"] = resp.account
-    context["$channel"] = await resp.account.channel_get(resp.channel)
-    context["$message"] = resp.message
+    context[ITEM_ACCOUNT] = resp.account
+    context[ITEM_CHANNEL] = await resp.account.channel_get(resp.channel)
+    context[ITEM_MESSAGE_CONTENT] = resp.message
     context["$resp_result"] = resp.result
     if resp.session:
-        context["$session"] = resp.session
+        context[ITEM_SESSION] = resp.session

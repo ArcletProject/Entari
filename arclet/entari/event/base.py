@@ -1,27 +1,38 @@
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, TypeVar, overload
 
 from arclet.letoderea import Contexts, Param, Provider, define
-from satori import ArgvInteraction, ButtonInteraction, Channel
 from satori import Event as OriginEvent
-from satori import EventType, Guild, Member, Role, User
 from satori.client import Account
+from satori.const import EventType
 from satori.element import At, Author, Quote, Text, select
-from satori.model import Login, MessageObject
+from satori.model import (
+    ArgvInteraction,
+    ButtonInteraction,
+    Channel,
+    EmojiObject,
+    Guild,
+    Login,
+    Member,
+    MessageObject,
+    Role,
+    User,
+)
 from tarina import gen_subclass
 
-from ..message import MessageChain
+from ..const import (
+    ITEM_ACCOUNT,
+    ITEM_GUILD,
+    ITEM_MESSAGE_CONTENT,
+    ITEM_MESSAGE_ORIGIN,
+    ITEM_MESSAGE_REPLY,
+    ITEM_ORIGIN_EVENT,
+)
+from ..message import MessageChain, Reply
 
 T = TypeVar("T")
 D = TypeVar("D")
-
-
-@dataclass
-class Reply:
-    quote: Quote
-    origin: MessageObject
 
 
 def _is_reply_me(reply: Reply, account: Account):
@@ -121,6 +132,7 @@ class SatoriEvent:
     role: Role | None = attr()
     user: User | None = attr()
     referrer: dict | None = attr()
+    emoji: EmojiObject | None = attr()
 
     def __init_subclass__(cls, **kwargs):
         cls._attrs = set()
@@ -130,13 +142,13 @@ class SatoriEvent:
         self._origin = origin
 
     async def gather(self, context: Contexts):
-        context["$account"] = self.account
-        context["$origin_event"] = self._origin
+        context[ITEM_ACCOUNT] = self.account
+        context[ITEM_ORIGIN_EVENT] = self._origin
 
         for name in self.__class__._attrs:
             value = getattr(self, name)
             if value is not None:
-                context["$message_origin" if name == "message" else f"${name}"] = value
+                context[ITEM_MESSAGE_ORIGIN if name == "message" else f"${name}"] = value
 
     class TimeProvider(Provider[datetime]):
         def validate(self, param: Param):
@@ -177,7 +189,7 @@ class GuildEvent(NoticeEvent):
 
     async def gather(self, context: Contexts):
         await super().gather(context)
-        context["$guild"] = self.guild
+        context[ITEM_GUILD] = self.guild
 
 
 class GuildAddedEvent(GuildEvent):
@@ -236,6 +248,22 @@ class GuildMemberUpdatedEvent(GuildMemberEvent):
     type = EventType.GUILD_MEMBER_UPDATED
 
 
+class GuildEmojiEvent(GuildEvent):
+    emoji: EmojiObject = attr()
+
+
+class GuildEmojiAddedEvent(GuildEmojiEvent):
+    type = EventType.GUILD_EMOJI_ADDED
+
+
+class GuildEmojiRemovedEvent(GuildEmojiEvent):
+    type = EventType.GUILD_EMOJI_REMOVED
+
+
+class GuildEmojiUpdatedEvent(GuildEmojiEvent):
+    type = EventType.GUILD_EMOJI_UPDATED
+
+
 class GuildRoleEvent(GuildEvent):
     role: Role = attr()
 
@@ -270,7 +298,7 @@ class LoginUpdatedEvent(LoginEvent):
 
 class ReplyProvider(Provider[Reply]):
     async def __call__(self, context: Contexts):
-        return context.get("$message_reply")
+        return context.get(ITEM_MESSAGE_REPLY)
 
 
 class MessageEvent(SatoriEvent):
@@ -298,7 +326,7 @@ class MessageEvent(SatoriEvent):
                 mo = MessageObject.from_elements(self.quote.id, self.quote.children)
             else:
                 mo = await self.account.protocol.message_get(self.channel.id, self.quote.id)
-            reply = context["$message_reply"] = Reply(self.quote, mo)
+            reply = context[ITEM_MESSAGE_REPLY] = Reply(self.quote, mo)
         if not reply:
             is_reply_me = False
         else:
@@ -313,7 +341,7 @@ class MessageEvent(SatoriEvent):
         is_notice_me = context["is_notice_me"] = _is_notice_me(self.content, self.account)
         if is_notice_me:
             self.content = _remove_notice_me(self.content, self.account)
-        context["$message_content"] = self.content
+        context[ITEM_MESSAGE_CONTENT] = self.content
 
 
 class MessageCreatedEvent(MessageEvent):
@@ -329,7 +357,7 @@ class MessageUpdatedEvent(MessageEvent):
 
 
 class ReactionEvent(NoticeEvent, MessageEvent):
-    pass
+    emoji: EmojiObject = attr()
 
 
 class ReactionAddedEvent(ReactionEvent):
@@ -355,7 +383,7 @@ class InteractionButtonEvent(InteractionEvent):
 
     class ButtonProvider(Provider[ButtonInteraction]):
         async def __call__(self, context: Contexts):
-            return context.get("button")
+            return context.get("$button")
 
 
 class InteractionCommandEvent(InteractionEvent):
@@ -367,7 +395,7 @@ class InteractionCommandArgvEvent(InteractionCommandEvent):
 
     class ArgvProvider(Provider[ArgvInteraction]):
         async def __call__(self, context: Contexts):
-            return context.get("argv")
+            return context.get("$argv")
 
 
 class InteractionCommandMessageEvent(InteractionCommandEvent, MessageEvent):

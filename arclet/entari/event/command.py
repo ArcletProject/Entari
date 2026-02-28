@@ -1,6 +1,7 @@
 from arclet.alconna import Alconna, Arparma
 from arclet.letoderea import Contexts, Result, make_event, provide
 
+from ..const import ITEM_ALCONNA, ITEM_MESSAGE_CONTENT, ITEM_MESSAGE_REPLY, ITEM_SESSION
 from ..message import MessageChain
 from ..session import Session
 from .base import Reply
@@ -33,13 +34,12 @@ class CommandOutput:
     content: str
 
     async def gather(self, context: Contexts):
-        context["$session"] = self.session
-        context["$out_command"] = self.command
+        context[ITEM_SESSION] = self.session
+        context[ITEM_ALCONNA] = self.command
         context["$out_content"] = self.content
         context["$out_type"] = self.type
 
     providers = [
-        provide(Alconna, call="$out_command"),
         provide(str, target="content", call="$out_content"),
         provide(str, target="type", call="$out_type"),
     ]
@@ -59,17 +59,11 @@ class CommandReceive:
     reply: Reply | None = None
 
     async def gather(self, context: Contexts):
-        context["$session"] = self.session
-        context["$cmd_content"] = self.content
-        context["$cmd_command"] = self.command
+        context[ITEM_SESSION] = self.session
+        context[ITEM_MESSAGE_CONTENT] = self.content
+        context[ITEM_ALCONNA] = self.command
         if self.reply:
-            context["$cmd_reply"] = self.reply
-
-    providers = [
-        provide(MessageChain, call="$cmd_content"),
-        provide(Alconna, call="$cmd_command"),
-        provide(Reply, call="$cmd_reply"),
-    ]
+            context[ITEM_MESSAGE_REPLY] = self.reply
 
     def check_result(self, value) -> Result[MessageChain] | None:
         if isinstance(value, MessageChain):
@@ -85,12 +79,11 @@ class CommandParse:
     result: Arparma[MessageChain]
 
     async def gather(self, context: Contexts):
-        context["$session"] = self.session
-        context["$parsed_command"] = self.command
+        context[ITEM_SESSION] = self.session
+        context[ITEM_ALCONNA] = self.command
         context["$parsed_result"] = self.result
 
     providers = [
-        provide(Alconna, call="$parsed_command"),
         provide(Arparma, call="$parsed_result"),
     ]
 

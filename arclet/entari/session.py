@@ -9,7 +9,19 @@ from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
 from satori.element import At, Element
-from satori.model import Channel, Guild, IterablePageResult, Login, Member, MessageObject, Meta, Role, Upload, User
+from satori.model import (
+    Channel,
+    Friend,
+    Guild,
+    IterablePageResult,
+    Login,
+    Member,
+    MessageObject,
+    Meta,
+    Role,
+    Upload,
+    User,
+)
 
 from .event.base import (
     FriendRequestEvent,
@@ -109,8 +121,8 @@ class EntariProtocol(ApiProtocol):
 class Session(Generic[TEvent]):
     """在 Satori-Python 的 Session 的基础上存储了当次事件的信息"""
 
-    def __init__(self, account: Account[EntariProtocol], event: TEvent):
-        self.account = account
+    def __init__(self, account: Account, event: TEvent):
+        self.account = cast(Account[EntariProtocol], account)
         self.event = event
         self.referrer = event.referrer or {}
         self.referrer["source"] = self.event
@@ -825,7 +837,7 @@ class Session(Generic[TEvent]):
         """
         return await self.account.protocol.user_get(user_id)
 
-    def friend_list(self, next_token: str | None = None) -> IterablePageResult[User]:
+    def friend_list(self, next_token: str | None = None) -> IterablePageResult[Friend]:
         """获取好友列表。返回一个 User 的分页列表。
 
         Args:
@@ -835,6 +847,17 @@ class Session(Generic[TEvent]):
             IterablePageResult[User]: `User` 的分页列表
         """
         return self.account.protocol.friend_list(next_token)
+
+    async def friend_delete(self, user_id: str) -> None:
+        """删除好友。
+
+        Args:
+            user_id (str): 用户 ID
+
+        Returns:
+            None: 该方法无返回值
+        """
+        return await self.account.protocol.friend_delete(user_id)
 
     async def internal(self, action: str, method: str = "POST", **kwargs) -> Any:
         """内部接口调用。
