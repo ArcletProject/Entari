@@ -12,8 +12,8 @@ from tarina import generic_isinstance
 from tarina.generic import get_origin, origin_is_union
 from tarina.signature import merge_cls_and_parent_ns
 
-from ..dc_schema import SchemaGenerator
 from ..action import ConfigModelAction
+from ..dc_schema import SchemaGenerator
 from ..util import store_field_description
 
 _available_dc_attrs = set(Signature.from_callable(dataclass).parameters.keys())
