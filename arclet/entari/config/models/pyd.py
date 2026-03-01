@@ -1,6 +1,6 @@
 from typing import Any
 
-from arclet.entari.config.model import ConfigModelAction
+from arclet.entari.config.action import ConfigModelAction
 
 try:
     from pydantic import BaseModel, Field, TypeAdapter, json_schema

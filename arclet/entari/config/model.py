@@ -1,130 +1,82 @@
-from abc import ABCMeta, abstractmethod
-from dataclasses import asdict, fields
-from typing import Any, Generic, TypeVar
+from typing import Literal
 
-_config_model_actions: dict[type, type["ConfigModelAction"]] = {}
-
-C = TypeVar("C")
+from .models.default import BasicConfModel as BasicConfModel
+from .models.default import field as model_field
 
 
-class ConfigModelAction(Generic[C], metaclass=ABCMeta):
-    @classmethod
-    @abstractmethod
-    def load(cls, data: dict[str, Any], t: type[C]) -> C:
-        """
-        Validate the configuration data and return a model instance.
-        """
-        pass
+class WebsocketsInfo(BasicConfModel):
+    """Satori Server WebSocket Configuration"""
 
-    @classmethod
-    @abstractmethod
-    def dump(cls, obj: C) -> dict[str, Any]:
-        """
-        Update the configuration data from the model instance.
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def keys(cls, obj: C) -> list[str]:
-        """
-        Get the keys of the configuration model.
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def schema(cls, t: type[C], ref_root: str = "/") -> dict[str, Any]:
-        """
-        Get the schema of the configuration model.
-        """
-        pass
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__()
-        if cls.__orig_bases__[0].__args__[0] is C:  # type: ignore
-            raise TypeError("Subclass of ConfigModelAction must be generic.")
-        base = cls.__orig_bases__[0].__args__[0]  # type: ignore
-        _config_model_actions[base] = cls
-        return cls
+    type: Literal["websocket", "websockets", "ws"]
+    host: str = model_field(default="localhost", description="WebSocket server host")
+    port: int = model_field(default=5140, description="WebSocket server port")
+    path: str = model_field(default="", description="WebSocket server endpoint path")
+    secure: bool = model_field(default=False, description="Whether to use HTTPS and WSS for the server connection")
+    token: str | None = model_field(default=None, description="Authentication token for the WebSocket server")
+    timeout: float | None = model_field(default=None, description="Connection timeout in seconds")
 
 
-class Proxy:
-    def __init__(self, origin, updater):
-        self.__origin = origin
-        self.__updater = updater
+class WebhookInfo(BasicConfModel):
+    """Satori Server Webhook Configuration"""
 
-    def __getattr__(self, item):
-        res = getattr(self.__origin, item)
-        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):  # noqa: UP038
-            return Proxy(res, self.__updater)
-        return res
-
-    def __getitem__(self, item):
-        res = self.__origin[item]
-        if isinstance(res, (list, tuple, set, dict, self.__origin.__class__)):  # noqa: UP038
-            return Proxy(res, self.__updater)
-        return res
-
-    def __setattr__(self, key, value):
-        if key in {"_Proxy__origin", "_Proxy__updater"}:
-            super().__setattr__(key, value)
-        else:
-            setattr(self.__origin, key, value)
-            self.__updater()
-
-    def __setitem__(self, key, value):
-        self.__origin[key] = value
-        self.__updater()
-
-    def __repr__(self):
-        return self.__origin.__repr__()
-
-    def __str__(self):
-        return self.__origin.__str__()
-
-    def __len__(self):
-        return len(self.__origin)
-
-    def __contains__(self, item):
-        return item in self.__origin
-
-    def __iter__(self):
-        return self.__origin.__iter__()
-
-    def __eq__(self, other):
-        if isinstance(other, Proxy):
-            return self.__origin == other._Proxy__origin
-        return self.__origin == other
-
-    def __bool__(self):
-        return bool(self.__origin)
+    type: Literal["webhook", "wh", "http"]
+    host: str = model_field(default="127.0.0.1", description="Webhook self-server host")
+    port: int = model_field(default=8080, description="Webhook self-server port")
+    path: str = model_field(default="v1/events", description="Webhook self-server endpoint path")
+    secure: bool = model_field(default=False, description="Whether to use HTTPS for the server connection")
+    token: str | None = model_field(default=None, description="Authentication token for the webhook")
+    server_host: str = model_field(default="localhost", description="Target server host")
+    server_port: int = model_field(default=5140, description="Target server port")
+    server_path: str = model_field(default="", description="Target server endpoint path")
+    timeout: float | None = model_field(default=None, description="Connection timeout in seconds")
 
 
-def config_model_validate(base: type[C], data: dict[str, Any]) -> C:
-    data = {k: v for k, v in data.items() if not k.startswith("$")}
-    for b in base.__mro__[-2::-1]:
-        if b in _config_model_actions:
-            return _config_model_actions[b].load(data, base)
-    return base(**data)  # type: ignore
+class LogSaveInfo(BasicConfModel):
+    """Configuration for saving logs to a file"""
+
+    rotation: str = model_field(default="00:00", description="Log rotation time, e.g., '00:00' for daily rotation")
+    compression: str | None = model_field(default=None, description="Compression format for log saving, e.g., 'zip'")
+    colorize: bool = model_field(default=True, description="Whether to colorize the log output")
 
 
-def config_model_dump(obj: Any) -> dict[str, Any]:
-    for b in obj.__class__.__mro__[-2::-1]:
-        if b in _config_model_actions:
-            return _config_model_actions[b].dump(obj)
-    return asdict(obj)  # type: ignore
+class LogInfo(BasicConfModel):
+    """Configuration for the application logs"""
+
+    level: int | str = model_field(default="INFO", description="Log level for the application")
+    ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
+    save: LogSaveInfo | bool | None = model_field(
+        default=None,
+        description="Log saving configuration, if None or False, logs will not be saved",
+    )
+    rich_error: bool = model_field(default=False, description="Whether enable rich traceback for exceptions")
+    short_level: bool = model_field(default=False, description="Whether use short log level names")
 
 
-def config_model_keys(obj: Any) -> list[str]:
-    for b in obj.__class__.__mro__[-2::-1]:
-        if b in _config_model_actions:
-            return _config_model_actions[b].keys(obj)
-    return [field_.name for field_ in fields(obj)]  # type: ignore
+class BasicConfig(BasicConfModel):
+    """Basic configuration for the Entari application"""
 
+    network: list[WebsocketsInfo | WebhookInfo] = model_field(default_factory=list, description="Network configuration")
+    ignore_self_message: bool = model_field(default=True, description="Whether ignore self-send message event")
+    skip_req_missing: bool = model_field(
+        default=False, description="Whether skip Event Handler if requirement is missing"
+    )
+    log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
+    log_level: int | str | None = model_field(default=None, description="[Deprecated] Log level for the application")
+    log_ignores: list[str] | None = model_field(
+        default=None, description="[Deprecated] Log ignores for the application"
+    )
+    prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
+    cmd_count: int = model_field(default=4096, description="Command count limit for the application")
+    external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")
+    schema: bool = model_field(
+        default=False, description="Whether generate JSON schema for the configuration (after application start)"
+    )
 
-def config_model_schema(base: type[C], ref_root: str = "/") -> dict[str, Any]:
-    for b in base.__mro__[-2::-1]:
-        if b in _config_model_actions:
-            return _config_model_actions[b].schema(base, ref_root)
-    return {field_.name: field_.type for field_ in fields(base)}  # type: ignore
+    def __post_init__(self):
+        if self.log_level is not None:
+            self.log.level = self.log_level
+        if self.log_ignores is not None:
+            self.log.ignores = self.log_ignores
+        if self.prefix.count(""):
+            self.prefix = [p for p in self.prefix if p]
+            self.prefix.append("")

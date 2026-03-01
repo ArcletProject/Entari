@@ -68,7 +68,7 @@ def regex_batch_replace(text, replace_dict):
 def evaluate_disable(expr: str):
     expr = regex_batch_replace(expr, _op_translate)
     s = simpleeval.EvalWithCompoundTypes(operators=base.operators, functions=base.functions)
-    s.names = {"env": GetattrDict(os.environ), "config": GetattrDict(EntariConfig.instance.data)}
+    s.names = {"env": GetattrDict(EntariConfig.instance.env_vars), "config": GetattrDict(EntariConfig.instance.data)}
 
     try:
         return bool(s.eval(expr))
@@ -107,7 +107,7 @@ def parse_filter(expr: str):
             "voice": ChannelType.VOICE,
             "category": ChannelType.CATEGORY,
             "role": session.event.role,
-            "env": GetattrDict(os.environ),
+            "env": GetattrDict(EntariConfig.instance.env_vars),
             "message": session.event.message.content if session.event.message else None,
             "reply_me": is_reply_me,
             "notice_me": is_notice_me,

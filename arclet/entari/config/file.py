@@ -6,14 +6,13 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 import warnings
 
 from tarina.tools import nest_dict_update, safe_eval
 
-from .model import Proxy, config_model_dump, config_model_schema, config_model_validate
-from .models.default import BasicConfModel as BasicConfModel
-from .models.default import field as model_field
+from .action import Proxy, config_model_dump, config_model_schema, config_model_validate
+from .model import BasicConfig
 from .util import GetattrDict
 
 try:
@@ -21,90 +20,18 @@ try:
 except ImportError:
     YAML = None
 
+try:
+    import dotenv as dotenv
+except ImportError:
+    dotenv = None
+    pass
+
 if TYPE_CHECKING:
     from ..plugin import Plugin
 
 EXPR_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?(?P<expr>[^}\s]+)\s?\}\}['\"]?")
 T = TypeVar("T")
 T_M = TypeVar("T_M", bound=MutableMapping)
-
-
-class WebsocketsInfo(BasicConfModel):
-    """Satori Server WebSocket Configuration"""
-
-    type: Literal["websocket", "websockets", "ws"]
-    host: str = model_field(default="localhost", description="WebSocket server host")
-    port: int = model_field(default=5140, description="WebSocket server port")
-    path: str = model_field(default="", description="WebSocket server endpoint path")
-    secure: bool = model_field(default=False, description="Whether to use HTTPS and WSS for the server connection")
-    token: str | None = model_field(default=None, description="Authentication token for the WebSocket server")
-    timeout: float | None = model_field(default=None, description="Connection timeout in seconds")
-
-
-class WebhookInfo(BasicConfModel):
-    """Satori Server Webhook Configuration"""
-
-    type: Literal["webhook", "wh", "http"]
-    host: str = model_field(default="127.0.0.1", description="Webhook self-server host")
-    port: int = model_field(default=8080, description="Webhook self-server port")
-    path: str = model_field(default="v1/events", description="Webhook self-server endpoint path")
-    secure: bool = model_field(default=False, description="Whether to use HTTPS for the server connection")
-    token: str | None = model_field(default=None, description="Authentication token for the webhook")
-    server_host: str = model_field(default="localhost", description="Target server host")
-    server_port: int = model_field(default=5140, description="Target server port")
-    server_path: str = model_field(default="", description="Target server endpoint path")
-    timeout: float | None = model_field(default=None, description="Connection timeout in seconds")
-
-
-class LogSaveInfo(BasicConfModel):
-    """Configuration for saving logs to a file"""
-
-    rotation: str = model_field(default="00:00", description="Log rotation time, e.g., '00:00' for daily rotation")
-    compression: str | None = model_field(default=None, description="Compression format for log saving, e.g., 'zip'")
-    colorize: bool = model_field(default=True, description="Whether to colorize the log output")
-
-
-class LogInfo(BasicConfModel):
-    """Configuration for the application logs"""
-
-    level: int | str = model_field(default="INFO", description="Log level for the application")
-    ignores: list[str] = model_field(default_factory=list, description="Log ignores for the application")
-    save: LogSaveInfo | bool | None = model_field(
-        default=None,
-        description="Log saving configuration, if None or False, logs will not be saved",
-    )
-    rich_error: bool = model_field(default=False, description="Whether enable rich traceback for exceptions")
-    short_level: bool = model_field(default=False, description="Whether use short log level names")
-
-
-class BasicConfig(BasicConfModel):
-    """Basic configuration for the Entari application"""
-
-    network: list[WebsocketsInfo | WebhookInfo] = model_field(default_factory=list, description="Network configuration")
-    ignore_self_message: bool = model_field(default=True, description="Whether ignore self-send message event")
-    skip_req_missing: bool = model_field(
-        default=False, description="Whether skip Event Handler if requirement is missing"
-    )
-    log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
-    log_level: int | str | None = model_field(default=None, description="[Deprecated] Log level for the application")
-    log_ignores: list[str] | None = model_field(
-        default=None, description="[Deprecated] Log ignores for the application"
-    )
-    prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
-    cmd_count: int = model_field(default=4096, description="Command count limit for the application")
-    external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")
-    schema: bool = model_field(
-        default=False, description="Whether generate JSON schema for the configuration (after application start)"
-    )
-
-    def __post_init__(self):
-        if self.log_level is not None:
-            self.log.level = self.log_level
-        if self.log_ignores is not None:
-            self.log.ignores = self.log_ignores
-        if self.prefix.count(""):
-            self.prefix = [p for p in self.prefix if p]
-            self.prefix.append("")
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
@@ -119,8 +46,9 @@ class EntariConfig:
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     save_flag: bool = field(default=False)
+    env_vars: dict[str, str] = field(default_factory=dict)
     _origin_data: dict[str, Any] = field(init=False)
-    _env_replaced: dict[str, dict[int, str]] = field(default_factory=dict, init=False)
+    _env_replaced: dict[str, dict[int, tuple[str, int]]] = field(default_factory=dict, init=False)
 
     instance: ClassVar["EntariConfig"]
 
@@ -129,16 +57,17 @@ class EntariConfig:
             return {}
         end = path.suffix.split(".")[-1]
         if end in _loaders:
-            ctx = {"env": GetattrDict(os.environ)}
+            ctx = {"env": GetattrDict(self.env_vars)}
 
             with path.open("r", encoding="utf-8") as f:
                 lines = f.readlines()
             for i, line in enumerate(lines):
 
                 def handle(m: re.Match[str]):
-                    self._env_replaced.setdefault(path.as_posix(), {})[i] = line
                     expr = m.group("expr")
-                    return safe_eval(expr, ctx)
+                    ans = safe_eval(expr, ctx)
+                    self._env_replaced.setdefault(path.as_posix(), {})[i] = (line, len(ans.splitlines()))
+                    return ans
 
                 lines[i] = EXPR_CONTEXT_PAT.sub(handle, line)
             text = "".join(lines)
@@ -162,8 +91,10 @@ class EntariConfig:
             ans, applied = _dumpers[end](origin, indent, schema_file)
             if path.as_posix() in self._env_replaced:
                 lines = ans.splitlines(keepends=True)
-                for i, line in self._env_replaced[path.as_posix()].items():
+                for i, (line, height) in self._env_replaced[path.as_posix()].items():
                     lines[i + applied] = line
+                    for _ in range(height - 2):
+                        lines.pop(i + applied + 1)
                 ans = "".join(lines)
             with save_path.open("w", encoding="utf-8") as f:
                 f.write(ans)
@@ -272,24 +203,23 @@ class EntariConfig:
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> "EntariConfig":
-        try:
-            import dotenv
+        if dotenv:
+            from .env import load_env_with_environment
 
-            dotenv.load_dotenv()
-        except ImportError:
-            dotenv = None  # noqa
-            pass
+            env_vars = load_env_with_environment()
+        else:
+            env_vars = dict(os.environ.items())
         if not path:
-            if "ENTARI_CONFIG_FILE" in os.environ:
-                _path = Path(os.environ["ENTARI_CONFIG_FILE"])
+            if "ENTARI_CONFIG_FILE" in env_vars:
+                _path = Path(env_vars["ENTARI_CONFIG_FILE"])
             elif (Path.cwd() / ".entari.json").exists():
                 _path = Path.cwd() / ".entari.json"
             else:
                 _path = Path.cwd() / "entari.yml"
         else:
             _path = Path(path)
-        if "ENTARI_CONFIG_EXTENSION" in os.environ:
-            ext_mods = os.environ["ENTARI_CONFIG_EXTENSION"].split(";")
+        if "ENTARI_CONFIG_EXTENSION" in env_vars:
+            ext_mods = env_vars["ENTARI_CONFIG_EXTENSION"].split(";")
             for ext_mod in ext_mods:
                 if not ext_mod:
                     continue
@@ -299,10 +229,10 @@ class EntariConfig:
                 except ImportError as e:
                     warnings.warn(f"Failed to load config extension '{ext_mod}': {e}", ImportWarning)
         if not _path.exists():
-            return cls(_path)
+            return cls(_path, env_vars=env_vars)
         if not _path.is_file():
             raise ValueError(f"{_path} is not a file")
-        return cls(_path)
+        return cls(_path, env_vars=env_vars)
 
     def bind(self, plugin: str, obj: T) -> T:
         """

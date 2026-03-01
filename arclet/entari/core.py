@@ -24,8 +24,8 @@ from satori.model import EmojiObject, Event, Friend, Guild, Login, Member, Messa
 from tarina.generic import generic_isinstance, get_origin, is_optional
 
 from .config import BasicConfModel, EntariConfig
-from .config.file import LogInfo
-from .config.model import config_model_validate
+from .config.model import LogInfo
+from .config.action import config_model_validate
 from .const import (
     ITEM_ACCOUNT,
     ITEM_ALCONNA,
