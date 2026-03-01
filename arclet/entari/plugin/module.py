@@ -2,13 +2,14 @@ import ast
 from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib.abc import MetaPathFinder
-from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
+from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
 import re
 import sys
 import tokenize
 from types import ModuleType
+from typing import Any
 
 from arclet.letoderea import publish
 from arclet.letoderea.scope import scope_ctx
@@ -241,7 +242,7 @@ class PluginLoader(SourceFileLoader):
             raise ReusablePluginError(f"reusable plugin {self.name!r} cannot be imported directly")
         return super().create_module(spec)
 
-    def exec_module(self, module: ModuleType, config: dict[str, str] | None = None) -> None:
+    def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
         is_sub = False
         if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
             plugin.subplugins.add(self.plugin_id)
@@ -335,7 +336,7 @@ def _path_find_spec(fullname, path=None, target=None):
     """
     if path is None:
         path = sys.path
-    spec = PathFinder._get_spec(fullname, path, target)  # type: ignore
+    spec: ModuleSpec | None = PathFinder._get_spec(fullname, path, target)  # type: ignore
     if spec is None:
         return None
     elif spec.loader is None:
@@ -418,12 +419,13 @@ class _PluginFinder(MetaPathFinder):
         return
 
 
-def find_spec(id_, package=None):
+def find_spec(id_, package=None) -> ModuleSpec | None:
     uid_index = id_.rfind("@")
     name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
     if parent_name:
+        parent: ModuleType | None
         parts = parent_name.split(".")
         _current = parts[0]
         if _current in plugin_service.plugins:
@@ -454,13 +456,12 @@ def find_spec(id_, package=None):
                 enter_plugin = False
                 parent = __import__(_current, fromlist=["__path__"])
             _current += "."
-        try:
-            parent_path = parent.__path__
-        except AttributeError as e:
+        if parent is None:
             raise ModuleNotFoundError(
-                f"__path__ attribute not found on {parent_name!r} " f"while trying to find {fullname!r}",
+                f"parent module {parent_name!r} does not have __path__ attribute " f"while trying to find {fullname!r}",
                 name=fullname,
-            ) from e
+            )
+        parent_path = parent.__path__
     else:
         parent_path = None
     if isinstance(parent_path, _bootstrap_external._NamespacePath):  # type: ignore

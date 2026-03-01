@@ -111,8 +111,7 @@ class OperatorProvider(Provider[User]):
         if ITEM_OPERATOR in context:
             return context[ITEM_OPERATOR]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].operator
+            return context[ITEM_ORIGIN_EVENT].operator
 
 
 class UserProvider(Provider[User]):
@@ -120,8 +119,7 @@ class UserProvider(Provider[User]):
         if ITEM_USER in context:
             return context[ITEM_USER]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].user
+            return context[ITEM_ORIGIN_EVENT].user
 
 
 class MessageProvider(Provider[MessageObject]):
@@ -129,8 +127,7 @@ class MessageProvider(Provider[MessageObject]):
         if ITEM_MESSAGE_ORIGIN in context:
             return context[ITEM_MESSAGE_ORIGIN]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].message
+            return context[ITEM_ORIGIN_EVENT].message
 
 
 class ChannelProvider(Provider[Channel]):
@@ -138,8 +135,7 @@ class ChannelProvider(Provider[Channel]):
         if ITEM_CHANNEL in context:
             return context[ITEM_CHANNEL]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].channel
+            return context[ITEM_ORIGIN_EVENT].channel
 
 
 class GuildProvider(Provider[Guild]):
@@ -147,8 +143,7 @@ class GuildProvider(Provider[Guild]):
         if ITEM_GUILD in context:
             return context[ITEM_GUILD]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].guild
+            return context[ITEM_ORIGIN_EVENT].guild
 
 
 class MemberProvider(Provider[Member]):
@@ -156,8 +151,7 @@ class MemberProvider(Provider[Member]):
         if ITEM_MEMBER in context:
             return context[ITEM_MEMBER]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].member
+            return context[ITEM_ORIGIN_EVENT].member
 
 
 class RoleProvider(Provider[Role]):
@@ -165,8 +159,7 @@ class RoleProvider(Provider[Role]):
         if ITEM_ROLE in context:
             return context[ITEM_ROLE]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].role
+            return context[ITEM_ORIGIN_EVENT].role
 
 
 class EmojiProvider(Provider[EmojiObject]):
@@ -174,8 +167,7 @@ class EmojiProvider(Provider[EmojiObject]):
         if ITEM_EMOJI_OBJECT in context:
             return context[ITEM_EMOJI_OBJECT]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].emoji
+            return context[ITEM_ORIGIN_EVENT].emoji
 
 
 class LoginProvider(Provider[Login]):
@@ -183,8 +175,7 @@ class LoginProvider(Provider[Login]):
         if ITEM_LOGIN in context:
             return context[ITEM_LOGIN]
         if ITEM_ORIGIN_EVENT not in context:
-            return
-        return context[ITEM_ORIGIN_EVENT].login
+            return context[ITEM_ORIGIN_EVENT].login
 
 
 class MessageContentProvider(Provider[MessageChain]):

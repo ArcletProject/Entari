@@ -121,7 +121,7 @@ format = { composite = ["isort ./arclet/","black ./arclet/","ruff check ./arclet
 dev = [
     "isort>=5.13.2",
     "black>=24.4.2",
-    "ruff>=0.4.2",
+    "ruff>=0.15.4",
     "fix-future-annotations>=0.5.0",
     "watchfiles>=0.24.0",
     "python-dotenv>=1.0.1",
