@@ -124,6 +124,12 @@
               "description": "WebSocket server endpoint path",
               "title": "Path"
             },
+            "secure": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to use HTTPS and WSS for the server connection",
+              "title": "Secure"
+            },
             "token": {
               "type": "string",
               "description": "Authentication token for the WebSocket server",
@@ -170,6 +176,12 @@
               "default": "v1/events",
               "description": "Webhook self-server endpoint path",
               "title": "Path"
+            },
+            "secure": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to use HTTPS for the server connection",
+              "title": "Secure"
             },
             "token": {
               "type": "string",
@@ -343,6 +355,22 @@
               "default": 50,
               "description": "轮询间隔，单位为毫秒，默认为 50 毫秒",
               "title": "Step"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "additionalProperties": false,
@@ -351,7 +379,25 @@
         "::echo": {
           "type": "object",
           "description": "Echo the content; no configuration required",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          }
         },
         ".record_message": {
           "type": "object",
@@ -368,6 +414,22 @@
               "default": false,
               "description": "是否记录发送的消息",
               "title": "Record Send"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "additionalProperties": false,
@@ -376,7 +438,25 @@
         ".scheduler": {
           "type": "object",
           "description": "Simple Scheduler with interval / crontab task; no configuration required",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          }
         },
         "example_reusable@1": {
           "type": "object",
@@ -389,6 +469,22 @@
             "output": {
               "type": "string",
               "title": "Output"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "required": [
@@ -409,6 +505,22 @@
             "output": {
               "type": "string",
               "title": "Output"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "required": [
@@ -421,12 +533,71 @@
         "example_plugin2": {
           "type": "object",
           "description": "D:\\Projects\\Entari\\example_plugins\\example_plugin2\\__init__.py; no configuration required",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          }
         },
         "example_plugin": {
           "type": "object",
           "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          }
+        },
+        "example_plugin3": {
+          "type": "object",
+          "description": "No configuration required",
+          "additionalProperties": true,
+          "properties": {
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          }
         },
         "example_plugin6": {
           "type": "object",
@@ -441,6 +612,22 @@
               "type": "string",
               "default": "example_plugin6",
               "title": "B"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "additionalProperties": false,
@@ -473,6 +660,22 @@
               "default": true,
               "description": "是否使用配置前缀",
               "title": "Use Config Prefix"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "additionalProperties": false,
@@ -498,6 +701,22 @@
               "type": "string",
               "description": "基础目录，默认为空，表示使用 `app_name` 作为目录名，",
               "title": "Base Dir"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$prefix": {
+              "type": "string",
+              "description": "Plugin name prefix"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
           },
           "additionalProperties": false,

@@ -1,4 +1,3 @@
-from arclet.letoderea import enter_if, deref
 from arclet.entari import (
     Session,
     MessageCreatedEvent,
@@ -10,7 +9,6 @@ from arclet.entari import (
 
 def __plugin_apply__(plug: Plugin):
     @plug.dispatch(MessageCreatedEvent)
-    @enter_if & (deref(Session).content == "test_plugin")
     async def _(session: Session):
         await session.send(repr(plugin.get_plugin()))
 

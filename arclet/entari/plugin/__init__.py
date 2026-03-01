@@ -228,7 +228,10 @@ def load_plugins(dir_: str | PathLike | Path):
     for p in path.iterdir():
         if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
             p = p.resolve().relative_to(prefix)
-            plg = ".".join(p.parts[:-1:1]) + "." + p.stem
+            if len(p.parts) > 1:
+                plg = ".".join(p.parts[:-1:1]) + "." + p.stem
+            else:
+                plg = p.stem
             load_plugin(plg)
 
 

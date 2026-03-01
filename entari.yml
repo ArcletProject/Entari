@@ -27,8 +27,13 @@ plugins:
   example_reusable@2:
     input: foo
     output: bar!
-  example_plugin2: {}
-  ?example_plugin3: {}
+  example_plugin2:
+    $filter: >
+      (platform in ("onebot", "milky") and member.roles[0].id ne 'member')
+      or
+      platform eq "console"
+  example_plugin3:
+    $filter: message == "test_plugin3"
   ?example_plugin4: {}
   ?example_plugin5: {}
   example_plugin6: {}
