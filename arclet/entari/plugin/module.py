@@ -250,15 +250,17 @@ class PluginLoader(SourceFileLoader):
             is_sub = True
             if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
                 config = plugin.config.copy()
+                config["$path"] = plugin._config_key
             for key in config:
                 if key.startswith(".") and self.plugin_id.endswith(key):
                     config = config[key]
+                    config["$path"] = plugin._config_key  # type: ignore
                     break
 
         if self.loaded:
             return
 
-        if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
+        if config is None or (not is_sub and not {k: v for k, v in config.items() if k not in ("$path", "$static")}):
             key = module.__name__
             if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
                 key = f"::{key[23:]}"
@@ -376,6 +378,9 @@ class _PluginFinder(MetaPathFinder):
             if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
                 return plug.module.__spec__
             if module_spec.parent and module_spec.parent == plug.module.__name__:
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
+                return module_spec
+            elif module_spec.parent == module_spec.name and module_spec.name.rpartition(".")[0] == plug.module.__name__:
                 module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
                 return module_spec
             elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):

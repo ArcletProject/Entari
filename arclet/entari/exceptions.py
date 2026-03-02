@@ -1,7 +1,11 @@
+from .utils import escape_tag
+
+
 class RegisterNotInPluginError(Exception):
     def __init__(self, func, mod, pid):
         self.msg = f"""\
-Handler `{func.__qualname__}` from {func.__module__!r} should define in the same module as the plugin: {mod.__name__!r}.
+Handler `{escape_tag(func.__qualname__)}` from {func.__module__!r}\
+ should define in the same module as the plugin: {mod.__name__!r}.
 
 Please choose one of the following solutions before import it:
  * add {func.__module__!r} to your config file.
@@ -18,7 +22,7 @@ Please choose one of the following solutions before import it:
 
             panel = Panel(
                 f"""\
-[cyan]Handler [bright_yellow]`{func.__qualname__}`[/] from [blue]{func.__module__!r}\
+[cyan]Handler [bright_yellow]`{escape_tag(func.__qualname__)}`[/] from [blue]{func.__module__!r}\
 [/] should define [u bright_white]in the same module[/] as the plugin: [blue]{mod.__name__!r}[/].
 
 Please choose one of the following solutions:

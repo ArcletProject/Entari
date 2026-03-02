@@ -526,6 +526,8 @@ class Plugin:
         if isinstance(func, Subscriber):
             func = func.callable_target
         if func.__module__ != self.module.__name__:
+            if func.__module__.startswith("arclet.entari"):
+                return
             if "__plugin__" in func.__globals__ and func.__globals__["__plugin__"] is self:
                 return
             raise RegisterNotInPluginError(func, self.module, self.id)

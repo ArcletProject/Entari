@@ -4,7 +4,6 @@ import fnmatch
 import inspect
 import logging
 from pathlib import Path
-import re
 import sys
 import traceback
 from types import TracebackType
@@ -14,23 +13,14 @@ from arclet.letoderea.exceptions import ExceptionHandler, Trace
 from loguru import logger
 from satori.parser import snake_case
 
+from .utils import escape_tag
+
 if TYPE_CHECKING:
     from loguru import Logger, Record
 
 
 TRACE_NO = logger.level("TRACE").no
 DEBUG_NO = logger.level("DEBUG").no
-
-
-def escape_tag(s: str) -> str:
-    """用于记录带颜色日志时转义 `<tag>` 类型特殊标签
-
-    参考: [loguru color 标签](https://loguru.readthedocs.io/en/stable/api/logger.html#color)
-
-    参数:
-        s: 需要转义的字符串
-    """
-    return re.sub(r"</?((?:[fb]g\s)?[^<>\s]*)>", r"\\\g<0>", s)
 
 
 class LoggerManager:

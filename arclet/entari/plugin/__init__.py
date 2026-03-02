@@ -17,7 +17,8 @@ from ..event.config import ConfigReload
 from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..logger import escape_tag, log
+from ..logger import log
+from ..utils import escape_tag
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
 from .model import TS, Plugin, PluginDispatcher
