@@ -55,9 +55,12 @@ class BasicConfModel:
             setattr(self, k, v)
 
     def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
         dataclass(**({k: v for k, v in (kwargs | {"kw_only": True}).items() if k in _available_dc_attrs}))(cls)
         store_field_description(cls, cls.__dataclass_fields__)  # type: ignore
+        if "extra" in kwargs:
+            extra = kwargs["extra"]
+            assert extra in ("allow", "forbid", "ignore"), "extra must be one of 'allow', 'forbid', 'ignore'"
+            setattr(cls, "__entari_conf_extra__", extra)
 
 
 def _resolve_type(field_type: Any, types_namespace: dict[str, Any]) -> Any:
@@ -212,7 +215,14 @@ class BasicConfModelAction(ConfigModelAction[BasicConfModel]):
 
     @classmethod
     def schema(cls, t: type[BasicConfModel], ref_root: str = "/") -> dict[str, Any]:
-        return SchemaGenerator.from_dc(t, ref_root)  # type: ignore
+        schema = SchemaGenerator.from_dc(t, ref_root)  # type: ignore
+        if hasattr(t, "__entari_conf_extra__"):
+            extra = getattr(t, "__entari_conf_extra__")
+            if extra == "allow":
+                schema["additionalProperties"] = True
+            elif extra == "forbid":
+                schema["additionalProperties"] = False
+        return schema
 
 
 __all__ = ["BasicConfModel", "field"]
