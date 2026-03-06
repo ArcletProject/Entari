@@ -377,14 +377,15 @@ class _PluginFinder(MetaPathFinder):
         if plug := current_plugin.get(None):
             if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
                 return plug.module.__spec__
-            if module_spec.parent and module_spec.parent == plug.module.__name__:
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
+            plugin_id = plug.id
+            while plugin_id in plugin_service._subplugined:
+                plugin_id = plugin_service._subplugined[plugin_id]
+            if module_spec.name.startswith(plugin_service.plugins[plugin_id].module.__name__ + "."):
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
                 return module_spec
-            elif module_spec.parent == module_spec.name and module_spec.name.rpartition(".")[0] == plug.module.__name__:
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
-                return module_spec
-            elif module_spec.name in _SUBMODULE_WAITLIST.get(plug.module.__name__, ()):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plug.id)
+
+            if module_spec.name in _SUBMODULE_WAITLIST.get(plugin_id, ()):
+                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
                 # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec

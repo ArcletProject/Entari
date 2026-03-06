@@ -629,12 +629,12 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot use to delete role!")
         return await self.account.protocol.guild_role_delete(self.event.guild.id, role_id)
 
-    async def reaction_create(self, emoji: str, message_id: str | None = None) -> None:
+    async def reaction_create(self, emoji_id: str, message_id: str | None = None) -> None:
         """向特定消息添加表态。
 
         Args:
             message_id (str | None, optional): 消息 ID
-            emoji (str): 表态名称
+            emoji_id (str): 表情 ID
 
         Returns:
             None: 该方法无返回值
@@ -643,16 +643,16 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot be replied to!")
         if not message_id and not self.event.message:
             raise RuntimeError("Event cannot create reaction")
-        return await self.account.protocol.reaction_create(self.event.channel.id, message_id or self.event.message.id, emoji)  # type: ignore  # noqa: E501
+        return await self.account.protocol.reaction_create(self.event.channel.id, message_id or self.event.message.id, emoji_id)  # type: ignore  # noqa: E501
 
-    async def reaction_delete(self, emoji: str, message_id: str | None = None, user_id: str | None = None) -> None:
+    async def reaction_delete(self, emoji_id: str, message_id: str | None = None, user_id: str | None = None) -> None:
         """从特定消息删除某个用户添加的特定表态。
 
         如果没有传入用户 ID 则表示删除自己的表态。
 
         Args:
             message_id (str | None, optional): 消息 ID
-            emoji (str): 表态名称
+            emoji_id (str): 表情 ID
             user_id (str | None, optional): 用户 ID，默认为 None
 
         Returns:
@@ -662,16 +662,16 @@ class Session(Generic[TEvent]):
             raise RuntimeError("Event cannot be replied to!")
         if not message_id and not self.event.message:
             raise RuntimeError("Event cannot delete reaction")
-        return await self.account.protocol.reaction_delete(self.event.channel.id, message_id or self.event.message.id, emoji, user_id)  # type: ignore  # noqa: E501
+        return await self.account.protocol.reaction_delete(self.event.channel.id, message_id or self.event.message.id, emoji_id, user_id)  # type: ignore  # noqa: E501
 
-    async def reaction_clear(self, emoji: str | None = None, message_id: str | None = None) -> None:
+    async def reaction_clear(self, emoji_id: str | None = None, message_id: str | None = None) -> None:
         """从特定消息清除某个特定表态。
 
         如果没有传入表态名称则表示清除所有表态。
 
         Args:
             message_id (str | None, optional): 消息 ID
-            emoji (str | None, optional): 表态名称，默认为 None
+            emoji_id (str | None, optional): 表情 ID，默认为 None
 
         Returns:
             None: 该方法无返回值
@@ -683,17 +683,17 @@ class Session(Generic[TEvent]):
         return await self.account.protocol.reaction_clear(
             self.event.channel.id,
             message_id or self.event.message.id,  # type: ignore
-            emoji,
+            emoji_id,
         )
 
     def reaction_list(
-        self, emoji: str, message_id: str | None = None, next_token: str | None = None
+        self, emoji_id: str, message_id: str | None = None, next_token: str | None = None
     ) -> IterablePageResult[User]:
         """获取添加特定消息的特定表态的用户列表。返回一个 User 的分页列表。
 
         Args:
             message_id (str | None, optional): 消息 ID
-            emoji (str): 表态名称
+            emoji_id (str): 表情 ID
             next_token (str | None, optional): 分页令牌，默认为空
 
         Returns:
@@ -704,7 +704,7 @@ class Session(Generic[TEvent]):
         if not message_id and not self.event.message:
             raise RuntimeError("Event cannot list reaction")
         return self.account.protocol.reaction_list(
-            self.event.channel.id, message_id or self.event.message.id, emoji, next_token  # type: ignore
+            self.event.channel.id, message_id or self.event.message.id, emoji_id, next_token  # type: ignore
         )
 
     async def request_approve(self, approve: bool, comment: str = ""):
