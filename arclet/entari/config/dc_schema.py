@@ -161,7 +161,9 @@ class SchemaGenerator:
             typ: t.Any = type_hints[field.name]
             field.type = typ
             default_ = field.default_factory() if field.default_factory is not _MISSING else field.default
-            if (f_description := field.metadata.get("description")) is not None:
+            # Python 3.14+ 支持 field.doc 属性
+            f_description = field.metadata.get("description") or getattr(field, "doc", None)
+            if f_description is not None:
                 f_a: Schema
                 base, f_a = t.get_args(typ) if t.get_origin(typ) == t.Annotated else (typ, Schema())
                 if f_a.description is None:

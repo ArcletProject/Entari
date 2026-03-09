@@ -5,6 +5,7 @@ from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from inspect import Signature
 from pathlib import Path
+import sys
 from typing import Any, ForwardRef, TypeVar, get_args, overload
 from typing_extensions import dataclass_transform
 
@@ -40,9 +41,12 @@ def field(*, init: bool = True, repr: bool = True, description: str | None = Non
 def field(*, default=MISSING, default_factory=MISSING, init=True, repr=True, description=None, hash=None, compare=True, metadata=None):  # noqa: E501  # type: ignore
     if default is not MISSING and default_factory is not MISSING:
         raise ValueError("cannot specify both default and default_factory")
-    if metadata is None and description is not None:
-        metadata = {"description": description}
     data: dict = {"default": default, "default_factory": default_factory, "init": init, "repr": repr, "hash": hash, "compare": compare, "metadata": metadata, "kw_only": True}  # noqa: E501
+    if sys.version_info >= (3, 14):
+        data["doc"] = description
+    else:
+        _metadata = {"description": description} if metadata is None else {**metadata, "description": description}
+        data["metadata"] = _metadata
     return Field(**{k: v for k, v in data.items() if k in _available_field_attrs})
 
 # fmt: on

@@ -2,6 +2,7 @@ import ast
 from collections.abc import Mapping
 from dataclasses import Field
 import inspect
+import sys
 from types import MappingProxyType
 from typing import cast
 
@@ -53,7 +54,13 @@ def store_field_description(cls: type, fields: dict[str, Field]) -> None:
             and isinstance((doc_expr := node.body[i + 1]), ast.Expr)
             and isinstance((doc_const := doc_expr.value), ast.Constant)
             and isinstance(doc_string := doc_const.value, str)
-            and "description" not in (field := fields[name]).metadata
         ):
-            field.metadata = MappingProxyType({**field.metadata.copy(), "description": inspect.cleandoc(doc_string)})
+            field = fields[name]
+            if sys.version_info >= (3, 14):
+                if getattr(field, "doc", None) is None:
+                    field.doc = inspect.cleandoc(doc_string)
+            elif "description" not in field.metadata:
+                field.metadata = MappingProxyType(
+                    {**field.metadata.copy(), "description": inspect.cleandoc(doc_string)}
+                )
     _DESC_CACHE[cls] = True
