@@ -1,13 +1,13 @@
 import ast
+import re
+import sys
+import tokenize
 from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
-import re
-import sys
-import tokenize
 from types import ModuleType
 from typing import Any
 

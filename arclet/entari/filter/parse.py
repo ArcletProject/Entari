@@ -3,8 +3,8 @@ import operator
 import os
 import re
 
-from satori import Channel, ChannelType, EventType, Guild, Member, Role, User
 import simpleeval
+from satori import Channel, ChannelType, EventType, Guild, Member, Role, User
 
 from ..config import EntariConfig
 from ..config.util import GetattrDict

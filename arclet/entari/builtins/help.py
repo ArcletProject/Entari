@@ -1,6 +1,6 @@
+import random
 from collections.abc import Generator
 from dataclasses import field
-import random
 from typing import Literal, overload
 
 from arclet.alconna import (

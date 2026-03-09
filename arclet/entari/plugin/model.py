@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 import inspect
-from pathlib import Path
 import re
 import sys
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from pathlib import Path
 from types import ModuleType
 from typing import Any, Generic, TypeVar, cast
 from typing_extensions import TypeIs

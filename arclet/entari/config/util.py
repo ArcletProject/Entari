@@ -1,8 +1,8 @@
 import ast
-from collections.abc import Mapping
-from dataclasses import Field
 import inspect
 import sys
+from collections.abc import Mapping
+from dataclasses import Field
 from types import MappingProxyType
 from typing import cast
 

@@ -1,10 +1,10 @@
 import asyncio
-from collections.abc import Awaitable, Callable
 import inspect
 import itertools
+import sys
+from collections.abc import Awaitable, Callable
 from os import PathLike
 from pathlib import Path
-import sys
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
@@ -19,9 +19,9 @@ from ..event.plugin import PluginLoadedFailed
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
 from ..utils import escape_tag
+from .model import TS, Plugin, PluginDispatcher
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
-from .model import TS, Plugin, PluginDispatcher
 from .model import current_plugin
 from .model import keeping as keeping
 from .module import import_plugin

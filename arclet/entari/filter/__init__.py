@@ -1,16 +1,16 @@
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-import inspect
 from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
 from arclet.letoderea import STOP, Propagator, enter_if
 from tarina import is_coroutinefunction
 
-from . import common
 from ..message import MessageChain
 from ..session import Session
+from . import common
 
 _SessionFilter: TypeAlias = Callable[[Session], bool] | Callable[[Session], Awaitable[bool]]
 

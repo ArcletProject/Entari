@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from arclet.letoderea.typing import CtxItem
 
 if TYPE_CHECKING:
-    from arclet.alconna import Alconna
     import satori
+    from arclet.alconna import Alconna
     from satori.client import Account
 
     from .message import MessageChain, Reply

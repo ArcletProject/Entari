@@ -3,9 +3,9 @@ from __future__ import annotations
 import fnmatch
 import inspect
 import logging
-from pathlib import Path
 import sys
 import traceback
+from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, cast
 

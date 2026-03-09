@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Callable
 from dataclasses import MISSING, Field, asdict, dataclass
 from dataclasses import field as _field
@@ -5,7 +6,6 @@ from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from inspect import Signature
 from pathlib import Path
-import sys
 from typing import Any, ForwardRef, TypeVar, get_args, overload
 from typing_extensions import dataclass_transform
 

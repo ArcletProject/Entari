@@ -1,5 +1,5 @@
-from collections.abc import Mapping
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from dotenv import dotenv_values
