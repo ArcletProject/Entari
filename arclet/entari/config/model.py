@@ -61,11 +61,8 @@ class BasicConfig(BasicConfModel):
         default=False, description="Whether skip Event Handler if requirement is missing"
     )
     log: LogInfo = model_field(default_factory=LogInfo, description="Log configuration")
-    log_level: int | str | None = model_field(default=None, description="[Deprecated] Log level for the application")
-    log_ignores: list[str] | None = model_field(
-        default=None, description="[Deprecated] Log ignores for the application"
-    )
     prefix: list[str] = model_field(default_factory=list, description="Command prefix for the application")
+    nickname: str = model_field(default="", description="Bot nickname for the application (used in command matching)")
     cmd_count: int = model_field(default=4096, description="Command count limit for the application")
     external_dirs: list[str] = model_field(default_factory=list, description="External directories to look for plugins")
     schema: bool = model_field(
@@ -73,10 +70,6 @@ class BasicConfig(BasicConfModel):
     )
 
     def __post_init__(self):
-        if self.log_level is not None:
-            self.log.level = self.log_level
-        if self.log_ignores is not None:
-            self.log.ignores = self.log_ignores
         if self.prefix.count(""):
             self.prefix = [p for p in self.prefix if p]
             self.prefix.append("")

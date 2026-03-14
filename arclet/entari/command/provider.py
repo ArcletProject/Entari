@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import re
 from typing import Any, Literal, Union, get_args
 
 from arclet.alconna import Alconna, Arparma, Duplication, Empty, output_manager
@@ -36,10 +37,19 @@ def _is_optional(annotation: Any) -> bool:
 
 
 def _remove_config_prefix(message: MessageChain):
-    if not (command_prefix := EntariConfig.instance.basic.prefix):
+    command_prefix = EntariConfig.instance.basic.prefix
+    nickname = EntariConfig.instance.basic.nickname
+    if not command_prefix and not nickname:
         return message
     if message and isinstance(message[0], Text):
         text = message[0].text.lstrip()
+        if nickname:
+            if not (mat := re.match(rf"^@?{re.escape(nickname)}[，,:\s]+", text)):
+                return MessageChain()
+            text = text[mat.end() :]
+            message[0] = Text(text)
+        if not command_prefix:
+            return message
         for prefix in command_prefix:
             if not prefix:
                 return message

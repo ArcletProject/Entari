@@ -1,9 +1,9 @@
 import asyncio
 import inspect
 import itertools
+import os
 import sys
 from collections.abc import Awaitable, Callable
-from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
@@ -214,7 +214,7 @@ def load_plugin(
         return
 
 
-def load_plugins(dir_: str | PathLike | Path):
+def load_plugins(dir_: str | os.PathLike | Path):
     """加载指定目录下的所有插件"""
     path = dir_ if isinstance(dir_, Path) else Path(dir_)
     if not path.is_dir():
