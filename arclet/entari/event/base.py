@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, ClassVar, TypeVar, overload
 
 from arclet.letoderea import Contexts, Param, Provider, define
+from satori import ChannelType
 from satori import Event as OriginEvent
 from satori.client import Account
 from satori.const import EventType
@@ -341,6 +342,8 @@ class MessageEvent(SatoriEvent):
         is_notice_me = context["is_notice_me"] = _is_notice_me(self.content, self.account)
         if is_notice_me:
             self.content = _remove_notice_me(self.content, self.account)
+        if self.channel.type is ChannelType.DIRECT:
+            context["is_notice_me"] = True
         context[ITEM_MESSAGE_CONTENT] = self.content
 
 

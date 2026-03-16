@@ -26,7 +26,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         self.supplier = AlconnaSuppiler(command, self.cache, block, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         self.propagators.append(
-            MessageJudges(need_reply_me, need_notice_me, use_config_prefix),
+            MessageJudges(need_reply_me, need_notice_me, use_config_prefix, None),
         )
         self.propagators.append(self.supplier)
         self.providers.append(AlconnaProviderFactory())
@@ -47,7 +47,7 @@ class AlconnaPluginDispatcher(PluginDispatcher):
 
     def on_output(self, priority: int = 16, providers: TProviders | None = None):
         with self.plugin._scope.context():
-            return use(out_pub, priority=priority, providers=providers).if_(deref(Alconna) == self.supplier.cmd)
+            return use(out_pub, priority=priority, providers=providers, propagators=[self.supplier]).if_(deref(Alconna) == self.supplier.cmd)  # noqa: E501
 
     Match = Match
     Query = Query

@@ -10,7 +10,7 @@ from arclet.letoderea import BLOCK, STOP, Contexts, Param, Propagator, Provider,
 from arclet.letoderea.exceptions import ProviderUnsatisfied
 from arclet.letoderea.provider import ProviderFactory
 from nepattern.util import CUnionType
-from satori import MessageObject
+from satori import ChannelType, MessageObject
 from satori.element import Text
 from tarina import LRU
 from tarina.generic import generic_isinstance, get_origin, origin_is_union
@@ -19,6 +19,7 @@ from ..config import EntariConfig
 from ..const import ITEM_MESSAGE_CONTENT
 from ..event.base import Reply
 from ..event.command import CommandOutput, CommandParse, CommandReceive
+from ..filter.parse import parse_filter
 from ..message import MessageChain
 from ..session import Session
 from .model import CommandResult, Match, Query
@@ -36,7 +37,7 @@ def _is_optional(annotation: Any) -> bool:
     return False
 
 
-def _remove_config_prefix(message: MessageChain):
+def _remove_config_prefix(message: MessageChain, allow_skip: bool = False) -> MessageChain:
     command_prefix = EntariConfig.instance.basic.prefix
     nickname = EntariConfig.instance.basic.nickname
     if not command_prefix and not nickname:
@@ -44,10 +45,10 @@ def _remove_config_prefix(message: MessageChain):
     if message and isinstance(message[0], Text):
         text = message[0].text.lstrip()
         if nickname:
-            if not (mat := re.match(rf"^@?{re.escape(nickname)}[，,:\s]+", text)):
-                return MessageChain()
-            text = text[mat.end() :]
-            message[0] = Text(text)
+            if mat := re.match(rf"^@?{re.escape(nickname)}[，,:\s]+", text):
+                text = text[mat.end() :]
+                message[0] = Text(text)
+                return message
         if not command_prefix:
             return message
         for prefix in command_prefix:
@@ -56,22 +57,38 @@ def _remove_config_prefix(message: MessageChain):
             if text.startswith(prefix):
                 message[0] = Text(text[len(prefix) :])
                 return message
+        if allow_skip:
+            return message
     return MessageChain()
 
 
+# fmt: off
+
+
 class MessageJudges(Propagator):
-    def __init__(self, need_reply_me: bool, need_notice_me: bool, use_config_prefix: bool):
+    def __init__(self, need_reply_me: bool, need_notice_me: bool, use_config_prefix: bool, ignore_prefix_filter: str | None = None):  # noqa: E501
         self.need_reply_me = need_reply_me
         self.need_notice_me = need_notice_me
         self.use_config_prefix = use_config_prefix
+        self.ignore_prefix_checker = self._checker(ignore_prefix_filter)
 
-    async def judge(self, ctx: Contexts, message: MessageChain, is_reply_me: bool = False, is_notice_me: bool = False):
+    def _checker(self, ignore_prefix_filter: str | None):
+        if ignore_prefix_filter:
+            return parse_filter(ignore_prefix_filter)
+        else:
+            async def checker(session: Session, *_): return session.channel.type is ChannelType.DIRECT
+            return checker
+
+    async def judge(self, ctx: Contexts, message: MessageChain, is_reply_me: bool = False, is_notice_me: bool = False, session: Session | None = None):  # noqa: E501
         message = message.fork()
         if self.need_reply_me and not is_reply_me:
             return STOP
         if self.need_notice_me and not is_notice_me:
             return STOP
-        if self.use_config_prefix and not (message := _remove_config_prefix(message)):
+        skip = False
+        if session:
+            skip = await self.ignore_prefix_checker(session, is_reply_me, is_notice_me)
+        if self.use_config_prefix and not (message := _remove_config_prefix(message, skip)):
             return STOP
         if ITEM_MESSAGE_CONTENT in ctx:
             return {ITEM_MESSAGE_CONTENT: message}
@@ -79,6 +96,7 @@ class MessageJudges(Propagator):
 
     def compose(self):
         yield self.judge, True, 60
+# fmt: on
 
 
 class AlconnaSuppiler(Propagator):

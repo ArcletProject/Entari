@@ -68,11 +68,12 @@ class EntariCommands:
         need_notice_me: bool = False,
         need_reply_me: bool = False,
         use_config_prefix: bool = True,
+        ignore_prefix_filter: str | None = None,
     ):
         self.trie: CharTrie[list[str]] = CharTrie()
         self.scope = Scope("entari.command")
         self.block = block
-        self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix)
+        self.judge = MessageJudges(need_notice_me, need_reply_me, use_config_prefix, ignore_prefix_filter)  # noqa: E501
         self.subscribers = WeakValueDictionary[str, Subscriber]()
         self._cache = {}
 
@@ -206,12 +207,17 @@ _commands = EntariCommands()
 
 
 def config_commands(
-    block: bool = True, need_notice_me: bool = False, need_reply_me: bool = False, use_config_prefix: bool = True
+    block: bool = True,
+    need_notice_me: bool = False,
+    need_reply_me: bool = False,
+    use_config_prefix: bool = True,
+    ignore_prefix_filter: str | None = None,
 ):
     _commands.block = block
     _commands.judge.need_notice_me = need_notice_me
     _commands.judge.need_reply_me = need_reply_me
     _commands.judge.use_config_prefix = use_config_prefix
+    _commands.judge.ignore_prefix_checker = _commands.judge._checker(ignore_prefix_filter)
 
 
 command = _commands.command
@@ -228,6 +234,10 @@ class CommandsConfig(BasicConfModel):
     need_notice_me: bool = model_field(default=False, description="是否需要通知我")
     need_reply_me: bool = model_field(default=False, description="是否需要回复我")
     use_config_prefix: bool = model_field(default=True, description="是否使用配置前缀")
+    ignore_prefix_filter: str | None = model_field(
+        default=None,
+        description="前缀过滤条件，使用过滤器语法，默认为私聊消息不使用前缀",
+    )
 
 
 @RootlessPlugin.apply("commands", default=True)
@@ -244,6 +254,7 @@ def _(plg: RootlessPlugin):
     _commands.judge.need_notice_me = conf.need_notice_me
     _commands.judge.need_reply_me = conf.need_reply_me
     _commands.judge.use_config_prefix = conf.use_config_prefix
+    _commands.judge.ignore_prefix_checker = _commands.judge._checker(conf.ignore_prefix_filter)
 
     plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
 
