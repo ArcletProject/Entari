@@ -3,7 +3,7 @@ from satori import Image
 from arclet.entari import Session, Entari, command, load_plugin, unload_plugin, enable_plugin, disable_plugin
 
 
-@command.on("echoimg {img}")
+@command.on("echimg {img}")
 async def echoimg(img: Image, session: Session):
     await session.send_message([img])
 

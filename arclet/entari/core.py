@@ -13,6 +13,7 @@ from arclet.alconna import config as alconna_config
 from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, global_providers
 from arclet.letoderea.scope import configure
 from creart import it
+from graia.amnesia.builtins.aiohttp import AiohttpClientService
 from graia.amnesia.builtins.memcache import MemcacheService
 from launart import Launart, Service
 from satori import Channel, LoginStatus
@@ -110,7 +111,7 @@ class OperatorProvider(Provider[User]):
     async def __call__(self, context: Contexts):
         if ITEM_OPERATOR in context:
             return context[ITEM_OPERATOR]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].operator
 
 
@@ -118,7 +119,7 @@ class UserProvider(Provider[User]):
     async def __call__(self, context: Contexts):
         if ITEM_USER in context:
             return context[ITEM_USER]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].user
 
 
@@ -126,7 +127,7 @@ class MessageProvider(Provider[MessageObject]):
     async def __call__(self, context: Contexts):
         if ITEM_MESSAGE_ORIGIN in context:
             return context[ITEM_MESSAGE_ORIGIN]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].message
 
 
@@ -134,7 +135,7 @@ class ChannelProvider(Provider[Channel]):
     async def __call__(self, context: Contexts):
         if ITEM_CHANNEL in context:
             return context[ITEM_CHANNEL]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].channel
 
 
@@ -142,7 +143,7 @@ class GuildProvider(Provider[Guild]):
     async def __call__(self, context: Contexts):
         if ITEM_GUILD in context:
             return context[ITEM_GUILD]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].guild
 
 
@@ -150,7 +151,7 @@ class MemberProvider(Provider[Member]):
     async def __call__(self, context: Contexts):
         if ITEM_MEMBER in context:
             return context[ITEM_MEMBER]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].member
 
 
@@ -158,7 +159,7 @@ class RoleProvider(Provider[Role]):
     async def __call__(self, context: Contexts):
         if ITEM_ROLE in context:
             return context[ITEM_ROLE]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].role
 
 
@@ -166,7 +167,7 @@ class EmojiProvider(Provider[EmojiObject]):
     async def __call__(self, context: Contexts):
         if ITEM_EMOJI_OBJECT in context:
             return context[ITEM_EMOJI_OBJECT]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].emoji
 
 
@@ -174,7 +175,7 @@ class LoginProvider(Provider[Login]):
     async def __call__(self, context: Contexts):
         if ITEM_LOGIN in context:
             return context[ITEM_LOGIN]
-        if ITEM_ORIGIN_EVENT not in context:
+        if ITEM_ORIGIN_EVENT in context:
             return context[ITEM_ORIGIN_EVENT].login
 
 
@@ -405,6 +406,10 @@ class Entari(App):
     @property
     def cache(self):
         return it(Launart).get_component(MemcacheService).cache
+
+    @property
+    def http(self):
+        return it(Launart).get_component(AiohttpClientService).session
 
     def on_message(self, priority: int = 16):
         return le.on(MessageCreatedEvent, priority=priority)

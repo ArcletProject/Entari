@@ -10,12 +10,15 @@ from .base import Reply
 @make_event(name="entari.event/command/execute")
 class CommandExecute:
     message: str | MessageChain
+    session: Session | None = None
 
     async def gather(self, context: Contexts):
         if isinstance(self.message, str):
-            context["$message"] = MessageChain(self.message)
+            context["$message"] = MessageChain.of(self.message)
         else:
             context["$message"] = self.message
+        if self.session:
+            context[ITEM_SESSION] = self.session
 
     providers = [provide(MessageChain, call="$message")]
 

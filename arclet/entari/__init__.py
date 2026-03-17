@@ -7,6 +7,7 @@ from arclet.letoderea import param as param
 from arclet.letoderea import propagate as propagate
 from arclet.letoderea import use as use
 from arclet.letoderea.core import ExceptionEvent as ExceptionEvent
+from graia.amnesia.builtins.aiohttp import AiohttpClientService as AiohttpClientService
 from satori import ArgvInteraction as ArgvInteraction
 from satori import At as At
 from satori import Audio as Audio

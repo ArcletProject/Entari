@@ -16,7 +16,7 @@ from arclet.alconna import (
 )
 from tarina import lang
 
-from arclet.entari import BasicConfModel, Session, command, metadata, plugin_config
+from arclet.entari import BasicConfModel, MessageChain, Session, command, metadata, plugin_config
 from arclet.entari.command import Match, Query
 
 
@@ -215,7 +215,7 @@ async def help_exec(
     hide: Query[bool] = Query("hide.value", False),
     is_namespace: Query[SubcommandResult | None] = Query("namespace"),
 ):
-    return help_cmd_handle(is_namespace.result, query.result, page.result, hide.result)
+    return MessageChain(help_cmd_handle(is_namespace.result, query.result, page.result, hide.result))
 
 
 @disp.handle(priority=16)
@@ -228,15 +228,15 @@ async def help_handle(
 ):
     resp = help_cmd_handle(is_namespace.result, query.result, page.result, hide.result, True)
     if isinstance(resp, str):
-        return disp.finish(await session.send(resp))
+        return disp.finish(await session.send(MessageChain(resp)))
 
     async def receiver(sess1: Session):
         if (ans := str(sess1.content).strip().lower()) in {"<", "a", ">", "d"}:
             return ans
 
-    msg = await session.prompt(receiver, next(resp), timeout=15)
+    msg = await session.prompt(receiver, MessageChain(next(resp)), timeout=15)
     while msg:
         try:
-            msg = str(await session.prompt(resp.send(msg), timeout=15))
+            msg = str(await session.prompt(MessageChain(resp.send(msg)), timeout=15))
         except StopIteration:
             return disp.finish()

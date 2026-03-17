@@ -23,6 +23,7 @@ from satori.model import (
     User,
 )
 
+from . import command
 from .event.base import (
     FriendRequestEvent,
     GuildMemberRequestEvent,
@@ -291,6 +292,14 @@ class Session(Generic[TEvent]):
                 raise RuntimeError("Event cannot be replied to!")
             reply = Quote(self.event.message.id)
         return at, reply
+
+    async def execute(self, message: str | MessageChain) -> str | MessageChain | None:
+        """执行一段命令文本并返回结果
+
+        Args:
+            message: 要执行的命令文本，可以是字符串或 MessageChain
+        """
+        return await command.execute(message, self)  # type: ignore
 
     # fmt: off
 

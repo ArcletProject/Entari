@@ -9,7 +9,7 @@ import arclet.letoderea as le
 from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, command_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import RESULT, ExitState, Scope, Subscriber, make_event
+from arclet.letoderea import EVENT, RESULT, ExitState, Scope, Subscriber, make_event
 from arclet.letoderea.provider import TProviders, get_providers
 from arclet.letoderea.typing import Contexts, Result
 from nepattern import DirectPattern
@@ -48,14 +48,15 @@ class CommandDispatch:
 
 async def _after_execute(ctx: Contexts, session: Session | None = None):
     result: _RM = ctx[RESULT]
+    event = ctx[EVENT]
     if result is not None:
         if isinstance(result, AsyncGenerator):
             msg = None
             async for msg in result:
-                if session and msg is not None:
+                if not isinstance(event, CommandExecute) and session and msg is not None:
                     await session.send(msg)
             return Result(msg)
-        if session:
+        if not isinstance(event, CommandExecute) and session:
             await session.send(result)
         return Result(result)
 
@@ -224,8 +225,8 @@ command = _commands.command
 on = _commands.on
 
 
-async def execute(message: str | MessageChain):
-    res = await le.post(CommandExecute(message))
+async def execute(message: str | MessageChain, session: Session | None = None):
+    res = await le.post(CommandExecute(message, session))
     return res.value if res else None
 
 
