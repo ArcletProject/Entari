@@ -91,4 +91,4 @@ Param = param
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.17.2"
+__version__ = "0.17.3"
