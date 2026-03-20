@@ -281,16 +281,20 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
                 if event.key != plugin_key:
                     return
                 new_plg_config = event.value
-                for key in new_plg_config:
-                    if key.startswith(".") and plugin.id.endswith(key):
-                        new_plg_config = new_plg_config[key]
-                        break
+                keys = [
+                    k
+                    for k in new_plg_config
+                    if k.startswith(".") and plugin.id.startswith(f"{plugin.id.split('.')[0]}{k}")
+                ]
+                if keys:
+                    key = max(keys, key=len)
+                    new_plg_config = new_plg_config[key]
                 new = config_model_validate(model_type, new_plg_config)
                 nest_obj_update(obj, new, config_model_keys(new))
                 return True
 
             sub = plugin._scope.register(_reload, event=ConfigReload)
-            proxy = EntariConfig.instance.bind(plugin_key, obj)
+            proxy = EntariConfig.instance.bind(plugin_key, plg_config, obj)
             plugin.collect(lambda: delattr(proxy, "_Proxy__origin"), sub.dispose)
             return proxy
         return obj

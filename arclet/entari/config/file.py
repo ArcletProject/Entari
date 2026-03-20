@@ -123,16 +123,7 @@ class EntariConfig:
         slots.sort(key=lambda x: x[1])
         return [name for name, _ in slots]
 
-    def reload(self):
-        if self.save_flag:
-            self.save_flag = False
-            return False
-        data = self.loader(self.path)
-        if "entari" in data:
-            data = data["entari"]
-        self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
-        self._origin_data = data
-        self.plugin = data.get("plugins", {})
+    def _reload_plugins(self):
         self.plugin_extra_files: list[str] = self.plugin.get("$files", [])  # type: ignore
         self.prelude_plugin = self.plugin.get("$prelude", [])  # type: ignore
         for key in list(self.plugin.keys()):
@@ -158,6 +149,18 @@ class EntariConfig:
                     self.plugin[_path.stem] = self.loader(_path)
             elif path.name.endswith(".schema.json"):
                 self.plugin[path.stem] = self.loader(path)
+
+    def reload(self):
+        if self.save_flag:
+            self.save_flag = False
+            return False
+        data = self.loader(self.path)
+        if "entari" in data:
+            data = data["entari"]
+        self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
+        self._origin_data = data
+        self.plugin = data.get("plugins", {})
+        self._reload_plugins()
         return True
 
     @staticmethod
@@ -234,16 +237,18 @@ class EntariConfig:
             raise ValueError(f"{_path} is not a file")
         return cls(_path, env_vars=env_vars)
 
-    def bind(self, plugin: str, obj: T) -> T:
+    def bind(self, key: str, plugin: dict, obj: T) -> T:
         """
         Bind the plugin object to the config, allowing the config to be updated when the object changes.
         """
-        if plugin not in self.plugin:
-            raise KeyError(f"Plugin Config {plugin} not found in config")
+        if key not in self.plugin:
+            raise KeyError(f"Plugin Config {key} not found in config")
 
         def updater(target):
-            nest_dict_update(self.plugin[plugin], config_model_dump(target))
+            nest_dict_update(plugin, config_model_dump(target))
             self.save()
+            self.save_flag = False
+            self._reload_plugins()
 
         ans = Proxy(obj, lambda target=obj: updater(target))
         return ans  # type: ignore
@@ -285,12 +290,10 @@ class EntariConfig:
 
     def _generate_extra_file_schema(self, path: Path, plugin_map: dict[str, "Plugin"], plugin_meta_properties: dict):
         """Generate schema for an extra config file from $files."""
+        # fmt: off
         plugin_key = path.stem
         schema_file = path.with_suffix(".schema.json")
-        plugin_meta_properties = {
-            **plugin_meta_properties,
-            "$optional": {"type": "boolean", "description": "Whether this plugin is optional"},
-        }  # noqa: E501
+        plugin_meta_properties = {**plugin_meta_properties, "$optional": {"type": "boolean", "description": "Whether this plugin is optional"}}  # noqa: E501
 
         # Check if we have a matching plugin with config
         if plugin_key in plugin_map:
@@ -299,35 +302,16 @@ class EntariConfig:
                 plugin_schema = config_model_schema(plug.metadata.config, ref_root="/")
                 plugin_schema["properties"].update(plugin_meta_properties)
             elif plug.metadata is not None:
-                plugin_schema = {
-                    "type": "object",
-                    "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required",
-                    "additionalProperties": True,
-                    "properties": plugin_meta_properties,
-                }  # noqa: E501
+                plugin_schema = {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
             else:
-                plugin_schema = {
-                    "type": "object",
-                    "description": "No configuration required",
-                    "additionalProperties": True,
-                    "properties": plugin_meta_properties,
-                }  # noqa: E501
+                plugin_schema = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
         else:
             # Plugin not found, generate a generic schema
-            plugin_schema = {
-                "type": "object",
-                "description": f"Configuration for {plugin_key}",
-                "additionalProperties": True,
-                "properties": plugin_meta_properties,
-            }  # noqa: E501
+            plugin_schema = {"type": "object", "description": f"Configuration for {plugin_key}", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
 
         with open(schema_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {"$schema": "https://json-schema.org/draft/2020-12/schema", **plugin_schema},
-                f,
-                indent=2,
-                ensure_ascii=False,
-            )  # noqa: E501
+            json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", **plugin_schema}, f, indent=2, ensure_ascii=False)  # noqa: E501
+        # fmt: on
 
 
 load_config = EntariConfig.load

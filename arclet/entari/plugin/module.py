@@ -251,11 +251,11 @@ class PluginLoader(SourceFileLoader):
             if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
                 config = plugin.config.copy()
                 config["$path"] = plugin._config_key
-            for key in config:
-                if key.startswith(".") and self.plugin_id.endswith(key):
-                    config = config[key]
-                    config["$path"] = plugin._config_key  # type: ignore
-                    break
+            keys = [k for k in config if k.startswith(".") and self.plugin_id.startswith(f"{self.parent_plugin_id}{k}")]
+            if keys:
+                key = max(keys, key=len)
+                config = config[key]
+                config["$path"] = plugin._config_key  # type: ignore
 
         if self.loaded:
             return
