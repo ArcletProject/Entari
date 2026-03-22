@@ -41,6 +41,7 @@ from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..filter.parse import evaluate_disable, parse_filter
 from ..logger import log
+from ..utils import DisposableList
 from .service import plugin_service
 
 current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
@@ -73,8 +74,8 @@ class PluginDispatcher(Generic[T]):
         self.publisher = filter_publisher(event) or define(event, name=name)
         self.plugin = plugin
         self._event = event
-        self.providers: list[Provider[Any] | ProviderFactory] = []
-        self.propagators: list[Propagator] = []
+        self.providers: DisposableList[Provider[Any] | ProviderFactory] = DisposableList()
+        self.propagators: DisposableList[Propagator] = DisposableList()
 
     # fmt: off
 

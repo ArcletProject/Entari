@@ -206,9 +206,10 @@ def help_cmd_handle(
 
 
 disp = command.mount(help_cmd, skip_for_unmatch=False)
+execute_disp = disp.as_execute()
 
 
-@disp.on_execute()
+@execute_disp.handle(priority=16)
 async def help_exec(
     query: Match[str],
     page: Query[int] = Query("page.index", 1),

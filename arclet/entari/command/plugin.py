@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from typing_extensions import deprecated
 
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import define, deref, use
@@ -19,17 +20,29 @@ out_pub = define(CommandOutput)
 # fmt: off
 
 
+class _ExecuteDispatcher(PluginDispatcher):
+    def __init__(self, plugin: Plugin, supplier: AlconnaSuppiler):
+        super().__init__(plugin, CommandExecute)
+        plugin.collect(self.propagators.append(supplier))
+
+    def assign(self, path: str, value: Any = _seminal, or_not: bool = False, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
+        assign = Assign(path, value, or_not)
+        return self.register(priority=priority, providers=providers, propagators=[assign])
+
+
 class AlconnaPluginDispatcher(PluginDispatcher):
     def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
         self.cache = LRU(10)
         self.supplier = AlconnaSuppiler(command, self.cache, block, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
-        self.propagators.append(
-            MessageJudges(need_reply_me, need_notice_me, use_config_prefix, None),
+        plugin.collect(
+            self.propagators.append(
+                MessageJudges(need_reply_me, need_notice_me, use_config_prefix, None),
+            ),
+            self.propagators.append(self.supplier),
+            self.providers.append(AlconnaProviderFactory())
         )
-        self.propagators.append(self.supplier)
-        self.providers.append(AlconnaProviderFactory())
 
         @plugin.collect
         def dispose():
@@ -41,6 +54,10 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         assign = Assign(path, value, or_not)
         return self.register(priority=priority, providers=providers, propagators=[assign])
 
+    def as_execute(self):
+        return _ExecuteDispatcher(self.plugin, self.supplier)
+
+    @deprecated("`on_execute` is deprecated. Use `as_execute` instead.")
     def on_execute(self, priority: int = 16, providers: TProviders | None = None):
         with self.plugin._scope.context():
             return use(exec_pub, priority=priority, providers=providers, propagators=[self.supplier])

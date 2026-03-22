@@ -15,6 +15,8 @@ from arclet.letoderea.typing import Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
 
+from ..utils import DisposableList
+
 current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
 T = TypeVar("T")
@@ -28,8 +30,8 @@ class PluginDispatcher(Generic[T]):
     publisher: Publisher
     plugin: Plugin
     _event: type
-    providers: list[Provider[Any] | ProviderFactory]
-    propagators: list[Propagator]
+    providers: DisposableList[Provider[Any] | ProviderFactory]
+    propagators: DisposableList[Propagator]
 
     def __init__(self, plugin: Plugin, event: type, name: str | None = None): ...
     def waiter(
