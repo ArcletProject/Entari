@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Generic, NoReturn, cast, overload
 from typing_extensions import TypeVar
@@ -8,7 +9,7 @@ from satori import ChannelType, Quote
 from satori.client.account import Account
 from satori.client.protocol import ApiProtocol
 from satori.const import Api
-from satori.element import At, Element
+from satori.element import At, Button, Element, select
 from satori.model import (
     Channel,
     Friend,
@@ -34,10 +35,23 @@ from .event.base import (
     SatoriEvent,
 )
 from .event.send import SendRequest, SendResponse
-from .message import MessageChain
+from .message import MessageChain, Render
 
 TEvent = TypeVar("TEvent", bound=SatoriEvent, default=SatoriEvent)
 T = TypeVar("T")
+
+COMPONENTS: dict[str, Render["Session", Awaitable[MessageChain]]] = {}
+
+
+async def component_transform(session: "Session", content: MessageChain):
+    async def rule(elem: Element, sess: "Session"):
+        render = elem._attrs.get("is") if elem.tag == "component" else COMPONENTS.get(f"component:{elem.tag}")
+        if not render:
+            return True
+        children = await render(elem._attrs, elem.children, sess)
+        return await component_transform(sess, MessageChain(children))
+
+    return await content.transform_async(rule, session)
 
 
 class EntariProtocol(ApiProtocol):
@@ -97,8 +111,13 @@ class EntariProtocol(ApiProtocol):
         sess = None
         if referrer and "source" in referrer:
             sess = Session(self.account, referrer["source"])  # type: ignore
+            msg = await component_transform(sess, msg)
             referrer = {k: v for k, v in referrer.items() if k != "source"}
             sess.elements = msg
+        btns = select(msg, Button)
+        for btn in btns:
+            if btn.type != "link" and not btn.id:
+                btn.id = secrets.token_urlsafe(16)
         res = await es.post(ev := SendRequest(self.account, channel_id, msg, sess))
         msg = sess._content if sess and sess._content else ev.message
         if res:

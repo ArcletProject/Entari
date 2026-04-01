@@ -18,6 +18,8 @@ from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
+from ..message import Fragment, MessageChain, Render
+from ..session import COMPONENTS, Session, component_transform
 from ..utils import escape_tag
 from .model import TS, Plugin, PluginDispatcher
 from .model import PluginMetadata as PluginMetadata
@@ -403,3 +405,22 @@ async def disable_plugin(plugin: str):
 
 
 listen = on
+
+
+def component(name: str):
+    _plugin = get_plugin(1)
+
+    def dispose():
+        COMPONENTS.pop(f"component:{name}", None)
+
+    _plugin.collect(dispose)
+
+    def wrapper(func: Render[Session, Awaitable[Fragment]]):
+        async def render(attrs: dict, children: list, session: Session):
+            ans = await func(attrs, children, session)
+            return await component_transform(session, MessageChain(ans))
+
+        COMPONENTS[f"component:{name}"] = render
+        return func
+
+    return wrapper

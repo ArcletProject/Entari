@@ -12,16 +12,17 @@ from satori.model import MessageObject
 from satori.parser import parse
 
 T = TypeVar("T")
+S = TypeVar("S")
 TE = TypeVar("TE", bound=Element)
 TE1 = TypeVar("TE1", bound=Element)
 
-Fragment: TypeAlias = Element | Iterable[Element]
-Visit: TypeAlias = Callable[[Element], T]
-Render: TypeAlias = Callable[[dict[str, Any], list[Element]], T]
-SyncTransformer: TypeAlias = bool | Fragment | Render[bool | Fragment]
-AsyncTransformer: TypeAlias = bool | Fragment | Render[Awaitable[bool | Fragment]]
-SyncVisitor: TypeAlias = dict[str, SyncTransformer] | Visit[bool | Fragment]
-AsyncVisitor: TypeAlias = dict[str, AsyncTransformer] | Visit[Awaitable[bool | Fragment]]
+Fragment: TypeAlias = str | Element | Iterable[Element]
+Visit: TypeAlias = Callable[[Element, S], T]
+Render: TypeAlias = Callable[[dict[str, Any], list[Element], S], T]
+SyncTransformer: TypeAlias = bool | Fragment | Render[S, bool | Fragment]
+AsyncTransformer: TypeAlias = bool | Fragment | Render[S, Awaitable[bool | Fragment]]
+SyncVisitor: TypeAlias = dict[str, SyncTransformer[S]] | Visit[S, bool | Fragment]
+AsyncVisitor: TypeAlias = dict[str, AsyncTransformer[S]] | Visit[S, Awaitable[bool | Fragment]]
 
 MessageContainer = Union[str, Element, Sequence["MessageContainer"], "MessageChain[Element]"]
 
@@ -388,62 +389,68 @@ class MessageChain(list[TE]):
         return MessageChain(satori_select(list(self), cls))
 
     @staticmethod
-    def _visit_sync(elem: Element, rules: SyncVisitor):
+    def _visit_sync(elem: Element, rules: SyncVisitor[S], session: S = None):
         _type, data, children = elem.tag, elem._attrs, elem.children
-        if not isinstance(rules, dict):
-            return rules(elem)
+        if isinstance(rules, Callable):
+            return rules(elem, session)
         result = rules.get(_type, True)
         if not isinstance(result, bool | Element | Iterable):
-            result = result(data, children)
+            result = result(data, children, session)
         return result
 
     @staticmethod
-    async def _visit_async(elem: Element, rules: AsyncVisitor):
+    async def _visit_async(elem: Element, rules: AsyncVisitor[S], session: S = None):
         _type, data, children = elem.tag, elem._attrs, elem.children
-        if not isinstance(rules, dict):
-            return await rules(elem)
+        if isinstance(rules, Callable):
+            return await rules(elem, session)
         result = rules.get(_type, True)
         if not isinstance(result, bool | Element | Iterable):
-            result = await result(data, children)
+            result = await result(data, children, session)
         return result
 
-    def transform(self, rules: SyncVisitor) -> MessageChain:
+    def transform(self, rules: SyncVisitor[S], session: S = None) -> MessageChain:
         """同步遍历消息元素并转换
 
         Args:
             rules: 转换规则
+            session: 可能需要的会话信息, 由调用者传入
 
         Returns:
             转换后的消息
         """
         output = MessageChain()
         for elem in self:
-            result = self._visit_sync(elem, rules)
+            result = self._visit_sync(elem, rules, session)
             if result is True:
+                children = MessageChain(elem.children)
+                elem._children = list(children.transform(rules, session))
                 output += elem
             elif result is not False:
-                if isinstance(result, Element):
+                if isinstance(result, str | Element):
                     output += result
                 else:
                     output.extend(result)
         return output
 
-    async def transform_async(self, rules: AsyncVisitor) -> MessageChain:
+    async def transform_async(self, rules: AsyncVisitor[S], session: S = None) -> MessageChain:
         """异步遍历消息段并转换
 
         Args:
             rules: 转换规则
+            session: 可能需要的会话信息, 由调用者传入
 
         Returns:
             转换后的消息
         """
         output = MessageChain()
         for elem in self:
-            result = await self._visit_async(elem, rules)
+            result = await self._visit_async(elem, rules, session)
             if result is True:
+                children = MessageChain(elem.children)
+                elem._children = list(await children.transform_async(rules, session))
                 output += elem
             elif result is not False:
-                if isinstance(result, Element):
+                if isinstance(result, str | Element):
                     output += result
                 else:
                     output.extend(result)
