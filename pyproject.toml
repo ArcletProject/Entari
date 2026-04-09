@@ -92,21 +92,19 @@ include = '\.pyi?$'
 extend-exclude = '''
 '''
 
-[tool.isort]
-profile = "black"
-line_length = 120
-skip_gitignore = true
-force_sort_within_sections = false
-extra_standard_library = ["typing_extensions"]
-
 [tool.ruff]
 line-length = 120
 target-version = "py310"
 include = ["arclet/**.py"]
+respect-gitignore = true
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "UP", "C", "T", "PYI", "PT", "Q"]
 ignore = ["C901", "T201", "E731", "E402", "PYI055"]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = false
+extra-standard-library = ["typing_extensions"]
 
 [tool.pyright]
 pythonVersion = "3.10"
@@ -115,11 +113,10 @@ typeCheckingMode = "basic"
 
 [tool.pdm.scripts]
 test = "pytest -v -n auto -W ignore ./tests/"
-format = { composite = ["isort ./arclet/","black ./arclet/","ruff check ./arclet/"] }
+format = { composite = ["ruff check --select I --fix ./arclet/","black ./arclet/","ruff check ./arclet/"] }
 
 [dependency-groups]
 dev = [
-    "isort>=5.13.2",
     "black>=24.4.2",
     "ruff>=0.15.4",
     "fix-future-annotations>=0.5.0",

@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:bc4e8eef82f66d2ba023a5049912e4969b442ae6eda09d82cc7ccb459897b4a6"
+content_hash = "sha256:dba6bc73795f62b744bf9482b4a36ac8e7d1836e6bd08bddebefd9c316e5eaee"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -534,17 +534,6 @@ dependencies = [
 files = [
     {file = "importlib_metadata-8.6.1-py3-none-any.whl", hash = "sha256:02a89390c1e15fdfdc0d7c6b25cb3e62650d0494005c97d6f148bf5b9787525e"},
     {file = "importlib_metadata-8.6.1.tar.gz", hash = "sha256:310b41d755445d74569f993ccfc22838295d9fe005425094fad953d7f15c8580"},
-]
-
-[[package]]
-name = "isort"
-version = "8.0.0"
-requires_python = ">=3.10.0"
-summary = "A Python utility / library to sort Python imports."
-groups = ["dev"]
-files = [
-    {file = "isort-8.0.0-py3-none-any.whl", hash = "sha256:184916a933041c7cf718787f7e52064f3c06272aff69a5cb4dc46497bd8911d9"},
-    {file = "isort-8.0.0.tar.gz", hash = "sha256:fddea59202f231e170e52e71e3510b99c373b6e571b55d9c7b31b679c0fed47c"},
 ]
 
 [[package]]

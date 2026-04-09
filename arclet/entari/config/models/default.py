@@ -1,8 +1,7 @@
 import sys
 from collections.abc import Callable
-from dataclasses import MISSING, Field, asdict, dataclass
+from dataclasses import MISSING, Field, asdict, dataclass, fields, is_dataclass
 from dataclasses import field as _field
-from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from inspect import Signature
 from pathlib import Path

@@ -21,10 +21,9 @@ from ..logger import log
 from ..message import Fragment, MessageChain, Render
 from ..session import COMPONENTS, Session, component_transform
 from ..utils import escape_tag
-from .model import TS, Plugin, PluginDispatcher
+from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import RootlessPlugin as RootlessPlugin
-from .model import current_plugin
 from .model import keeping as keeping
 from .module import import_plugin
 from .module import package as package
