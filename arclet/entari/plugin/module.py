@@ -1,4 +1,5 @@
 import ast
+import inspect
 import re
 import sys
 import tokenize
@@ -6,8 +7,10 @@ from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
+from importlib.metadata import PackageNotFoundError, distribution
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -29,6 +32,20 @@ _IMPORTING = set()
 PLUGIN_PAT = re.compile(r"entari:\s*plugin")
 SUBPLUGIN_PAT = re.compile(r"entari:\s*(?:package|subplugin)")
 NAMESPACE_PAT = re.compile(r"entari:\s*namespace")
+
+PLUGIN_CLASSIFIERS = {
+    "Entari::Plugin" "Entari :: Plugin",
+    "Framework :: Arclet Entari :: Plugin",
+}
+PLUGIN_KEYWORDS = {
+    "entari",
+    "entari_plugin",
+    "entari-plugin",
+    "entari:plugin",
+    "Entari",
+    "Entari-Plugin",
+    "Entari:Plugin",
+}
 
 
 def package(*names: str | ModuleType):
@@ -264,10 +281,17 @@ class PluginLoader(SourceFileLoader):
             key = module.__name__
             if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
                 key = f"::{key[23:]}"
-            elif key.startswith("entari_plugin_") and f"{key[14:]}" in EntariConfig.instance.plugin:
-                key = f"{key[14:]}"
-            config = EntariConfig.instance.plugin.get(key, {})
-            config["$path"] = key
+            config = EntariConfig.instance.plugin.get(key)
+            if config is not None:
+                config["$path"] = key
+            else:
+                for k, names in EntariConfig.instance._plugin_names:
+                    if key in names:
+                        config = EntariConfig.instance.plugin.get(k, {})
+                        config["$path"] = k
+                        break
+                else:
+                    config = {"$path": key}
             if key in EntariConfig.instance.prelude_plugin:
                 config["$static"] = True  # type: ignore
         # create plugin before executing
@@ -283,10 +307,35 @@ class PluginLoader(SourceFileLoader):
         try:
             super().exec_module(module)
         except RegisterNotInPluginError as e:
-            log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e.msg}")
-            plugin.dispose()
-            publish(PluginLoadedFailed(self.plugin_id, e))
-            raise
+            deleted = []
+            for frame in reversed(inspect.trace()):
+                if Path(frame.filename).as_posix().endswith("arclet/entari/plugin/model.py"):
+                    continue
+                if frame.filename == self.path:
+                    break
+                mod_name = frame.frame.f_globals["__spec__"].name
+                sys.modules.pop(mod_name, None)
+                if mod_name != e.func.__module__:
+                    deleted.append(mod_name)
+            import_plugin(e.func.__module__)
+            if deleted:
+                _ensure_plugin(deleted[-1:], False, self.plugin_id, self.name)
+                _ENSURE_IS_PLUGIN.update(deleted[:-1])
+            try:
+                super().exec_module(module)
+            except Exception as e1:
+                if isinstance(e1, RegisterNotInPluginError):
+                    log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e1.msg}")
+                else:
+                    log.plugin.exception(
+                        f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e
+                    )
+                plugin.dispose()
+                publish(PluginLoadedFailed(self.plugin_id, e1))
+                if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
+                    raise e1 from None
+                else:
+                    raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path) from None
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
@@ -364,59 +413,96 @@ class _PluginFinder(MetaPathFinder):
         target: ModuleType | None = None,
         origin_id_: str | None = None,
     ):
+        # get the module spec using the default path-finder
         module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
             return
         module_origin = module_spec.origin
+        # if the module has no origin, it might be a namespace package or a built-in module.
+        # We only care about namespace packages here, as built-in modules should not be treated as plugins.
+        # For namespace packages, we can still return the spec without modification,
+        # as they will be handled by the _NamespacePath class.
         if not module_origin:
             if not module_spec.loader:  # namespace package
                 return module_spec
             return
+        # if the module is an extension module, we should not treat it as a plugin,
+        # as it cannot be reloaded and does not have a source file to analyze for plugin markers.
         if isinstance(module_spec.loader, ExtensionFileLoader):
             return
+        # current import statement is within a plugin.
         if plug := current_plugin.get(None):
+            # if the module being imported is the same as the plugin's module,
+            # return the plugin's module spec directly to avoid infinite recursion.
             if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
                 return plug.module.__spec__
+            # get the top-level plugin id (the parent) of the current plugin
             plugin_id = plug.id
             while plugin_id in plugin_service._subplugined:
                 plugin_id = plugin_service._subplugined[plugin_id]
+            # if the module being imported is a submodule of the top-level plugin,
             if module_spec.name.startswith(plugin_service.plugins[plugin_id].module.__name__ + "."):
                 module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
                 return module_spec
-
+            # if the module being imported is in the waitlist of the top-level plugin,
+            # it means it is marked as a submodule by the plugin author.
             if module_spec.name in _SUBMODULE_WAITLIST.get(plugin_id, ()):
                 module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
                 # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
                 # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
                 return module_spec
-            if (
-                module_spec.name in _ENSURE_IS_PLUGIN
-                or module_spec.name.startswith("arclet.entari.builtins.")
-                or module_spec.name.startswith("entari_plugin")
-            ):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
-                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
-                return module_spec
-
+        # in the following cases, the module is imported directly (probably from Entari App)
+        # 1. the module is already a plugin.
         if module_spec.name in plugin_service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
             return module_spec
-        if module_spec.name in _ENSURE_IS_PLUGIN:
+        # 2. the module is marked as a plugin by the plugin author, or followed the naming convention for plugins.
+        marked = (
+            module_spec.name in _ENSURE_IS_PLUGIN
+            or module_spec.name.startswith("arclet.entari.builtins.")
+            or module_spec.name.startswith("entari_plugin")
+        )
+        if not marked and EntariConfig._inited and EntariConfig.instance.basic.check_metadata:
+            # if the module is installed in the environment, we can check its metadata for plugin markers.
+            try:
+                dist = distribution(module_spec.name)
+                if dist.entry_points.select(group="entari.plugin"):
+                    marked = True
+                classifiers = dist.metadata.get_all("Classifier", [])
+                if any(classifier in classifiers for classifier in PLUGIN_CLASSIFIERS):
+                    marked = True
+                keywords = re.split(r"\s+", dist.metadata["Keywords"])
+                if any(keyword in keywords for keyword in PLUGIN_KEYWORDS):
+                    marked = True
+            except (PackageNotFoundError, KeyError, ValueError):
+                pass
+        if marked:
             module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
+            # if there already exists a plugin that is importing this module,
+            # we should add the plugin as a referent of this module
+            if plug:
+                plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
             return module_spec
+        # 3. the module is marked as a submodule by other plugin, or it is a submodule of a plugin.
         if module_spec.name in plugin_service._subplugined:
             module_spec.loader = PluginLoader(
                 fullname, module_origin, origin_id_ or fullname, plugin_service._subplugined[module_spec.name]
             )
             return module_spec
+        # 4. if the module is already a plugin, but it is assigned an unique id (usage of reusable plugin),
+        # it cannot be imported directly, otherwise it will break the uniqueness of the plugin instance.
         if (
             any(k.startswith(module_spec.name) and k.rfind("@") != -1 for k in plugin_service.plugins)
             and (origin_id_ or fullname).rfind("@") == -1
         ):
             raise ReusablePluginError(f"reusable plugin {module_spec.name!r} cannot be imported directly")
+        # 5. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
+        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
             module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, module_spec.parent)
             return module_spec
+        # 6. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
+        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
         if module_spec.name.rpartition(".")[0] in plugin_service.plugins:
             module_spec.loader = PluginLoader(
                 fullname, module_origin, origin_id_ or fullname, module_spec.name.rpartition(".")[0]

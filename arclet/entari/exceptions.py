@@ -1,8 +1,11 @@
+from types import FunctionType
+
 from .utils import escape_tag
 
 
 class RegisterNotInPluginError(Exception):
     def __init__(self, func, mod, pid):
+        self.func: FunctionType = func
         self.msg = f"""\
 Handler `{escape_tag(func.__qualname__)}` from {func.__module__!r}\
  should define in the same module as the plugin: {mod.__name__!r}.

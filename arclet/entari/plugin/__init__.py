@@ -160,9 +160,16 @@ def load_plugin(
         recursive_guard (set[str]): 递归保护
         prelude (bool): 是否为前置插件
     """
-    if config is None:
-        config = EntariConfig.instance.plugin.get(path, {})
-    config["$path"] = path
+    if config is not None:
+        config["$path"] = path
+    else:
+        for k, names in EntariConfig.instance._plugin_names.items():
+            if path in names:
+                config = EntariConfig.instance.plugin.get(k, {})
+                config["$path"] = k
+                break
+        else:
+            config = {"$path": path}
     if prelude:
         config["$static"] = True
     if recursive_guard is None:
@@ -177,12 +184,12 @@ def load_plugin(
         plugin_service._direct_plugins.add(plug.path)
         return plug
     try:
-        if pref := config.get("$prefix"):
-            path = f"{pref if isinstance(pref, str) else 'entari_plugin_'}{path}"
         mod = import_plugin(path, config=config)
-        if not pref and not mod and not path.count("."):
-            path1 = f"entari_plugin_{path}"
-            mod = import_plugin(path1, config=config)
+        if not mod:
+            mod = next(
+                (import_plugin(_path, config=config) for _path in EntariConfig.instance._plugin_names.get(path, [])),
+                None,
+            )
         if not mod:
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             publish(PluginLoadedFailed(path))
@@ -339,6 +346,10 @@ def find_plugin(name: str) -> Plugin | None:
     """根据插件名称查找插件"""
     if name in plugin_service.plugins:
         return plugin_service.plugins[name]
+    if name in EntariConfig.instance.plugin_prefixes:
+        for prefix in EntariConfig.instance.plugin_prefixes[name]:
+            if f"{prefix}{name}" in plugin_service.plugins:
+                return plugin_service.plugins[f"{prefix}{name}"]
     if not name.count(".") and f"entari_plugin_{name}" in plugin_service.plugins:
         return plugin_service.plugins[f"entari_plugin_{name}"]
 

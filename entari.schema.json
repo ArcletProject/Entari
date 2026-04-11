@@ -18,62 +18,44 @@
               }
             ]
           },
-          "description": "Network configuration",
+          "description": "网络相关配置",
           "title": "Network"
         },
         "ignore_self_message": {
           "type": "boolean",
           "default": true,
-          "description": "Whether ignore self-send message event",
+          "description": "是否忽略自己发送的消息事件",
           "title": "Ignore Self Message"
         },
         "skip_req_missing": {
           "type": "boolean",
           "default": false,
-          "description": "Whether skip Event Handler if requirement is missing",
+          "description": "是否跳过无法执行的事件监听器",
           "title": "Skip Req Missing"
         },
         "log": {
           "$ref": "#/properties/basic/$defs/LogInfo",
-          "description": "Log configuration",
+          "description": "日志相关配置",
           "title": "Log"
-        },
-        "log_level": {
-          "oneOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "[Deprecated] Log level for the application",
-          "title": "Log Level"
-        },
-        "log_ignores": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "[Deprecated] Log ignores for the application",
-          "title": "Log Ignores"
         },
         "prefix": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Command prefix for the application",
+          "description": "命令前缀列表，支持多个前缀（如 ['/', '!']）",
           "title": "Prefix"
+        },
+        "nickname": {
+          "type": "string",
+          "default": "",
+          "description": "Bot 昵称，主要用于命令匹配",
+          "title": "Nickname"
         },
         "cmd_count": {
           "type": "integer",
           "default": 4096,
-          "description": "Command count limit for the application",
+          "description": "命令数量限制，超过该数量的命令将无法注册",
           "title": "Cmd Count"
         },
         "external_dirs": {
@@ -81,18 +63,24 @@
           "items": {
             "type": "string"
           },
-          "description": "External directories to look for plugins",
+          "description": "用来查找插件的外部目录列表，支持多个目录",
           "title": "External Dirs"
         },
         "schema": {
           "type": "boolean",
           "default": false,
-          "description": "Whether generate JSON schema for the configuration (after application start)",
+          "description": "是否为配置文件生成 JSON Schema（会在启动时生成）",
           "title": "Schema"
+        },
+        "check_metadata": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否利用元数据进行插件导入检测（可能会增加启动时间）",
+          "title": "Check Metadata"
         }
       },
       "additionalProperties": false,
-      "description": "Basic configuration for the Entari application",
+      "description": "Entari 应用的基础配置",
       "$defs": {
         "WebsocketsInfo": {
           "type": "object",
@@ -104,40 +92,41 @@
                 "websockets",
                 "ws"
               ],
+              "description": "连接类型，必须是 'websocket'、'websockets' 或 'ws'",
               "title": "Type"
             },
             "host": {
               "type": "string",
               "default": "localhost",
-              "description": "WebSocket server host",
+              "description": "服务器主机地址",
               "title": "Host"
             },
             "port": {
               "type": "integer",
               "default": 5140,
-              "description": "WebSocket server port",
+              "description": "服务器端口",
               "title": "Port"
             },
             "path": {
               "type": "string",
               "default": "",
-              "description": "WebSocket server endpoint path",
+              "description": "服务器路径",
               "title": "Path"
             },
             "secure": {
               "type": "boolean",
               "default": false,
-              "description": "Whether to use HTTPS and WSS for the server connection",
+              "description": "是否使用安全连接（wss 和 https）",
               "title": "Secure"
             },
             "token": {
               "type": "string",
-              "description": "Authentication token for the WebSocket server",
+              "description": "连接的鉴权令牌",
               "title": "Token"
             },
             "timeout": {
               "type": "number",
-              "description": "Connection timeout in seconds",
+              "description": "连接超时时间（秒）",
               "title": "Timeout"
             }
           },
@@ -145,7 +134,7 @@
             "type"
           ],
           "additionalProperties": false,
-          "description": "Satori Server WebSocket Configuration"
+          "description": "Satori 服务器 WebSocket 配置"
         },
         "WebhookInfo": {
           "type": "object",
@@ -157,58 +146,59 @@
                 "wh",
                 "http"
               ],
+              "description": "连接类型，必须是 'webhook'、'wh' 或 'http'",
               "title": "Type"
             },
             "host": {
               "type": "string",
               "default": "127.0.0.1",
-              "description": "Webhook self-server host",
+              "description": "本机 Webhook 服务器主机地址",
               "title": "Host"
             },
             "port": {
               "type": "integer",
               "default": 8080,
-              "description": "Webhook self-server port",
+              "description": "本机 Webhook 服务器端口",
               "title": "Port"
             },
             "path": {
               "type": "string",
               "default": "v1/events",
-              "description": "Webhook self-server endpoint path",
+              "description": "本机 Webhook 服务器路径",
               "title": "Path"
             },
             "secure": {
               "type": "boolean",
               "default": false,
-              "description": "Whether to use HTTPS for the server connection",
+              "description": "是否使用安全连接（wss 和 https）",
               "title": "Secure"
             },
             "token": {
               "type": "string",
-              "description": "Authentication token for the webhook",
+              "description": "连接的鉴权令牌",
               "title": "Token"
             },
             "server_host": {
               "type": "string",
               "default": "localhost",
-              "description": "Target server host",
+              "description": "发送请求的目标服务器主机地址",
               "title": "Server Host"
             },
             "server_port": {
               "type": "integer",
               "default": 5140,
-              "description": "Target server port",
+              "description": "发送请求的目标服务器端口",
               "title": "Server Port"
             },
             "server_path": {
               "type": "string",
               "default": "",
-              "description": "Target server endpoint path",
+              "description": "发送请求的目标服务器路径",
               "title": "Server Path"
             },
             "timeout": {
               "type": "number",
-              "description": "Connection timeout in seconds",
+              "description": "连接超时时间（秒）",
               "title": "Timeout"
             }
           },
@@ -216,7 +206,7 @@
             "type"
           ],
           "additionalProperties": false,
-          "description": "Satori Server Webhook Configuration"
+          "description": "Satori 服务器 Webhook 配置"
         },
         "LogSaveInfo": {
           "type": "object",
@@ -225,23 +215,23 @@
             "rotation": {
               "type": "string",
               "default": "00:00",
-              "description": "Log rotation time, e.g., '00:00' for daily rotation",
+              "description": "日志轮转时间，支持时间字符串（如 '00:00' 表示每天午夜轮转）或文件大小（如 '10 MB'）",
               "title": "Rotation"
             },
             "compression": {
               "type": "string",
-              "description": "Compression format for log saving, e.g., 'zip'",
+              "description": "日志压缩格式，支持 'zip'、'tar'、'gz' 等常见格式",
               "title": "Compression"
             },
             "colorize": {
               "type": "boolean",
               "default": true,
-              "description": "Whether to colorize the log output",
+              "description": "是否在保存的日志中保留颜色信息",
               "title": "Colorize"
             }
           },
           "additionalProperties": false,
-          "description": "Configuration for saving logs to a file"
+          "description": "日志保存相关配置"
         },
         "LogInfo": {
           "type": "object",
@@ -257,7 +247,7 @@
                 }
               ],
               "default": "INFO",
-              "description": "Log level for the application",
+              "description": "日志级别",
               "title": "Level"
             },
             "ignores": {
@@ -265,7 +255,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Log ignores for the application",
+              "description": "日志过滤器，指定要忽略的日志记录器名称列表（可以使用通配符）",
               "title": "Ignores"
             },
             "save": {
@@ -281,24 +271,24 @@
                 }
               ],
               "default": null,
-              "description": "Log saving configuration, if None or False, logs will not be saved",
+              "description": "日志保存配置，设置为 False 或 None 则不保存日志",
               "title": "Save"
             },
             "rich_error": {
               "type": "boolean",
               "default": false,
-              "description": "Whether enable rich traceback for exceptions",
+              "description": "是否使用 Rich 库美化错误日志",
               "title": "Rich Error"
             },
             "short_level": {
               "type": "boolean",
               "default": false,
-              "description": "Whether use short log level names",
+              "description": "是否在日志中使用简短的级别名称（如 'I' 代替 'INFO'）",
               "title": "Short Level"
             }
           },
           "additionalProperties": false,
-          "description": "Configuration for the application logs"
+          "description": "日志相关配置"
         }
       }
     },
@@ -306,6 +296,34 @@
       "type": "object",
       "description": "Plugin configurations",
       "properties": {
+        "$prefix": {
+          "description": "List of prefix config",
+          "items": {
+            "properties": {
+              "key": {
+                "description": "Prefix key",
+                "title": "Key",
+                "type": "string"
+              },
+              "plugins": {
+                "description": "List of plugins under the prefix",
+                "items": {
+                  "type": "string",
+                  "description": "Plugin name"
+                },
+                "title": "Plugins",
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "title": "Prefix Config",
+            "type": "object"
+          },
+          "type": "array"
+        },
         "$prelude": {
           "type": "array",
           "items": {
@@ -360,10 +378,6 @@
               "type": "string",
               "description": "Expression for whether disable this plugin"
             },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
-            },
             "$priority": {
               "type": "integer",
               "description": "Plugin loading priority, lower value means higher priority (default: 16)"
@@ -384,10 +398,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -419,10 +429,6 @@
               "type": "string",
               "description": "Expression for whether disable this plugin"
             },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
-            },
             "$priority": {
               "type": "integer",
               "description": "Plugin loading priority, lower value means higher priority (default: 16)"
@@ -444,10 +450,6 @@
               "type": "string",
               "description": "Expression for whether disable this plugin"
             },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
-            },
             "$priority": {
               "type": "integer",
               "description": "Plugin loading priority, lower value means higher priority (default: 16)"
@@ -458,7 +460,7 @@
             }
           }
         },
-        "example_reusable@1": {
+        "reusable@1": {
           "type": "object",
           "title": "Config",
           "properties": {
@@ -473,10 +475,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -494,7 +492,7 @@
           "additionalProperties": false,
           "description": "example_reusable"
         },
-        "example_reusable@2": {
+        "reusable@2": {
           "type": "object",
           "title": "Config",
           "properties": {
@@ -509,10 +507,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -539,10 +533,6 @@
               "type": "string",
               "description": "Expression for whether disable this plugin"
             },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
-            },
             "$priority": {
               "type": "integer",
               "description": "Plugin loading priority, lower value means higher priority (default: 16)"
@@ -562,10 +552,6 @@
               "type": "string",
               "description": "Expression for whether disable this plugin"
             },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
-            },
             "$priority": {
               "type": "integer",
               "description": "Plugin loading priority, lower value means higher priority (default: 16)"
@@ -584,10 +570,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -616,10 +598,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -661,13 +639,14 @@
               "description": "是否使用配置前缀",
               "title": "Use Config Prefix"
             },
+            "ignore_prefix_filter": {
+              "type": "string",
+              "description": "前缀过滤条件，使用过滤器语法，默认为私聊消息不使用前缀",
+              "title": "Ignore Prefix Filter"
+            },
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",
@@ -705,10 +684,6 @@
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
-            },
-            "$prefix": {
-              "type": "string",
-              "description": "Plugin name prefix"
             },
             "$priority": {
               "type": "integer",

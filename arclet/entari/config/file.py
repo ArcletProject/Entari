@@ -2,10 +2,12 @@ import json
 import os
 import re
 import warnings
+from collections import defaultdict
 from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
 from importlib import import_module
 from io import StringIO
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
@@ -43,14 +45,17 @@ class EntariConfig:
     path: Path
     basic: BasicConfig = field(default_factory=BasicConfig, init=False)
     plugin: dict[str, dict] = field(default_factory=dict, init=False)
+    plugin_prefixes: dict[str, list[str]] = field(default_factory=dict, init=False)
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     save_flag: bool = field(default=False)
     env_vars: dict[str, str] = field(default_factory=dict)
+    _plugin_names: dict[str, list[str]] = field(default_factory=dict, init=False)
     _origin_data: dict[str, Any] = field(init=False)
     _env_replaced: dict[str, dict[int, tuple[str, int]]] = field(default_factory=dict, init=False)
 
     instance: ClassVar["EntariConfig"]
+    _inited: ClassVar[bool] = False
 
     def loader(self, path: Path):
         if not path.exists():
@@ -103,6 +108,7 @@ class EntariConfig:
 
     def __post_init__(self):
         self.__class__.instance = self
+        self.__class__._inited = True
         self.reload()
 
     @property
@@ -111,21 +117,26 @@ class EntariConfig:
 
     @property
     def prelude_plugin_names(self) -> list[str]:
-        return [name for name in self.plugin_names if name in self.prelude_plugin]
+        return [
+            name
+            for key, names in self._plugin_names.items()
+            for name in names
+            if key in self.prelude_plugin or name in self.prelude_plugin
+        ]
 
     @property
     def plugin_names(self) -> list[str]:
-        slots = [
-            (name, self.plugin[name].get("$priority", 16))
-            for name in self.plugin
-            if not name.startswith("$") and not self.plugin[name].get("$optional", False)
-        ]
-        slots.sort(key=lambda x: x[1])
-        return [name for name, _ in slots]
+        return list(chain.from_iterable(self._plugin_names.values()))
 
     def _reload_plugins(self):
         self.plugin_extra_files: list[str] = self.plugin.get("$files", [])  # type: ignore
         self.prelude_plugin = self.plugin.get("$prelude", [])  # type: ignore
+        plugin_prefixes = {item["key"]: item["plugins"] for item in self.plugin.get("$prefix", [])}  # type: ignore
+        inverted = defaultdict(list)
+        for key, plugs in plugin_prefixes.items():
+            for plug in plugs:
+                inverted[plug].append(key)
+        self.plugin_prefixes = dict(inverted)
         for key in list(self.plugin.keys()):
             if key.startswith("$"):
                 continue
@@ -149,6 +160,22 @@ class EntariConfig:
                     self.plugin[_path.stem] = self.loader(_path)
             elif path.name.endswith(".schema.json"):
                 self.plugin[path.stem] = self.loader(path)
+
+        slots = [
+            (name, self.plugin[name].get("$priority", 16))
+            for name in self.plugin
+            if not name.startswith("$") and not self.plugin[name].get("$optional", False)
+        ]
+        slots.sort(key=lambda x: x[1])
+        ans: defaultdict[str, list[str]] = defaultdict(list)
+        for name, _ in slots:
+            if (prefixes := self.plugin_prefixes.get(name)) is not None:
+                ans[name].extend((f"{prefix}{name}" if prefix else name) for prefix in prefixes)
+            elif name.count(".") or name.startswith("::") or name.startswith("entari_plugin_"):
+                ans[name].append(name)
+            else:
+                ans[name].append(f"entari_plugin_{name}")
+        self._plugin_names = dict(ans)
 
     def reload(self):
         if self.save_flag:
@@ -242,7 +269,11 @@ class EntariConfig:
         Bind the plugin object to the config, allowing the config to be updated when the object changes.
         """
         if key not in self.plugin:
-            raise KeyError(f"Plugin Config {key} not found in config")
+            for _, names in self._plugin_names.items():
+                if key in names:
+                    break
+            else:
+                raise KeyError(f"Plugin Config {key} not found in config")
 
         def updater(target):
             nest_dict_update(plugin, config_model_dump(target))
@@ -256,7 +287,7 @@ class EntariConfig:
     def generate_schema(self, plugins: list["Plugin"]):
         plugins_properties = {}
         # fmt: off
-        plugin_meta_properties = {"$disable": {"type": "string", "description": "Expression for whether disable this plugin"}, "$prefix": {"type": "string", "description": "Plugin name prefix"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
+        plugin_meta_properties = {"$disable": {"type": "string", "description": "Expression for whether disable this plugin"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
         # Build a mapping from plugin config key to plugin object for $files schema generation
         plugin_map: dict[str, "Plugin"] = {}  # noqa: UP037
         for plug in plugins:
@@ -271,7 +302,7 @@ class EntariConfig:
             else:
                 plugins_properties[plug._config_key] = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
         schemas = {
-            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
+            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prefix": {"description": "List of prefix config", "items": {"properties": {"key": {"description": "Prefix key", "title": "Key", "type": "string"}, "plugins": {"description": "List of plugins under the prefix", "items": {"type": "string", "description": "Plugin name"}, "title": "Plugins", "type": "array", "uniqueItems": True}}, "required": ["key"], "title": "Prefix Config", "type": "object"}, "type": "array"}, "$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
             json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501

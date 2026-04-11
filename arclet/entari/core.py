@@ -4,6 +4,7 @@ import signal
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict
+from importlib.metadata import entry_points
 from pathlib import Path
 from typing import get_args
 
@@ -419,6 +420,7 @@ class Entari(App):
         manager.add_component(plugin_service)
         manager.add_component(MemcacheService())
 
+        requires(*(entry.module for entry in entry_points(group="entari.plugin")))
         requires(*EntariConfig.instance.prelude_plugin)
         for plug in EntariConfig.instance.prelude_plugin_names:
             load_plugin(plug, prelude=True)
@@ -429,6 +431,10 @@ class Entari(App):
                 plugins.append(apply)
         for plug in plugins:
             load_plugin(plug)
+
+        for entry in entry_points(group="entari.plugin"):
+            if entry.name not in plugins and entry.module not in plugin_service.plugins:
+                load_plugin(entry.module)
 
         if self.gen_schema and EntariConfig.instance.path.exists():
             EntariConfig.instance.generate_schema(get_plugins())
