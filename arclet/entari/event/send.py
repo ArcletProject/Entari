@@ -55,7 +55,7 @@ class SendResponse:
 
 
 send_pub = define(SendResponse, name="entari.event/after_send")
-send_pub.bind(provide(list[MessageObject], call="$resp_result"))
+send_pub.providers.append(provide(list[MessageObject], call="$resp_result"))
 
 
 @send_pub.gather

@@ -12,6 +12,7 @@ import arclet.letoderea as le
 from arclet.alconna import Alconna
 from arclet.alconna import config as alconna_config
 from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, global_providers
+from arclet.letoderea.context import shared_suppliers
 from arclet.letoderea.scope import configure
 from creart import it
 from graia.amnesia.builtins.aiohttp import AiohttpClientService
@@ -77,16 +78,6 @@ class SessionProviderFactory(ProviderFactory):
                 if self.target_type and not generic_isinstance(sess.event, self.target_type):
                     return
                 return sess
-            if ITEM_ORIGIN_EVENT in context and ITEM_ACCOUNT in context:
-                if self.target_type and not generic_isinstance(context[EVENT], self.target_type):
-                    return
-                session = Session(context[ITEM_ACCOUNT], context[EVENT])
-                if ITEM_MESSAGE_CONTENT in context:
-                    session.elements = context[ITEM_MESSAGE_CONTENT]
-                if ITEM_MESSAGE_REPLY in context:
-                    session.reply = context[ITEM_MESSAGE_REPLY]
-                context[ITEM_SESSION] = session
-                return session
 
     def validate(self, param: Param):
         if get_origin(param.annotation) is Session:
@@ -220,6 +211,17 @@ global_providers.extend(
         AlconnaProvider(),
     ]
 )
+
+
+@shared_suppliers.append
+async def session_supplier(context: Contexts):
+    if ITEM_ORIGIN_EVENT in context and ITEM_ACCOUNT in context:
+        session = Session(context[ITEM_ACCOUNT], context[EVENT])
+        if ITEM_MESSAGE_CONTENT in context:
+            session.elements = context[ITEM_MESSAGE_CONTENT]
+        if ITEM_MESSAGE_REPLY in context:
+            session.reply = context[ITEM_MESSAGE_REPLY]
+        context[ITEM_SESSION] = session
 
 
 class RecordConfig(BasicConfModel):

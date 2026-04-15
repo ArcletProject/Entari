@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from arclet.letoderea.typing import CtxItem
+from arclet.letoderea.context import CtxItem
 
 if TYPE_CHECKING:
     import satori

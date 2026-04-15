@@ -15,7 +15,7 @@ from .model import Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudges, _seminal
 
 exec_pub = define(CommandExecute)
-exec_pub.bind(AlconnaProviderFactory())
+exec_pub.providers.append(AlconnaProviderFactory())
 out_pub = define(CommandOutput)
 # fmt: off
 

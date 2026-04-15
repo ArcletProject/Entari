@@ -99,7 +99,7 @@ def get_plugin_subscribers(plug: Plugin | str | None = None) -> list[Subscriber]
         plg = plugin_service.plugins[plug]
     else:
         plg = get_plugin(1)
-    return [s[0] for s in plg._scope.subscribers.values()]
+    return [s.subscriber for s in plg._scope.subscribers]
 
 
 def get_all_subscribers():

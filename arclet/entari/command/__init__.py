@@ -9,9 +9,9 @@ import arclet.letoderea as le
 from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, command_manager
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
-from arclet.letoderea import EVENT, RESULT, ExitState, Scope, Subscriber, make_event
+from arclet.letoderea import Contexts, EVENT, RESULT, ExitState, Scope, Subscriber, make_event
 from arclet.letoderea.provider import TProviders, get_providers
-from arclet.letoderea.typing import Contexts, Result
+from arclet.letoderea.typing import Result
 from nepattern import DirectPattern
 from tarina import LRU
 from tarina.trie import CharTrie

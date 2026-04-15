@@ -6,10 +6,10 @@ authors = [
     {name = "RF-Tar-Railt",email = "rf_tar_railt@qq.com"},
 ]
 dependencies = [
-    "arclet-letoderea<0.21.0,>=0.20.7",
-    "arclet-alconna<2.0.0,>=1.8.42",
-    "satori-python-core<1.4.0,>=1.3.0",
-    "satori-python-client<1.4.0,>=1.3.0",
+    "arclet-letoderea<0.22.0,>=0.21.0rc2",
+    "arclet-alconna<2.0.0,>=1.8.44",
+    "satori-python-core<1.4.0,>=1.3.2",
+    "satori-python-client<1.4.0,>=1.3.2",
     "arclet-alconna-tools>=0.7.3",
     "nonestorage>=0.1.0",
     "simpleeval>=1.0.3",
@@ -117,14 +117,13 @@ format = { composite = ["ruff check --select I --fix ./arclet/","black ./arclet/
 
 [dependency-groups]
 dev = [
-    "black>=24.4.2",
-    "ruff>=0.15.4",
-    "fix-future-annotations>=0.5.0",
+    "black>=26.3.1",
+    "ruff>=0.15.10",
     "watchfiles>=0.24.0",
     "python-dotenv>=1.0.1",
     "ruamel-yaml>=0.18.10",
-    "msgspec>=0.19.0",
-    "pydantic>=2.10.6",
+    "msgspec>=0.21.0",
+    "pydantic>=2.12.5",
     "tomlkit>=0.13.3",
     "richuru>=0.1.1",
 ]
