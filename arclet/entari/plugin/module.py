@@ -285,7 +285,7 @@ class PluginLoader(SourceFileLoader):
             if config is not None:
                 config["$path"] = key
             else:
-                for k, names in EntariConfig.instance._plugin_names:
+                for k, names in EntariConfig.instance._plugin_names.items():
                     if key in names:
                         config = EntariConfig.instance.plugin.get(k, {})
                         config["$path"] = k
