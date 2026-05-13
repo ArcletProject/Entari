@@ -15,7 +15,7 @@ NAMES = {
     "channel": Channel(id="123", type=ChannelType.TEXT),
     "guild": Guild(id="321"),
     "user": User(id="789"),
-    "member": Member(User(id="789")),
+    "member": Member(user=User(id="789")),
     "platform": "satori",
     "self_id": "456",
     "direct": ChannelType.DIRECT,

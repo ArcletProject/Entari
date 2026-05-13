@@ -76,6 +76,7 @@ class PluginDispatcher(Generic[T]):
         self._event = event
         self.providers: DisposableList[Provider[Any] | ProviderFactory] = DisposableList()
         self.propagators: DisposableList[Propagator] = DisposableList()
+        self.register_hooks: DisposableList[Callable[[Subscriber], Any]] = DisposableList()
 
     # fmt: off
 
@@ -95,9 +96,16 @@ class PluginDispatcher(Generic[T]):
         wrapper = self.plugin._scope.register(
             priority=priority, providers=[*self.providers, *_providers], propagators=[*self.propagators, *_propagators], once=once, publisher=self.publisher  # noqa: E501
         )
+
+        def decorator(f: Callable[..., T]) -> Subscriber:
+            sub = wrapper(f)
+            for hook in self.register_hooks:
+                hook(sub)
+            return sub
+
         if func:
-            return wrapper(func)
-        return wrapper
+            return decorator(func)
+        return decorator
 
     def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
         if func:

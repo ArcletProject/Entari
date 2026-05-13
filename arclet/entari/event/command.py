@@ -1,7 +1,14 @@
 from arclet.alconna import Alconna, Arparma
 from arclet.letoderea import Contexts, Result, make_event, provide
 
-from ..const import ITEM_ALCONNA, ITEM_MESSAGE_CONTENT, ITEM_MESSAGE_REPLY, ITEM_SESSION
+from ..const import (
+    ITEM_ALCONNA,
+    ITEM_MESSAGE_CONTENT,
+    ITEM_MESSAGE_ORIGIN,
+    ITEM_MESSAGE_REPLY,
+    ITEM_ORIGIN_EVENT,
+    ITEM_SESSION,
+)
 from ..message import MessageChain
 from ..session import Session
 from .base import Reply
@@ -13,14 +20,19 @@ class CommandExecute:
     session: Session | None = None
 
     async def gather(self, context: Contexts):
+        context["in_execute"] = True
         if isinstance(self.message, str):
             context["$message"] = MessageChain.of(self.message)
         else:
             context["$message"] = self.message
         if self.session:
             context[ITEM_SESSION] = self.session
+            await self.session.event.gather(context)
+            context.pop(str(ITEM_ORIGIN_EVENT), None)
+            context.pop(str(ITEM_MESSAGE_CONTENT), None)
+            context.pop(str(ITEM_MESSAGE_ORIGIN), None)
 
-    providers = [provide(MessageChain, call="$message")]
+    providers = [provide(MessageChain, call="$message", priority=10)]
 
     def check_result(self, value) -> Result[str | MessageChain] | None:
         if isinstance(value, str | MessageChain):

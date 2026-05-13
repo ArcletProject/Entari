@@ -206,7 +206,7 @@ def help_cmd_handle(
 
 
 disp = command.mount(help_cmd, skip_for_unmatch=False)
-execute_disp = disp.as_execute()
+execute_disp = disp.for_execute()
 
 
 @execute_disp.handle(priority=16)

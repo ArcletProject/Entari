@@ -32,6 +32,7 @@ class PluginDispatcher(Generic[T]):
     _event: type
     providers: DisposableList[Provider[Any] | ProviderFactory]
     propagators: DisposableList[Propagator]
+    register_hooks: DisposableList[Callable[[Subscriber], Any]]
 
     def __init__(self, plugin: Plugin, event: type, name: str | None = None): ...
     def waiter(

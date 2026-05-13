@@ -63,13 +63,12 @@ class MessageChain(list[TE]):
         message: Iterable[str | TE] | str | TE | None = None,
     ):
         super().__init__()
-        if isinstance(message, str):
-            self.__iadd__(Text(message))
-        elif isinstance(message, Iterable):
-            for i in message:
-                self.__iadd__(Text(i) if isinstance(i, str) else i)
-        elif isinstance(message, Element):
-            self.__iadd__(message)
+        if message:
+            if isinstance(message, (str, Element)):
+                self.__iadd__(message)
+            else:
+                for i in message:
+                    self.__iadd__(i)
 
     def __str__(self) -> str:
         return "".join(str(elem) for elem in self)
@@ -87,7 +86,7 @@ class MessageChain(list[TE]):
     def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]: ...
 
     def __add__(self, other: str | TE | TE1 | Iterable[TE | TE1]) -> MessageChain:
-        result: MessageChain = self.copy()
+        result: MessageChain = self.fork()
         if isinstance(other, str):
             if result and isinstance(text := result[-1], Text):
                 result[-1] = Text(text.text + other)
@@ -129,7 +128,7 @@ class MessageChain(list[TE]):
                 list.__setitem__(self, -1, Text(text.text + other.text))
             else:
                 self.append(other)
-        elif isinstance(other, Iterable):
+        elif other:
             for elem in other:
                 self.__iadd__(elem)
         else:
@@ -219,7 +218,7 @@ class MessageChain(list[TE]):
             消息内是否存在给定消息段或给定类型的消息段
         """
         if isinstance(value, type):
-            return bool(next((elem for elem in self if isinstance(elem, value)), None))
+            return not not next((elem for elem in self if isinstance(elem, value)), None)
         if isinstance(value, str):
             value = Text(value)
         return super().__contains__(value)

@@ -24,7 +24,7 @@ metadata(
 
 
 @command.command("translate <...content>").option("lang", "<target:str>")
-async def send_joke(app: Entari, content: Match[MessageChain], target: str = "zh-CN"):
+async def translate(app: Entari, content: Match[MessageChain], target: str = "zh-CN"):
     params = {
         "engine": "google",
         "from": "auto",

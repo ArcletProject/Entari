@@ -280,9 +280,7 @@ class Session(Generic[TEvent]):
 
     @property
     def content(self) -> str:
-        if self._content:
-            return str(self._content)
-        raise RuntimeError(f"Event {self.event.type!r} has no Content")
+        return str(self._content) or ""
 
     @content.setter
     def content(self, value: str):
@@ -290,9 +288,7 @@ class Session(Generic[TEvent]):
 
     @property
     def elements(self) -> MessageChain:
-        if self._content:
-            return self._content
-        raise RuntimeError(f"Event {self.event.type!r} has no Content")
+        return self._content or MessageChain()
 
     @elements.setter
     def elements(self, value: MessageChain):

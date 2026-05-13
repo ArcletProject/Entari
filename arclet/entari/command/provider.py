@@ -18,7 +18,7 @@ from tarina.generic import generic_isinstance, get_origin, origin_is_union
 from ..config import EntariConfig
 from ..const import ITEM_MESSAGE_CONTENT
 from ..event.base import Reply
-from ..event.command import CommandOutput, CommandParse, CommandReceive
+from ..event.command import CommandExecute, CommandOutput, CommandParse, CommandReceive
 from ..filter.parse import parse_filter
 from ..message import MessageChain
 from ..session import Session
@@ -79,17 +79,18 @@ class MessageJudges(Propagator):
             async def checker(session: Session, *_): return session.channel.type is ChannelType.DIRECT
             return checker
 
-    async def judge(self, ctx: Contexts, message: MessageChain, is_reply_me: bool = False, is_notice_me: bool = False, session: Session | None = None):  # noqa: E501
-        message = message.fork()
-        if self.need_reply_me and not is_reply_me:
-            return STOP
-        if self.need_notice_me and not is_notice_me:
-            return STOP
-        skip = False
-        if session:
-            skip = await self.ignore_prefix_checker(session, is_reply_me, is_notice_me)
-        if self.use_config_prefix and not (message := _remove_config_prefix(message, skip)):
-            return STOP
+    async def judge(self, ctx: Contexts, message: MessageChain, is_reply_me: bool = False, is_notice_me: bool = False, session: Session | None = None, in_execute: bool = False):  # noqa: E501
+        if not in_execute:
+            message = message.fork()
+            if self.need_reply_me and not is_reply_me:
+                return STOP
+            if self.need_notice_me and not is_notice_me:
+                return STOP
+            skip = False
+            if session:
+                skip = await self.ignore_prefix_checker(session, is_reply_me, is_notice_me)
+            if self.use_config_prefix and not (message := _remove_config_prefix(message, skip)):
+                return STOP
         if ITEM_MESSAGE_CONTENT in ctx:
             return {ITEM_MESSAGE_CONTENT: message}
         return {"$message": message}

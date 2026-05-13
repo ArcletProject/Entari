@@ -1,26 +1,41 @@
 from __future__ import annotations
 
 from typing import Any
-from typing_extensions import deprecated
+from typing_extensions import TypeVar, deprecated
 
 from arclet.alconna import Alconna, command_manager
-from arclet.letoderea import define, deref, use
+from arclet.letoderea import EVENT, RESULT, Contexts, Result, Subscriber, define, deref, use
 from arclet.letoderea.provider import TProviders
+from arclet.letoderea.scope import SubscriberSlot
 from tarina import LRU
 
 from ..event.base import MessageCreatedEvent
 from ..event.command import CommandExecute, CommandOutput
+from ..message import MessageChain
 from ..plugin.model import Plugin, PluginDispatcher
+from ..session import Session
 from .model import Match, Query
 from .provider import AlconnaProviderFactory, AlconnaSuppiler, Assign, MessageJudges, _seminal
 
 exec_pub = define(CommandExecute)
+exec_provider = CommandExecute.providers[0]
 exec_pub.providers.append(AlconnaProviderFactory())
 out_pub = define(CommandOutput)
 # fmt: off
 
+T = TypeVar("T", default=Any)
 
-class _ExecuteDispatcher(PluginDispatcher):
+
+async def _after_execute(ctx: Contexts, session: Session | None = None):
+    result = ctx[RESULT]
+    event = ctx[EVENT]
+    if result is not None:
+        if not isinstance(event, CommandExecute) and session:
+            await session.send(result)
+        return Result(result)
+
+
+class _ExecuteDispatcher(PluginDispatcher[str | MessageChain]):
     def __init__(self, plugin: Plugin, supplier: AlconnaSuppiler):
         super().__init__(plugin, CommandExecute)
         plugin.collect(self.propagators.append(supplier))
@@ -30,7 +45,7 @@ class _ExecuteDispatcher(PluginDispatcher):
         return self.register(priority=priority, providers=providers, propagators=[assign])
 
 
-class AlconnaPluginDispatcher(PluginDispatcher):
+class AlconnaPluginDispatcher(PluginDispatcher[T]):
     def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
         self.cache = LRU(10)
@@ -54,7 +69,21 @@ class AlconnaPluginDispatcher(PluginDispatcher):
         assign = Assign(path, value, or_not)
         return self.register(priority=priority, providers=providers, propagators=[assign])
 
-    def as_execute(self):
+    def as_execute(self) -> AlconnaPluginDispatcher[str | MessageChain]:
+        def execute_hook(sub: Subscriber):
+            self.plugin._scope.subscribers.append(
+                SubscriberSlot(sub, exec_pub.id, sub.priority)
+            )
+            sub.providers.append(exec_provider)
+            sub._recompile()
+            for propagator in sub._propagates:
+                propagator.providers.append(exec_provider)
+                propagator._recompile()
+
+        self.plugin.collect(self.register_hooks.append(execute_hook))
+        return self  # type: ignore[return-value]
+
+    def for_execute(self):
         return _ExecuteDispatcher(self.plugin, self.supplier)
 
     @deprecated("`on_execute` is deprecated. Use `as_execute` instead.")

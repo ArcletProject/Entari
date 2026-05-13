@@ -215,6 +215,8 @@ global_providers.extend(
 
 @shared_suppliers.append
 async def session_supplier(context: Contexts):
+    if ITEM_SESSION in context:
+        return
     if ITEM_ORIGIN_EVENT in context and ITEM_ACCOUNT in context:
         session = Session(context[ITEM_ACCOUNT], context[EVENT])
         if ITEM_MESSAGE_CONTENT in context:
