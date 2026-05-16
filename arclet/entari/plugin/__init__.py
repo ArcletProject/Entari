@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
-from arclet.letoderea.typing import Resultable
+from arclet.letoderea.utils import Resultable
 from tarina import init_spec
 from tarina.tools import nest_obj_update
 

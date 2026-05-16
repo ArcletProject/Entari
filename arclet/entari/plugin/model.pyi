@@ -11,7 +11,7 @@ from arclet.letoderea.decorate import Check
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
 from arclet.letoderea.scope import RegisterWrapper
-from arclet.letoderea.typing import Resultable, TCallable
+from arclet.letoderea.utils import Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
 
