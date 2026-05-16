@@ -3,12 +3,13 @@ import inspect
 import itertools
 import os
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on, publish
-from arclet.letoderea.typing import Resultable
+from arclet.letoderea.effect import AsyncDisposable, Disposable
+from arclet.letoderea.utils import Resultable
 from tarina import init_spec
 from tarina.tools import nest_obj_update
 
@@ -301,9 +302,9 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
                 nest_obj_update(obj, new, config_model_keys(new))
                 return True
 
-            sub = plugin._scope.register(_reload, event=ConfigReload)
+            plugin._scope.register(_reload, event=ConfigReload)
             proxy = EntariConfig.instance.bind(plugin_key, plg_config, obj)
-            plugin.collect(lambda: delattr(proxy, "_Proxy__origin"), sub.dispose)
+            plugin.collect(lambda: delattr(proxy, "_Proxy__origin"))
             return proxy
         return obj
     return plg_config
@@ -332,7 +333,7 @@ def add_service(serv: TS | type[TS]) -> TS:
     return get_plugin(1).service(serv)
 
 
-def collect_disposes(*disposes: Callable[[], None] | Callable[[], Awaitable[None]]):
+def collect_disposes(*disposes: Disposable | AsyncDisposable):
     """收集副作用回收函数"""
     return get_plugin(1).collect(*disposes)
 

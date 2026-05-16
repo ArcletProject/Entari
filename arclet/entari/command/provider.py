@@ -18,7 +18,7 @@ from tarina.generic import generic_isinstance, get_origin, origin_is_union
 from ..config import EntariConfig
 from ..const import ITEM_MESSAGE_CONTENT
 from ..event.base import Reply
-from ..event.command import CommandExecute, CommandOutput, CommandParse, CommandReceive
+from ..event.command import CommandOutput, CommandParse, CommandReceive
 from ..filter.parse import parse_filter
 from ..message import MessageChain
 from ..session import Session

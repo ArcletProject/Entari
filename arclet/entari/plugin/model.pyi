@@ -8,14 +8,13 @@ from typing_extensions import NotRequired, Self
 from arclet.letoderea import ExitState, Propagator, Provider, ProviderFactory, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut
 from arclet.letoderea.decorate import Check
+from arclet.letoderea.effect import Disposable, AsyncDisposable, SyncEffect, AsyncEffect
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
 from arclet.letoderea.scope import RegisterWrapper
-from arclet.letoderea.typing import Resultable, TCallable
+from arclet.letoderea.utils import DisposableList, Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
-
-from ..utils import DisposableList
 
 current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
@@ -25,6 +24,16 @@ TE1 = TypeVar("TE1")
 TS = TypeVar("TS", bound=Service)
 R = TypeVar("R")
 R1 = TypeVar("R1")
+
+@dataclass
+class PluginRegisterWrapper(RegisterWrapper):
+    register_hooks: list[Callable[[Subscriber], Any]] = ...
+    _plugin: Plugin = ...
+
+class PluginScope(Scope[PluginRegisterWrapper]):
+    @classmethod
+    def wrapper_class(cls):
+        return PluginRegisterWrapper
 
 class PluginDispatcher(Generic[T]):
     publisher: Publisher
@@ -178,9 +187,8 @@ class Plugin:
     _metadata: PluginMetadata | None = ...
     _is_disposed: bool = ...
     _services: dict[str, Service] = field(init=False, default_factory=dict)
-    _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
     _config_key: str = field(init=False)
-    _scope: Scope = field(init=False)
+    _scope: PluginScope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
 
@@ -200,8 +208,16 @@ class Plugin:
     def enable(self) -> set[asyncio.Task] | None: ...
     def disable(self) -> set[asyncio.Task]: ...
     def check_disable(self) -> set[asyncio.Task] | None: ...
-    def collect(self, *disposes: Callable[[], None] | Callable[[], Awaitable[None]]) -> Self: ...
-    def restore(self) -> None: ...
+    @overload
+    def effect(
+        self, execute: Callable[[], SyncEffect[Awaitable[None]]], label: str = ""
+    ) -> Disposable[Awaitable[None]]: ...
+    @overload
+    def effect(self, execute: Callable[[], SyncEffect], label: str = "") -> Disposable[None]: ...
+    @overload
+    def effect(self, execute: Callable[[], AsyncEffect], label: str = "") -> AsyncDisposable[Awaitable[None]]: ...
+    def collect(self, *disposes: Disposable | AsyncDisposable) -> Self: ...
+    def restore(self) -> set[asyncio.Task]: ...
     def _clean_service(self) -> asyncio.Task: ...
     def dispose(self, *, is_cleanup: bool = False) -> set[asyncio.Task]: ...
     @overload

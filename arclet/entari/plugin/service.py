@@ -97,7 +97,8 @@ class PluginManagerService(Service):
                 plug = self.plugins[plug_id]
                 try:
                     await es.publish(PluginUnloaded(plug.id))
-                    plug.dispose(is_cleanup=True)
+                    if tasks := plug.dispose(is_cleanup=True):
+                        await asyncio.wait(tasks)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose plugin <y>{plug.id}</y> caused by {e!r}")
                     self.plugins.pop(plug_id, None)

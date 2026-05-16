@@ -1,5 +1,4 @@
 import re
-from collections.abc import Callable
 from typing import TypeVar
 
 T = TypeVar("T")
@@ -14,10 +13,3 @@ def escape_tag(s: str) -> str:
         s: 需要转义的字符串
     """
     return re.sub(r"</?((?:[fb]g\s)?[^<>\s]*)>", r"\\\g<0>", s)
-
-
-class DisposableList(list[T]):
-
-    def append(self, item: T, /) -> Callable[[], None]:
-        list.append(self, item)
-        return lambda: self.remove(item)

@@ -13,11 +13,11 @@ from arclet.alconna import Alconna
 from arclet.alconna import config as alconna_config
 from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, global_providers
 from arclet.letoderea.context import shared_suppliers
-from arclet.letoderea.scope import configure
+from arclet.letoderea.scope import Scope, configure
 from creart import it
 from graia.amnesia.builtins.aiohttp import AiohttpClientService
 from graia.amnesia.builtins.memcache import MemcacheService
-from launart import Launart, Service
+from launart import Launart, Service, any_completed
 from satori import Channel, LoginStatus
 from satori.client import App
 from satori.client.account import Account
@@ -456,6 +456,26 @@ class Entari(App):
     async def account_hook(self, account: Account, state: LoginStatus):
         await le.publish(AccountUpdate(account, state))
 
+    async def launch(self, manager: Launart):
+        for conn in self.connections:
+            manager.add_component(conn)
+
+        async with self.stage("preparing"):
+            ...
+
+        async with self.stage("blocking"):
+            await any_completed(
+                manager.status.wait_for_sigexit(),
+                *(conn.status.wait_for("blocking-completed") for conn in self.connections),
+            )
+
+        async with self.stage("cleanup"):
+            for account in self.accounts.values():
+                await self.account_update(account, LoginStatus.OFFLINE)
+            self.accounts.clear()
+            if tasks := Scope.root().dispose():
+                await asyncio.gather(*tasks)
+
     def run(
         self,
         manager: Launart | None = None,
@@ -517,4 +537,4 @@ class ServiceProviderFactory(ProviderFactory):
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore
-le.es.set_event_loop(it(asyncio.AbstractEventLoop))
+le.utils.set_event_loop(it(asyncio.AbstractEventLoop))

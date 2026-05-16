@@ -26,10 +26,11 @@ from arclet.letoderea import (
     publish,
 )
 from arclet.letoderea.breakpoint import StepOut, step_out
-from arclet.letoderea.core import add_task
+from arclet.letoderea.effect import AsyncDisposable, Disposable
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers, filter_publisher
 from arclet.letoderea.scope import RegisterWrapper
+from arclet.letoderea.utils import DisposableList, add_task
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
@@ -41,7 +42,6 @@ from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..filter.parse import evaluate_disable, parse_filter
 from ..logger import log
-from ..utils import DisposableList
 from .service import plugin_service
 
 current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
@@ -56,15 +56,22 @@ def _is_awaitable(o) -> TypeIs[Callable[..., Awaitable[Any]]]:
 
 
 def _make_scope(plugin: Plugin):
+    @dataclass
     class PluginRegisterWrapper(RegisterWrapper):
-        _plugin: Plugin = plugin
+        register_hooks: list[Callable[[Subscriber], Any]] = field(default_factory=list)
+        _plugin: Plugin = field(default_factory=lambda plug=plugin: plug)
 
         def __call__(self, func: Callable, /) -> Subscriber:
             self._plugin.validate(func)
-            return super().__call__(func)
+            sub = super().__call__(func)
+            for hook in self.register_hooks:
+                hook(sub)
+            return sub
 
-    class PluginScope(Scope):
-        __wrapper_class__ = PluginRegisterWrapper
+    class PluginScope(Scope[PluginRegisterWrapper]):
+        @classmethod
+        def wrapper_class(cls):
+            return PluginRegisterWrapper
 
     return PluginScope
 
@@ -96,16 +103,10 @@ class PluginDispatcher(Generic[T]):
         wrapper = self.plugin._scope.register(
             priority=priority, providers=[*self.providers, *_providers], propagators=[*self.propagators, *_propagators], once=once, publisher=self.publisher  # noqa: E501
         )
-
-        def decorator(f: Callable[..., T]) -> Subscriber:
-            sub = wrapper(f)
-            for hook in self.register_hooks:
-                hook(sub)
-            return sub
-
+        wrapper.register_hooks.extend(self.register_hooks)
         if func:
-            return decorator(func)
-        return decorator
+            return wrapper(func)
+        return wrapper
 
     def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
         if func:
@@ -210,9 +211,8 @@ class Plugin:
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
-    _dispose_callbacks: list[Callable[[], None]] = field(init=False, default_factory=list)
     _config_key: str = field(init=False)
-    _scope: Scope = field(init=False)
+    # _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
 
@@ -359,33 +359,22 @@ class Plugin:
             return self.enable()
         return
 
-    def collect(self, *disposes: Callable[[], None] | Callable[[], Awaitable[None]]):
+    def collect(self, *disposes: Disposable | AsyncDisposable):
         """收集副作用回收函数"""
-        _disposes = []
-
-        def wrapper(func: Callable[[], Awaitable[None]]):
-            return lambda _f=func: add_task(_f()) and None  # type: ignore
-
         for dispose in disposes:
-            if _is_awaitable(dispose):
-                _disposes.append(wrapper(dispose))
-            else:
-                _disposes.append(dispose)
-
-        self._dispose_callbacks.extend(disposes)  # type: ignore
+            self._scope.effect(lambda: dispose)
         return self
 
     def restore(self):
         """回收所有副作用"""
-        for callback in self._dispose_callbacks:
-            callback()
-        self._dispose_callbacks.clear()
+        return self._scope._effect_manager.dispose()
 
     def __post_init__(self):
         uid_index = self.id.rfind("@")
         self.path = self.id[:uid_index] if uid_index != -1 else self.id
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
         self._scope = _make_scope(self).of(self.id)
+        self.effect = self._scope.effect
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
         if filter_expr := self.config.get("$filter", ""):
@@ -458,7 +447,7 @@ class Plugin:
         if self.module.__spec__ and self.module.__spec__.cached:
             Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
-        self.restore()
+        tasks.update(self.restore())
         delattr(self.module, "__plugin__")
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
