@@ -75,6 +75,7 @@ class AlconnaPluginDispatcher(PluginDispatcher[T]):
                 SubscriberSlot(sub, exec_pub.id, sub.priority)
             )
             sub._recompile([exec_provider])
+            sub.propagate(_after_execute)
 
         self.plugin.collect(self.register_hooks.append(execute_hook))
         return self  # type: ignore[return-value]

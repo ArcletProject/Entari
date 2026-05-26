@@ -421,17 +421,16 @@ listen = on
 def component(name: str):
     _plugin = get_plugin(1)
 
-    def dispose():
-        COMPONENTS.pop(f"component:{name}", None)
-
-    _plugin.collect(dispose)
-
     def wrapper(func: Render[Session, Awaitable[Fragment]]):
         async def render(attrs: dict, children: list, session: Session):
             ans = await func(attrs, children, session)
             return await component_transform(session, MessageChain(ans))
 
-        COMPONENTS[f"component:{name}"] = render
+        def _():
+            COMPONENTS[f"component:{name}"] = render
+            return lambda: COMPONENTS.pop(f"component:{name}", None)
+
+        _plugin.effect(_, f"component:{name}")
         return func
 
     return wrapper

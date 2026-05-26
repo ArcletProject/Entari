@@ -2,14 +2,17 @@ import ast
 import operator
 import os
 import re
+from functools import wraps
 
 import simpleeval
+from arclet.letoderea import STOP, Propagator
 from satori import Channel, ChannelType, EventType, Guild, Member, Role, User
 
 from ..config import EntariConfig
 from ..config.util import GetattrDict
 from ..session import Session
 
+# simpleeval._PRIMITIVE_TYPES = frozenset({int, float, str, bool, type(None), bytes, complex})
 NAMES = {
     "type": EventType.MESSAGE_CREATED,
     "channel": Channel(id="123", type=ChannelType.TEXT),
@@ -85,8 +88,8 @@ def parse_filter(expr: str):
     try:
         parsed = s.parse(expr)
         s._eval(parsed)
-    except (simpleeval.InvalidExpression, TypeError, ValueError, NameError, SyntaxError):
-        raise RuntimeError(f"Invalid filter expression: {expr}") from None
+    except (simpleeval.InvalidExpression, TypeError, ValueError, NameError, SyntaxError) as e:
+        raise RuntimeError(f"Invalid filter expression ({e}): {expr}") from None
 
     async def check(session: Session | None = None, is_reply_me: bool = False, is_notice_me: bool = False):
         if not session:
@@ -116,3 +119,17 @@ def parse_filter(expr: str):
         return bool(s._eval(parsed))
 
     return check
+
+
+class FilterPropagator(Propagator):
+    def __init__(self, expr: str):
+        self.callable = parse_filter(expr)
+
+    def compose(self):
+
+        @wraps(self.callable)
+        async def _(*args, **kwargs):
+            if not await self.callable(*args, **kwargs):
+                return STOP
+
+        yield _, True, 0

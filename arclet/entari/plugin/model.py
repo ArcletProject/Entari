@@ -40,7 +40,7 @@ from ..config import config_model_schema
 from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..filter.parse import evaluate_disable, parse_filter
+from ..filter.parse import FilterPropagator, evaluate_disable
 from ..logger import log
 from .service import plugin_service
 
@@ -378,7 +378,7 @@ class Plugin:
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
         if filter_expr := self.config.get("$filter", ""):
-            self._scope.propagators.append(enter_if.priority(0) & parse_filter(filter_expr))
+            self._scope.propagators.append(FilterPropagator(filter_expr))
         # if self._metadata and self._metadata.depend_services:
         #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
         #     self._extra["injected_services"] = [

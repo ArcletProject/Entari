@@ -9,9 +9,15 @@ from typing import cast
 _DESC_CACHE = {}
 
 
-class GetattrDict:
+class GetattrDict(Mapping):
     def __init__(self, source: Mapping):
         self._source = source
+
+    def __iter__(self):
+        return iter(self._source)
+
+    def __len__(self):
+        return len(self._source)
 
     def __getitem__(self, item):
         ans = self._source[item]

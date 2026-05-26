@@ -129,14 +129,9 @@ class EntariConfig:
         return list(chain.from_iterable(self._plugin_names.values()))
 
     def _reload_plugins(self):
-        self.plugin_extra_files: list[str] = self.plugin.get("$files", [])  # type: ignore
+        self.plugin_extra_files = self.plugin.get("$files", [])  # type: ignore
         self.prelude_plugin = self.plugin.get("$prelude", [])  # type: ignore
-        plugin_prefixes = {item["key"]: item["plugins"] for item in self.plugin.get("$prefix", [])}  # type: ignore
-        inverted = defaultdict(list)
-        for key, plugs in plugin_prefixes.items():
-            for plug in plugs:
-                inverted[plug].append(key)
-        self.plugin_prefixes = dict(inverted)
+
         for key in list(self.plugin.keys()):
             if key.startswith("$"):
                 continue
@@ -149,17 +144,36 @@ class EntariConfig:
                 key = key[1:]
                 value["$optional"] = True
             self.plugin[key] = value
+        extra_plugins: dict[str, list[str]] = {}
         for file in self.plugin_extra_files:
             path = Path(file)
             if not path.exists():
                 raise FileNotFoundError(file)
+            _plugins = extra_plugins.setdefault(file, [])
             if path.is_dir():
                 for _path in path.iterdir():
                     if not _path.is_file() or _path.name.endswith(".schema.json"):
                         continue
                     self.plugin[_path.stem] = self.loader(_path)
+                    _plugins.append(_path.stem)
             elif path.name.endswith(".schema.json"):
                 self.plugin[path.stem] = self.loader(path)
+                _plugins.append(path.stem)
+
+        plugin_prefixes = {}
+        for item in self.plugin.get("$prefix", []):  # type: ignore
+            if "key" not in item or "plugins" not in item:
+                continue
+            _prefixes = plugin_prefixes.setdefault(item["key"], [])
+            if isinstance(item["plugins"], list):
+                _prefixes.extend(item["plugins"])
+            elif isinstance(item["plugins"], str) and item["plugins"] in extra_plugins:
+                _prefixes.extend(extra_plugins[item["plugins"]])
+        inverted = defaultdict(list)
+        for key, plugs in plugin_prefixes.items():
+            for plug in plugs:
+                inverted[plug].append(key)
+        self.plugin_prefixes = dict(inverted)
 
         slots = [
             (name, self.plugin[name].get("$priority", 16))
@@ -302,7 +316,7 @@ class EntariConfig:
             else:
                 plugins_properties[plug._config_key] = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
         schemas = {
-            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prefix": {"description": "List of prefix config", "items": {"properties": {"key": {"description": "Prefix key", "title": "Key", "type": "string"}, "plugins": {"description": "List of plugins under the prefix", "items": {"type": "string", "description": "Plugin name"}, "title": "Plugins", "type": "array", "uniqueItems": True}}, "required": ["key"], "title": "Prefix Config", "type": "object"}, "type": "array"}, "$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
+            "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prefix": {"description": "List of prefix config", "items": {"properties": {"key": {"description": "Prefix key", "title": "Key", "type": "string"}, "plugins": {"anyOf": [{"type": "string"}, {"items": {"type": "string", "description": "Plugin name"}, "type": "array", "uniqueItems": True}], "description": "List of plugins under the prefix, or select an item of $files to apply plugins", "title": "Plugins"}}, "required": ["key"], "title": "Prefix Config", "type": "object"}, "type": "array"}, "$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
             json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501
