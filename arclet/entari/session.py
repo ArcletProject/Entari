@@ -25,6 +25,7 @@ from satori.model import (
 )
 
 from . import command
+from .config import EntariConfig
 from .event.base import (
     FriendRequestEvent,
     GuildMemberRequestEvent,
@@ -103,7 +104,15 @@ class EntariProtocol(ApiProtocol):
         Returns:
             list[MessageReceipt]: `MessageReceipt` 对象构成的数组
         """
-        msg: MessageChain = MessageChain.of(content) if isinstance(content, str) else MessageChain(content)
+        msg: MessageChain
+        if isinstance(content, str):
+            msg = (
+                MessageChain(content)
+                if EntariConfig._inited and not EntariConfig.instance.basic.str_as_message
+                else MessageChain.of(content)
+            )
+        else:
+            msg = MessageChain(content)
         if at_sender:
             msg.insert(0, at_sender)
         if reply_to:

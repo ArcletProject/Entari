@@ -74,6 +74,7 @@ class BasicConfig(BasicConfModel):
     check_metadata: bool = model_field(
         default=False, description="是否利用元数据进行插件导入检测（可能会增加启动时间）"
     )
+    str_as_message: bool = model_field(default=True, description="发送字符串时是否自动转换为消息链")
 
     def __post_init__(self):
         if self.prefix.count(""):
