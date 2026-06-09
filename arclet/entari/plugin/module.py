@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
-from importlib.metadata import PackageNotFoundError, distribution
+from importlib.metadata import Distribution, PackageNotFoundError, distribution, distributions
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
 from pathlib import Path
@@ -380,7 +380,7 @@ class _NamespacePath(_bootstrap_external._NamespacePath):  # type: ignore
         return getattr(sys.modules[parent_module_name], path_attr_name)
 
 
-def _path_find_spec(fullname, path=None, target=None):
+def _path_find_spec(fullname, path=None, target=None) -> ModuleSpec | None:
     """Try to find a spec for 'fullname' on sys.path or 'path'.
 
     The search is based on sys.path_hooks and sys.path_importer_cache.
@@ -464,18 +464,27 @@ class _PluginFinder(MetaPathFinder):
         )
         if not marked and EntariConfig._inited and EntariConfig.instance.basic.check_metadata:
             # if the module is installed in the environment, we can check its metadata for plugin markers.
+            dist: Distribution | None = None
             try:
                 dist = distribution(module_spec.name)
-                if dist.entry_points.select(group="entari.plugin"):
-                    marked = True
-                classifiers = dist.metadata.get_all("Classifier", [])
-                if any(classifier in classifiers for classifier in PLUGIN_CLASSIFIERS):
-                    marked = True
-                keywords = re.split(r"\s+", dist.metadata["Keywords"])
-                if any(keyword in keywords for keyword in PLUGIN_KEYWORDS):
-                    marked = True
-            except (PackageNotFoundError, KeyError, ValueError):
-                pass
+            except PackageNotFoundError:
+                if module_spec.origin and module_spec.origin != "built-in":
+                    for dist in distributions():
+                        relative_path = Path(module_spec.origin).relative_to(str(dist.locate_file(""))).as_posix()
+                        if relative_path in map(str, dist.files or []):
+                            break
+            if dist:
+                try:
+                    if dist.entry_points.select(group="entari.plugin"):
+                        marked = True
+                    classifiers = dist.metadata.get_all("Classifier", [])
+                    if any(classifier in classifiers for classifier in PLUGIN_CLASSIFIERS):
+                        marked = True
+                    keywords = re.split(r"\s+", dist.metadata["Keywords"])
+                    if any(keyword in keywords for keyword in PLUGIN_KEYWORDS):
+                        marked = True
+                except (KeyError, ValueError):
+                    pass
         if marked:
             module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
             # if there already exists a plugin that is importing this module,

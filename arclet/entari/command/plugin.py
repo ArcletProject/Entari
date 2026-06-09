@@ -5,6 +5,7 @@ from typing_extensions import TypeVar, deprecated
 
 from arclet.alconna import Alconna, command_manager
 from arclet.letoderea import EVENT, RESULT, Contexts, Result, Subscriber, define, deref, use
+from arclet.letoderea.exceptions import _ExitException
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.scope import SubscriberSlot
 from tarina import LRU
@@ -30,6 +31,12 @@ async def _after_execute(ctx: Contexts, session: Session | None = None):
     result = ctx[RESULT]
     event = ctx[EVENT]
     if result is not None:
+        if isinstance(result, _ExitException):
+            if result.args:
+                msg = result.args[0]
+                if not isinstance(event, CommandExecute) and session:
+                    await session.send(msg)
+            return result
         if not isinstance(event, CommandExecute) and session:
             await session.send(result)
         return Result(result)
