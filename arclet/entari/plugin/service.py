@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from arclet.letoderea import es
 from launart import Launart, Service
 from launart.status import Phase
+from launart.utilles import RequirementResolveFailed, resolve_requirements
 
 from ..event.lifespan import Cleanup, Ready, Startup
 from ..event.plugin import PluginUnloaded
@@ -71,13 +72,29 @@ class PluginManagerService(Service):
 
     async def launch(self, manager: Launart):
 
+        servs = []
+        servs_map = {}
+
         for plug in self.plugins.values():
             if tasks := plug.check_disable():
                 await asyncio.wait(tasks)
             else:
                 for serv in plug._services.values():
-                    manager.add_component(serv)
-                    self.service_waiter.assign(serv.id)
+                    servs.append(serv)
+                    servs_map[serv.id] = plug.id
+        try:
+            results = resolve_requirements(servs)
+        except RequirementResolveFailed as e:
+            unresolved = "\n".join(f"  - <y>{serv.id}</y> (required: {', '.join(serv.required)})" for serv in e.args[0])
+            log.plugin.error(
+                f"failed to resolve service requirements, maybe caused by circular dependencies or missing services:"
+                f"\n{unresolved}"
+            )
+            return
+        for layer in results:
+            for serv in layer:
+                manager.add_component(serv)
+                self.service_waiter.assign(serv.id)
 
         async with self.stage("preparing"):
             es.publish(Startup())
