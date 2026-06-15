@@ -2,11 +2,11 @@ import asyncio
 from asyncio.events import _get_running_loop  # type: ignore
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from traceback import print_exc
 from typing import Literal
 
 from arclet.letoderea import Scope, Subscriber, make_event
 from arclet.letoderea.context import Contexts
+from arclet.letoderea.core import ExceptionEvent, publish_exc_event
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
@@ -25,10 +25,12 @@ logger = log.wrapper("[scheduler]")
 
 
 class TimerTask:
+    __slots__ = ("supplier", "sub", "handle", "available")
+
     def __init__(self, supplier: Callable[[], timedelta], sub: Subscriber):
         self.sub = sub
         self.supplier = supplier
-        self.handle = None
+        self.handle: asyncio.TimerHandle | None = None
         self.available = True
 
     def start(self, queue: asyncio.Queue):
@@ -66,8 +68,14 @@ class Scheduler(Service):
                 logger.debug(f"Executing scheduled task: <{task.sub.__repr__()[13:]}")
                 try:
                     await task.sub.handle(contexts.copy())
-                except Exception:
-                    print_exc()
+                except Exception as e:
+                    publish_exc_event(
+                        ExceptionEvent(
+                            contexts["$event"],
+                            task.sub,
+                            e,
+                        )
+                    )
 
     def schedule(self, time_fn: Callable[[], timedelta], once: bool = False):
         """
@@ -106,7 +114,7 @@ class Scheduler(Service):
             sigexit_task = asyncio.create_task(manager.status.wait_for_sigexit())
             fetch_task = asyncio.create_task(self.fetch())
             done, pending = await any_completed(sigexit_task, fetch_task)
-            if sigexit_task in done:
+            if sigexit_task in done and fetch_task in pending:
                 fetch_task.cancel()
 
         async with self.stage("cleanup"):
