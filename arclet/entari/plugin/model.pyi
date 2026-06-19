@@ -1,4 +1,5 @@
 import asyncio
+from enum import Enum
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import ModuleType
@@ -15,6 +16,8 @@ from arclet.letoderea.scope import RegisterWrapper
 from arclet.letoderea.utils import DisposableList, Resultable, TCallable
 from launart import Service
 from tarina import ContextModel
+
+from arclet.entari import Session
 
 current_plugin: ContextModel[Plugin] = ContextModel("_current_plugin")
 
@@ -153,9 +156,16 @@ class DependService(TypedDict):
     stage: NotRequired[Literal["preparing", "prepared", "blocking"]]
     """服务阶段"""
 
+class PluginRole(Enum):
+    NORMAL = "normal"
+    UTILITY = "utility"
+    LIBRARY = "library"
+    COMPLEX = "complex"
+
 @dataclass
 class PluginMetadata:
     name: str
+    role: PluginRole = PluginRole.NORMAL
     author: list[str | Author] = ...
     version: str | None = ...
     license: str | None = ...
@@ -184,6 +194,7 @@ class Plugin:
     is_static: bool = ...
     path: str = ...
     uid: str | None = ...
+    _hooks: DisposableList[Callable[[Session, Subscriber], Awaitable[bool]]] = ...
     _metadata: PluginMetadata | None = ...
     _is_disposed: bool = ...
     _services: dict[str, Service] = field(init=False, default_factory=dict)

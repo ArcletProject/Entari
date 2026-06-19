@@ -55,7 +55,7 @@ from .localdata import local_data
 from .logger import apply_log_save, enable_rich_except, log
 from .message import MessageChain
 from .plugin import get_plugins, load_plugin, plugin_config, requires
-from .plugin.model import PluginMetadata, RootlessPlugin
+from .plugin.model import PluginMetadata, PluginRole, RootlessPlugin
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -237,6 +237,7 @@ class RecordConfig(BasicConfModel):
 def record(plg: RootlessPlugin):
     plg.metadata = PluginMetadata(
         "记录消息",
+        PluginRole.UTILITY,
         [{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
         description="将收到[和发出]的消息打印在日志中",
         config=RecordConfig,

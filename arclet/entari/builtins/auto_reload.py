@@ -16,7 +16,7 @@ from arclet.entari import add_service, load_plugin, metadata, plugin_config
 from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
-from arclet.entari.plugin import find_plugin, find_plugin_by_file, unload_plugin_async
+from arclet.entari.plugin import PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
 
 # declare_static()
 loguru_logger.disable("watchfiles.main")
@@ -36,6 +36,7 @@ class Config(BasicConfModel):
 
 metadata(
     "Auto Reload",
+    PluginRole.UTILITY,
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="自动监视指定目录下的 Python 或配置文件变化并重新加载对应插件",
     config=Config,

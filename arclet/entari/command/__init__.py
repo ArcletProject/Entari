@@ -22,7 +22,7 @@ from ..event.command import CommandExecute, CommandParse
 from ..event.config import ConfigReload
 from ..logger import DEBUG_NO, log
 from ..message import MessageChain
-from ..plugin import RootlessPlugin, get_plugin, metadata, plugin_config
+from ..plugin import PluginRole, RootlessPlugin, get_plugin, metadata, plugin_config
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -245,6 +245,7 @@ class CommandsConfig(BasicConfModel):
 def _(plg: RootlessPlugin):
     metadata(
         "Commands Plugin",
+        PluginRole.LIBRARY,
         ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
         config=CommandsConfig,
     )

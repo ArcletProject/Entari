@@ -9,7 +9,7 @@ from nonestorage import user_cache_dir, user_data_dir
 
 from .config import BasicConfModel, config_model_validate, model_field
 from .event.config import ConfigReload
-from .plugin import RootlessPlugin, metadata, plugin_config
+from .plugin import PluginRole, RootlessPlugin, metadata, plugin_config
 
 P = ParamSpec("P")
 
@@ -109,7 +109,12 @@ class Config(BasicConfModel):
 
 @RootlessPlugin.apply("localdata", default=True)
 def localdata_apply(plg: RootlessPlugin):
-    metadata("Data store interface with local directories", ["RF-Tar-Railt <rf_tar_railt@qq.com>"], config=Config)
+    metadata(
+        "Data store interface with local directories",
+        PluginRole.LIBRARY,
+        ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+        config=Config,
+    )
 
     plg.service(local_data)
     conf = plugin_config(Config)

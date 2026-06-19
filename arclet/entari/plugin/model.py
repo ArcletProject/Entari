@@ -6,6 +6,7 @@ import re
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generic, TypeVar, cast
@@ -40,8 +41,10 @@ from ..config import config_model_schema
 from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
+from ..filter import DisposableFilter
 from ..filter.parse import FilterPropagator, evaluate_disable
 from ..logger import log
+from ..session import Session
 from .service import plugin_service
 
 current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
@@ -128,10 +131,23 @@ class PluginDispatcher(Generic[T]):
         return self.register()(func)
 
 
+class PluginRole(Enum):
+    NORMAL = "normal"
+    """普通插件，适用于大多数场景，具有完整的生命周期和功能支持"""
+    UTILITY = "utility"
+    """工具插件，适用于提供辅助功能的插件，可能不具有完整的生命周期支持，一般也不会被其他插件直接依赖"""
+    LIBRARY = "library"
+    """库插件，适用于提供公共功能的插件，通常不具有生命周期支持，但可以被其他插件依赖"""
+    COMPLEX = "complex"
+    """复杂插件，适用于具有复杂功能和生命周期的插件，可能需要特殊的处理和支持"""
+
+
 @dataclass
 class PluginMetadata:
     name: str
     """插件名称"""
+    role: PluginRole = PluginRole.NORMAL
+    """插件角色，用于区分插件的功能定位，便于用户理解和管理"""
     author: list[str | dict] = field(default_factory=list)
     """插件作者"""
     version: str | None = None
@@ -208,6 +224,9 @@ class Plugin:
     is_static: bool = False
     path: str = field(init=False)
     uid: str | None = None
+    _hooks: DisposableList[Callable[[Session, Subscriber], Awaitable[bool]]] = field(
+        default_factory=lambda: DisposableList([])
+    )
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
@@ -377,6 +396,9 @@ class Plugin:
         self.effect = self._scope.effect
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
+        fltr = DisposableFilter()
+        fltr.funcs = self._hooks
+        self._scope.propagators.append(fltr)
         if filter_expr := self.config.get("$filter", ""):
             self._scope.propagators.append(FilterPropagator(filter_expr))
         # if self._metadata and self._metadata.depend_services:

@@ -5,9 +5,11 @@ from datetime import datetime
 from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
-from arclet.letoderea import STOP, Propagator, enter_if
+from arclet.letoderea import STOP, SUBSCRIBER, Contexts, Propagator, Subscriber, enter_if, propagate
+from arclet.letoderea.utils import DisposableList, TCallable
 from tarina import is_coroutinefunction
 
+from ..config import EntariConfig
 from ..message import MessageChain
 from ..session import Session
 from . import common
@@ -62,18 +64,34 @@ filter_: Final[_Filter] = _Filter()
 F = filter_
 
 
-class Interval(Propagator):
-    def __init__(self, interval: float, limit_prompt: str | MessageChain | None = None, priority: int = 80):
+class DisposableFilter(Propagator):
+    def __init__(self):
+        self.funcs: DisposableList[Callable[[Session, Subscriber], Awaitable[bool]]] = DisposableList([])
+
+    async def check(self, ctx: Contexts, session: Session | None = None):
+        if not session:
+            return
+        results = await asyncio.gather(*(func(session, ctx[SUBSCRIBER]) for func in self.funcs), return_exceptions=True)
+        if all(result is True for result in results):
+            return
+        return STOP
+
+    def compose(self):
+        yield self.check, True, 40
+
+
+class interval(Propagator):
+    def __init__(self, value: float, limit_prompt: str | MessageChain | None = None, priority: int = 80):
         self.success = True
         self.last_time = None
-        self.interval = interval
+        self.value = value
         self.priority = priority
         self.limit_prompt = limit_prompt
 
     async def before(self, session: Session | None = None):
         if not self.last_time:
             return
-        self.success = (datetime.now() - self.last_time).total_seconds() > self.interval
+        self.success = (datetime.now() - self.last_time).total_seconds() > self.value
         if not self.success:
             if session and self.limit_prompt:
                 await session.send(self.limit_prompt)
@@ -86,8 +104,11 @@ class Interval(Propagator):
         yield self.before, True, self.priority
         yield self.after, False, self.priority
 
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)
 
-class Semaphore(Propagator):
+
+class semaphore(Propagator):
     def __init__(self, count: int, limit_prompt: str | MessageChain | None = None, priority: int = 80):
         self.count = count
         self.limit_prompt = limit_prompt
@@ -106,3 +127,51 @@ class Semaphore(Propagator):
     def compose(self):
         yield self.before, True, self.priority
         yield self.after, False, self.priority
+
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)
+
+
+class superusers(Propagator):
+
+    async def check(self, session: Session | None = None):
+        if not session:
+            return STOP
+        config = EntariConfig.instance.basic.superusers
+        if session.account.platform not in config:
+            return STOP
+        if not session.event.user:
+            return STOP
+        if session.event.user.id not in config[session.account.platform]:
+            return STOP
+
+    def compose(self):
+        yield self.check, True, 50
+
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)
+
+
+class admins(Propagator):
+
+    async def check(self, session: Session | None = None):
+        if not session:
+            return STOP
+        if session.event.member and session.event.member.roles:
+            for role in session.event.member.roles:
+                if any(keyword in role.id.lower() for keyword in ("admin", "administrator", "owner")):
+                    return
+        config = EntariConfig.instance.basic.superusers
+        if (
+            session.account.platform in config
+            and session.event.user
+            and session.event.user.id in config[session.account.platform]
+        ):
+            return
+        return STOP
+
+    def compose(self):
+        yield self.check, True, 50
+
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)

@@ -75,6 +75,9 @@ class BasicConfig(BasicConfModel):
         default=False, description="是否利用元数据进行插件导入检测（可能会增加启动时间）"
     )
     str_as_message: bool = model_field(default=True, description="发送字符串时是否自动转换为消息链")
+    superusers: dict[str, list[str]] = model_field(
+        default_factory=dict, description="超级用户配置，键为平台名称，值为该平台的超级用户 ID 列表"
+    )
 
     def __post_init__(self):
         if self.prefix.count(""):
