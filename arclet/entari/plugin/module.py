@@ -363,12 +363,13 @@ class PluginLoader(SourceFileLoader):
                 log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue>")
         else:
             log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
+        if not plugin._apply:
+            publish(PluginLoadedSuccess(self.plugin_id))
         if plugin_service.status.blocking:
             if plugin._apply:
                 plugin.exec_apply()
             plugin.check_disable()
             publish(Ready(), plugin._scope)
-        publish(PluginLoadedSuccess(self.plugin_id))
         return
 
 

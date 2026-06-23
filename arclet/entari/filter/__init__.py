@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
-from arclet.letoderea import STOP, SUBSCRIBER, Contexts, Propagator, Subscriber, enter_if, propagate
-from arclet.letoderea.utils import DisposableList, TCallable
+from arclet.letoderea import STOP, Propagator, enter_if, propagate
+from arclet.letoderea.utils import TCallable
 from tarina import is_coroutinefunction
 
 from ..config import EntariConfig
@@ -62,22 +62,6 @@ class _Filter:
 
 filter_: Final[_Filter] = _Filter()
 F = filter_
-
-
-class DisposableFilter(Propagator):
-    def __init__(self):
-        self.funcs: DisposableList[Callable[[Session, Subscriber], Awaitable[bool]]] = DisposableList([])
-
-    async def check(self, ctx: Contexts, session: Session | None = None):
-        if not session:
-            return
-        results = await asyncio.gather(*(func(session, ctx[SUBSCRIBER]) for func in self.funcs), return_exceptions=True)
-        if all(result is True for result in results):
-            return
-        return STOP
-
-    def compose(self):
-        yield self.check, True, 40
 
 
 class interval(Propagator):

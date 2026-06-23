@@ -12,7 +12,7 @@ from arclet.entari import (
     Entari,
 )
 from arclet.entari.event.command import CommandOutput
-from arclet.entari.filter import Interval
+from arclet.entari.filter import interval
 
 metadata(__file__)
 
@@ -64,7 +64,7 @@ def add(a: int, b: int):
     return f"{a + b =}"
 
 
-add.propagate(Interval(2, limit_prompt="太快了"))
+add.propagate(interval(2, limit_prompt="太快了"))
 
 
 kept_data = keeping("foo", [], dispose=lambda x: x.clear())

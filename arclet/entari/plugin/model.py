@@ -39,12 +39,10 @@ from tarina.tools import TCallable, run_sync
 
 from ..config import config_model_schema
 from ..event.config import ConfigReload
-from ..event.plugin import PluginLoadedFailed, PluginUnloaded
+from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..filter import DisposableFilter
 from ..filter.parse import FilterPropagator, evaluate_disable
 from ..logger import log
-from ..session import Session
 from .service import plugin_service
 
 current_plugin: ContextModel[Plugin] = ContextModel("current_plugin")
@@ -224,9 +222,6 @@ class Plugin:
     is_static: bool = False
     path: str = field(init=False)
     uid: str | None = None
-    _hooks: DisposableList[Callable[[Session, Subscriber], Awaitable[bool]]] = field(
-        default_factory=lambda: DisposableList([])
-    )
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
@@ -280,6 +275,7 @@ class Plugin:
         try:
             self._apply(self)
             log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
+            publish(PluginLoadedSuccess(self.id))
         except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
             self.dispose()
@@ -396,9 +392,6 @@ class Plugin:
         self.effect = self._scope.effect
         plugin_service.plugins[self.id] = self  # type: ignore
         self._config_key = self.config.pop("$path", self.id)
-        fltr = DisposableFilter()
-        fltr.funcs = self._hooks
-        self._scope.propagators.append(fltr)
         if filter_expr := self.config.get("$filter", ""):
             self._scope.propagators.append(FilterPropagator(filter_expr))
         # if self._metadata and self._metadata.depend_services:
