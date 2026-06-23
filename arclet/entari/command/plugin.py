@@ -72,9 +72,11 @@ class AlconnaPluginDispatcher(PluginDispatcher[T]):
             del self.supplier.cmd
             del self.supplier
 
-    def assign(self, path: str, value: Any = _seminal, or_not: bool = False, priority: int = 16, providers: TProviders | None = None):  # noqa: E501
+    def assign(self, path: str, value: Any = _seminal, or_not: bool = False, priority: int = 16, providers: TProviders | None = None, label: str | None = None):  # noqa: E501
         assign = Assign(path, value, or_not)
-        return self.register(priority=priority, providers=providers, propagators=[assign])
+        if label is None:
+            label = f"{self.supplier.cmd.command}.{path}"
+        return self.register(priority=priority, providers=providers, propagators=[assign], label=label)
 
     def as_execute(self) -> AlconnaPluginDispatcher[str | MessageChain]:
         def execute_hook(sub: Subscriber):

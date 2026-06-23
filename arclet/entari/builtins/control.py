@@ -5,7 +5,7 @@ from arclet.letoderea import STOP
 
 from arclet.entari import Session, command, keeping, metadata, plugin
 from arclet.entari.command.provider import AlconnaSuppiler
-from arclet.entari.event.plugin import PluginLoadedSuccess
+from arclet.entari.event.lifespan import Ready
 from arclet.entari.filter import admins, superusers
 from arclet.entari.localdata import local_data
 from arclet.entari.plugin import PluginRole, plugin_service
@@ -16,6 +16,34 @@ metadata(
     author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="提供装饰器和工具函数以便于用户控制插件的可用性，比如在负载均衡，特定群下禁用插件等",
     config=None,
+    readme="""
+# 插件控制器
+
+该插件提供了一个简单的命令行接口来管理其他插件的启用状态。用户可以通过该插件列出所有已安装的功能插件，并在特定频道/群组下禁用或启用它们。
+
+## 使用
+
+**plugin 指令**
+- list | 列出 : 列出所有已安装的功能插件
+- disable | ban | 禁用 : 禁用插件
+  - 参数: 插件名或插件ID, 可传入多个, 以空格分隔
+  - 选项: --global | -g | 全局 : 插件是否全局禁用
+- enable | 启用 : 启用插件
+  - 参数: 插件名或插件ID, 可传入多个, 以空格分隔
+  - 选项: --global | -g | 全局 : 插件是否解除全局禁用
+- clear | 清空 : 清空所有被禁用的插件
+
+**function 指令**
+- list | 列出 : 列出所有已安装的功能插件下的功能
+  - 参数: 插件名或插件ID, 用来列出特定插件的功能, 可选
+- disable | ban | 禁用 : 禁用功能
+  - 参数: 功能名, 可传入多个, 以空格分隔。功能名格式为 `插件名:功能名` 或 `插件ID:功能名`，
+    如果不指定插件，则会在所有插件中查找该功能
+- enable | 启用 : 启用功能
+  - 参数: 功能名, 可传入多个, 以空格分隔。功能名格式为 `插件名:功能名` 或 `插件ID:功能名`，
+    如果不指定插件，则会在所有插件中查找该功能
+- clear | 清空 : 清空所有被禁用的功能
+""",
 )
 
 channel_plugin_disables_file = local_data.get_data_file("control", "plugin_disables.json")
@@ -37,6 +65,7 @@ plugin_disables: dict[str, dict[str, dict[str, bool]]] = keeping(
     "plugin_disables", obj_factory=_load_data, dispose=_save_data
 )
 plugin_functions: dict[str, dict[str, str]] = keeping("plugin_functions", obj_factory=dict)
+sub_functino_map: dict[str, dict[str, str]] = keeping("sub_functino_map", obj_factory=dict)
 
 plugin_control = Alconna(
     "plugin",
@@ -64,7 +93,7 @@ plugin_control = Alconna(
 )
 function_control = Alconna(
     "function",
-    Subcommand("list", alias=["列出"]),
+    Subcommand("list", Args["name?", str, Field(completion=lambda: "试试用 help")], alias=["列出"]),
     Subcommand(
         "disable",
         Args["names", MultiVar(str), Field(completion=lambda: "试试用 help")],
@@ -81,7 +110,7 @@ function_control = Alconna(
     meta=CommandMeta(
         "管理特定频道/群组下插件中功能的启用状态",
         usage="可传入多个功能名, 以空格分隔",
-        example="$功能 列出\n$功能 禁用 Echo.echo",
+        example="$功能 列出\n$功能 禁用 Echo:echo",
     ),
 )
 
@@ -93,31 +122,10 @@ plug = plugin.get_plugin()
 superuser_check = superusers().check
 
 
-@plug.dispatch(PluginLoadedSuccess)
-async def hook(event: PluginLoadedSuccess):
-    if event.plugin_id == plug.id:
-        return
+@plug.dispatch(Ready)
+async def hook():
 
-    target = plugin_service.plugins[event.plugin_id]
-    plg_id = target.id
-    while plg_id in plugin_service._subplugined:
-        plg_id = plugin_service._subplugined[plg_id]
-
-    subscribers = plugin.get_plugin_subscribers(target)
-    functions = {}
-    sub_functino_map = {}
-    for sub in subscribers:
-        try:
-            sup = sub.get_propagator(AlconnaSuppiler)
-            sub_functino_map[sub.id] = sup.cmd.command
-            functions.setdefault(sup.cmd.command, sup.cmd.meta.description)
-        except ValueError:
-            sub_functino_map[sub.id] = sub.__name__  # sub.label
-            functions[sub.__name__] = sub.__doc__ or ""  # sub.label
-
-    plugin_functions[plg_id] = functions
-
-    def _check_disable(sub_id: str):
+    def _check_disable(sub_id: str, plg_id: str):
 
         async def _(session: Session | None = None):
             if not session:
@@ -130,15 +138,33 @@ async def hook(event: PluginLoadedSuccess):
             disables = plugin_disables[ch_id].get(plg_id, {})
             if disables.get("$plugin", False):
                 return STOP
-            if disables.get(sub_functino_map[sub_id], False):
-                print(sub_id, sub_functino_map[sub_id])
+            if disables.get(sub_functino_map[plg_id][sub_id], False):
                 return STOP
 
         return _
 
     def collect():
-        for sub in subscribers:
-            yield sub.propagate(_check_disable(sub.id), prepend=True)
+        for plg in plugin.get_plugins(subplugged=True):
+            if plg.id == plug.id or (not plg.metadata or plg.metadata.role is not PluginRole.NORMAL):
+                continue
+
+            plg_id = plg.id
+            while plg_id in plugin_service._subplugined:
+                plg_id = plugin_service._subplugined[plg_id]
+
+            subscribers = plugin.get_plugin_subscribers(plg)
+            functions = {}
+            sub_functino_map[plg_id] = {}
+            for sub in subscribers:
+                try:
+                    sup = sub.get_propagator(AlconnaSuppiler)
+                    sub_functino_map[plg_id][sub.id] = sup.cmd.command
+                    functions.setdefault(sup.cmd.command, sup.cmd.meta.description)
+                except ValueError:
+                    sub_functino_map[plg_id][sub.id] = sub.label
+                    functions[sub.label] = sub.__doc__ or ""
+                yield sub.propagate(_check_disable(sub.id, plg_id), prepend=True)
+            plugin_functions[plg_id] = functions
 
     plug.effect(collect, "control_inject")
 
@@ -162,15 +188,11 @@ async def _(session: Session):
         meta = plg.metadata
         if meta and meta.role is not PluginRole.NORMAL:
             continue
-        line = f"- {meta.name}: {meta.description or '无描述'}" if meta else f"- {plg.id}"
-        stat = "✅ 全局启用" if plg.is_available else "❌ 全局禁用"
+        line = f"{plg.id}: {meta.name}, {meta.description or '无描述'}" if meta else plg.id
+        stat = "✅" if plg.is_available else "❌"
         if session.event.channel and session.event.channel.id in plugin_disables:
-            stat = (
-                "❌ 禁用"
-                if plugin_disables[session.event.channel.id].get(plg.id, {}).get("$plugin", False)
-                else "✅ 启用"
-            )
-        res += f"{line} {stat}\n"
+            stat = "❌" if plugin_disables[session.event.channel.id].get(plg.id, {}).get("$plugin", False) else "✅"
+        res += f" {stat} {line}\n"
     return res
 
 
@@ -260,26 +282,45 @@ async def _():
 
 
 @function_ctl_disp.assign("list")
-async def _(session: Session):
+async def _(session: Session, name: str | None = None):
     plgs = plugin.get_plugins()
+    plgs = [plg for plg in plgs if not plg.metadata or plg.metadata.role is PluginRole.NORMAL]
+    name_to_id = {plg.metadata.name: plg.id for plg in plgs if plg.metadata}
+    ids = {plg.id for plg in plgs}
+    if name:
+        if name not in name_to_id and name not in ids:
+            return f"未找到插件：{name}"
+        plg_id = name_to_id.get(name, name)
+        functions = plugin_functions.get(plg_id, {})
+        res = f"插件 [{name}] 的功能列表：\n"
+        for func_name, func_desc in functions.items():
+            stat = "✅"
+            if session.event.channel and session.event.channel.id in plugin_disables:
+                disables = plugin_disables[session.event.channel.id].get(plg_id, {})
+                if disables.get("$plugin", False):
+                    stat = "❌"
+                elif disables.get(func_name, False):
+                    stat = "❌"
+                else:
+                    stat = "✅"
+            res += f"  {stat} {func_name} - {func_desc or '无描述'}\n"
+        return res
     res = "已安装的功能插件及其功能：\n"
     for plg in plgs:
         meta = plg.metadata
-        if meta and meta.role is not PluginRole.NORMAL:
-            continue
         res += f"- {meta.name}: {meta.description or '无描述'}\n" if meta else f"- {plg.id}\n"
         functions = plugin_functions.get(plg.id, {})
+        stat = "✅" if plg.is_available else "❌"
         for func_name, func_desc in functions.items():
-            stat = "✅ 启用" if plg.is_available else "❌ 插件禁用"
             if session.event.channel and session.event.channel.id in plugin_disables:
                 disables = plugin_disables[session.event.channel.id].get(plg.id, {})
                 if disables.get("$plugin", False):
-                    stat = "❌ 插件禁用"
+                    stat = "❌"
                 elif disables.get(func_name, False):
-                    stat = "❌ 禁用"
+                    stat = "❌"
                 else:
-                    stat = "✅ 启用"
-            res += f"  - {func_name}: {func_desc or '无描述'} {stat}\n"
+                    stat = "✅"
+            res += f"  {stat} {func_name} - {func_desc or '无描述'}\n"
     return res
 
 
@@ -294,7 +335,7 @@ async def _(
     name_to_id = {plg.metadata.name: plg.id for plg in plgs if plg.metadata}
     ids = {plg.id for plg in plgs}
     for name in names:
-        target, func_name = name.split(".", 1) if "." in name else (None, name)
+        target, func_name = name.split(":", 1) if "." in name else (None, name)
         if target:
             if target not in name_to_id and target not in ids:
                 await session.send_message(f"未找到插件：{target}")

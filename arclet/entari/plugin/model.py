@@ -63,6 +63,7 @@ def _make_scope(plugin: Plugin):
         _plugin: Plugin = field(default_factory=lambda plug=plugin: plug)
 
         def __call__(self, func: Callable, /) -> Subscriber:
+            self._depth += 1
             self._plugin.validate(func)
             sub = super().__call__(func)
             for hook in self.register_hooks:
@@ -79,12 +80,13 @@ def _make_scope(plugin: Plugin):
 
 class PluginDispatcher(Generic[T]):
     def __init__(self, plugin: Plugin, event: type, name: str | None = None):
+        self.name = name
         self.publisher = filter_publisher(event) or define(event, name=name)
         self.plugin = plugin
         self._event = event
-        self.providers: DisposableList[Provider[Any] | ProviderFactory] = DisposableList()
-        self.propagators: DisposableList[Propagator] = DisposableList()
-        self.register_hooks: DisposableList[Callable[[Subscriber], Any]] = DisposableList()
+        self.providers: DisposableList[Provider[Any] | ProviderFactory] = DisposableList([])
+        self.propagators: DisposableList[Propagator] = DisposableList([])
+        self.register_hooks: DisposableList[Callable[[Subscriber], Any]] = DisposableList([])
 
     # fmt: off
 
@@ -98,21 +100,23 @@ class PluginDispatcher(Generic[T]):
 
         return step_out(event, providers=providers, priority=priority, block=block)
 
-    def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None, once: bool = False):  # noqa: E501
+    def register(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None, once: bool = False, label: str | None = None):  # noqa: E501
         _providers = providers or []
         _propagators = propagators or []
         wrapper = self.plugin._scope.register(
-            priority=priority, providers=[*self.providers, *_providers], propagators=[*self.propagators, *_propagators], once=once, publisher=self.publisher  # noqa: E501
+            priority=priority, providers=[*self.providers, *_providers], propagators=[*self.propagators, *_propagators], once=once, publisher=self.publisher, label=label  # noqa: E501
         )
         wrapper.register_hooks.extend(self.register_hooks)
         if func:
             return wrapper(func)
         return wrapper
 
-    def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
+    def once(self, func: Callable[..., T] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None, label: str | None = None):  # noqa: E501
         if func:
-            return self.register(func, priority=priority, providers=providers, propagators=propagators, once=True)
-        return self.register(priority=priority, providers=providers, propagators=propagators, once=True)
+            return self.register(
+                func, priority=priority, providers=providers, propagators=propagators, once=True, label=label
+            )
+        return self.register(priority=priority, providers=providers, propagators=propagators, once=True, label=label)
 
     # fmt: on
     on = register
@@ -126,7 +130,7 @@ class PluginDispatcher(Generic[T]):
         return ExitState.stop.finish(value=value)
 
     def __call__(self, func):
-        return self.register()(func)
+        return self.register(label=self.name)(func)
 
 
 class PluginRole(Enum):
@@ -517,7 +521,7 @@ class Plugin:
 
     # fmt: off
 
-    def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None):  # noqa: E501
+    def use(self, pub: str | Publisher, func: Callable[..., Any] | None = None, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None, label: str | None = None):  # noqa: E501
         if self.is_static:
             raise StaticPluginDispatchError("static plugin cannot use events by `Plugin.use`")
         if isinstance(pub, str):
@@ -530,8 +534,10 @@ class Plugin:
             raise LookupError(f"no publisher found: {pid}")
         disp = PluginDispatcher(self, _publishers[pid].target)
         if func:
-            return disp.register(func=func, priority=priority, providers=providers, propagators=propagators)
-        return disp.register(priority=priority, providers=providers, propagators=propagators)
+            return disp.register(
+                func=func, priority=priority, providers=providers, propagators=propagators, label=label
+            )
+        return disp.register(priority=priority, providers=providers, propagators=propagators, label=label)
 
     # fmt: on
 

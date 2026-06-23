@@ -57,6 +57,7 @@ class PluginDispatcher(Generic[T]):
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
         once: bool = False,
+        label: str | None = None,
     ) -> Subscriber[Generator[T, None, None]]: ...
     @overload
     def register(
@@ -67,6 +68,7 @@ class PluginDispatcher(Generic[T]):
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
         once: bool = False,
+        label: str | None = None,
     ) -> Subscriber[AsyncGenerator[T, None]]: ...
     @overload
     def register(
@@ -77,6 +79,7 @@ class PluginDispatcher(Generic[T]):
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
         once: bool = False,
+        label: str | None = None,
     ) -> Subscriber[Awaitable[T]]: ...
     @overload
     def register(
@@ -87,6 +90,7 @@ class PluginDispatcher(Generic[T]):
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
         once: bool = False,
+        label: str | None = None,
     ) -> Subscriber[T]: ...
     @overload
     def register(
@@ -96,6 +100,7 @@ class PluginDispatcher(Generic[T]):
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
         once: bool = False,
+        label: str | None = None,
     ) -> RegisterWrapper[T, None]: ...  # noqa: E501
     @overload
     def once(
@@ -105,6 +110,7 @@ class PluginDispatcher(Generic[T]):
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[Generator[T, None, None]]: ...
     @overload
     def once(
@@ -114,6 +120,7 @@ class PluginDispatcher(Generic[T]):
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[AsyncGenerator[T, None]]: ...
     @overload
     def once(
@@ -123,6 +130,7 @@ class PluginDispatcher(Generic[T]):
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[Awaitable[T]]: ...
     @overload
     def once(
@@ -132,10 +140,16 @@ class PluginDispatcher(Generic[T]):
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[T]: ...
     @overload
     def once(
-        self, *, priority: int = 16, providers: TProviders | None = None, propagators: list[Propagator] | None = None
+        self,
+        *,
+        priority: int = 16,
+        providers: TProviders | None = None,
+        propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> RegisterWrapper[T, None]: ...  # noqa: E501
     def finish(self, value: Any = None, block: bool = False) -> ExitState: ...
     on = register
@@ -241,6 +255,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[Generator[T, None, None]]: ...
     @overload
     def use(
@@ -251,6 +266,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[AsyncGenerator[T, None]]: ...
     @overload
     def use(
@@ -261,6 +277,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[Awaitable[T]]: ...
     @overload
     def use(
@@ -271,6 +288,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[T]: ...
     @overload
     def use(
@@ -280,6 +298,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> RegisterWrapper[T, None]: ...
     @overload
     def use(
@@ -290,6 +309,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[T]: ...
     @overload
     def use(
@@ -299,6 +319,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> RegisterWrapper[None, Callable]: ...
     @overload
     def use(
@@ -309,6 +330,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> Subscriber[T]: ...
     @overload
     def use(
@@ -318,6 +340,7 @@ class Plugin:
         priority: int = 16,
         providers: TProviders | None = None,
         propagators: list[Propagator] | None = None,
+        label: str | None = None,
     ) -> RegisterWrapper[None, Callable]: ...
     def validate(self, func) -> None: ...
     def proxy(self) -> ModuleType: ...

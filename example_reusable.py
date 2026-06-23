@@ -13,6 +13,6 @@ conf = plugin_config(Config)
 
 
 @filter_(lambda sess: sess.content == conf.input)
-@use("message-created")
+@use("message-created", label="reusable_output")
 async def _(sess: Session):
     await sess.send(conf.output)

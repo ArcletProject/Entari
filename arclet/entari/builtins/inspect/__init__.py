@@ -8,7 +8,7 @@ from .i18n import Lang
 
 metadata(
     "Inspect",
-    [{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
+    author=[{"name": "RF-Tar-Railt", "email": "rf_tar_railt@qq.com"}],
     description="Inspect on any user, group or channel",
     readme="README.md",
 )
