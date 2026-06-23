@@ -23,6 +23,7 @@ metadata(
 
 @listen(MessageCreatedEvent).if_(filter_(lambda sess: sess.content.startswith("$$")))
 async def pipe(sess: Session):
+    """利用特殊的 `$$` 命令，允许用户通过管道符串联多个命令的结果。"""
     content = sess.content[2:]
     if not content:
         return "请输入要执行的命令。"

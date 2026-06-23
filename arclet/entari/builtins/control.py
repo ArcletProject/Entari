@@ -91,6 +91,7 @@ plugin_control = Alconna(
         example="$插件 列出\n$插件 禁用 help",
     ),
 )
+plugin_control.shortcut("插件", command="plugin")
 function_control = Alconna(
     "function",
     Subcommand("list", Args["name?", str, Field(completion=lambda: "试试用 help")], alias=["列出"]),
@@ -113,6 +114,7 @@ function_control = Alconna(
         example="$功能 列出\n$功能 禁用 Echo:echo",
     ),
 )
+function_control.shortcut("功能", command="function")
 
 plugin_ctl_disp = command.mount(plugin_control, skip_for_unmatch=False).as_execute()
 function_ctl_disp = command.mount(function_control, skip_for_unmatch=False).as_execute()
@@ -183,12 +185,12 @@ async def _():
 @plugin_ctl_disp.assign("list")
 async def _(session: Session):
     plgs = plugin.get_plugins()
+    plgs = [plg for plg in plgs if not plg.metadata or plg.metadata.role is PluginRole.NORMAL]
     res = "已安装的功能插件：\n"
     for plg in plgs:
         meta = plg.metadata
-        if meta and meta.role is not PluginRole.NORMAL:
-            continue
-        line = f"{plg.id}: {meta.name}, {meta.description or '无描述'}" if meta else plg.id
+        plg_id = plg.id.replace("arclet.entari.builtins.", "")
+        line = f"{plg_id}: {meta.name}, {meta.description or '无描述'}" if meta else plg_id
         stat = "✅" if plg.is_available else "❌"
         if session.event.channel and session.event.channel.id in plugin_disables:
             stat = "❌" if plugin_disables[session.event.channel.id].get(plg.id, {}).get("$plugin", False) else "✅"
@@ -206,7 +208,7 @@ async def _(
     plgs = plugin.get_plugins()
     plgs = [plg for plg in plgs if not plg.metadata or plg.metadata.role is PluginRole.NORMAL]
     name_to_id = {plg.metadata.name: plg.id for plg in plgs if plg.metadata}
-    ids = {plg.id for plg in plgs}
+    ids = {plg.id.replace("arclet.entari.builtins.", "") for plg in plgs}
     for name in names:
         if name not in name_to_id and name not in ids:
             await session.send_message(f"未找到插件：{name}")

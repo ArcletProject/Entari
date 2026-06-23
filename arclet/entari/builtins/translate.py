@@ -23,7 +23,7 @@ metadata(
 )
 
 
-@command.command("translate <...content>").option("lang", "<target:str>")
+@command.command("translate <...content>", "简单的文本翻译指令").option("lang", "<target:str>")
 async def translate(app: Entari, content: Match[MessageChain], target: str = "zh-CN"):
     params = {
         "engine": "google",

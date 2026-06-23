@@ -20,7 +20,7 @@ metadata(
 API_URL = "https://api.chucknorris.io/jokes/random"
 
 
-@command.on("norris")
+@command.command("norris", "随机的查克诺里斯笑话")
 async def send_joke(app: Entari):
     async with app.http.get(API_URL) as response:
         try:

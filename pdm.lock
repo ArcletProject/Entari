@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:a65a3ed4ccf030b3ad48edd0ec6d6567df6744b2055f1b5a0aeddb6c5670f5b0"
+content_hash = "sha256:4b4d5ffde2afa6412eccc25445e7d24134cab6f6852c582f1708336cb6c80c94"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -221,7 +221,7 @@ files = [
 
 [[package]]
 name = "arclet-letoderea"
-version = "0.21.2"
+version = "0.21.3"
 requires_python = "<4.0,>=3.10"
 summary = "A high-performance, simple-structured event system, relies on asyncio"
 groups = ["default"]
@@ -230,8 +230,8 @@ dependencies = [
     "typing-extensions>=4.12.0",
 ]
 files = [
-    {file = "arclet_letoderea-0.21.2-py3-none-any.whl", hash = "sha256:60aa66e880d127246968246a3a17d2553097b5880ec0b7ab66b4fc36133d34a8"},
-    {file = "arclet_letoderea-0.21.2.tar.gz", hash = "sha256:f01bbdc43543bb8026e90252f791e1a35df9e2ca80a1e29bc2bb5eabf96e686e"},
+    {file = "arclet_letoderea-0.21.3-py3-none-any.whl", hash = "sha256:ea1e235a037a193c734fbbe754969db9242d551290b11a0c0babae4e17d56d9d"},
+    {file = "arclet_letoderea-0.21.3.tar.gz", hash = "sha256:4a2588d521afcd18d356804dc4289209be07b885e1d7851c8e37c8c03b954af4"},
 ]
 
 [[package]]
@@ -1319,7 +1319,7 @@ files = [
 
 [[package]]
 name = "satori-python-core"
-version = "1.3.2"
+version = "1.3.5"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify common part"
 groups = ["default"]
@@ -1327,8 +1327,8 @@ dependencies = [
     "typing-extensions>=4.7.0",
 ]
 files = [
-    {file = "satori_python_core-1.3.2-py3-none-any.whl", hash = "sha256:f8c123255bfefa9027d7e99cc2bd3e6bb0781bc629dccf7aea5310a150e016bb"},
-    {file = "satori_python_core-1.3.2.tar.gz", hash = "sha256:ab226826cb805e8895fee57f31797765ed33cf223a5a9d7bfda8673bae13c17c"},
+    {file = "satori_python_core-1.3.5-py3-none-any.whl", hash = "sha256:ef9d6ecfb002d9808cf7d2b9b6c391529c9a9673cd2d63aa3887f7f91e63d985"},
+    {file = "satori_python_core-1.3.5.tar.gz", hash = "sha256:898620707d72cdcb838476b42a253ffd7694349ce8e5a303a058366f02074a0d"},
 ]
 
 [[package]]
