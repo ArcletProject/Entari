@@ -77,21 +77,22 @@ class Scheduler(Service):
                         )
                     )
 
-    def schedule(self, time_fn: Callable[[], timedelta], once: bool = False):
+    def schedule(self, time_fn: Callable[[], timedelta], once: bool = False, label: str | None = None):
         """
         设置一个定时任务
 
         Args:
             time_fn: 用于提供定时间隔的函数
             once: 是否只执行一次
+            label: 任务的标签, 用于区分不同的任务
         """
 
         def wrapper(func: Callable):
             plg = get_plugin(1, optional=True)
             if plg:
-                sub = plg.dispatch(_ScheduleEvent).handle(func, once=once)
+                sub = plg.dispatch(_ScheduleEvent).handle(func, once=once, label=label)
             else:
-                sub = scope.register(func, _ScheduleEvent, once=once)
+                sub = scope.register(func, _ScheduleEvent, once=once, label=label)
             task = self.tasks[sub.id] = TimerTask(time_fn, sub)
 
             def _dispose(_):
@@ -237,24 +238,24 @@ class timer:
         return lambda iter=it: iter.get_next(datetime) - datetime.now()
 
 
-def cron(pattern: str):
+def cron(pattern: str, label: str | None = None):
     """使用 cron 表达式设置一个定时任务"""
-    return service.schedule(timer.crontab(pattern))
+    return service.schedule(timer.crontab(pattern), label=label)
 
 
-def every(value: int = 1, mode: Literal["second", "minute", "hour"] = "second"):
+def every(value: int = 1, mode: Literal["second", "minute", "hour"] = "second", label: str | None = None):
     """依据 mode 设置一个定时任务"""
     _TIMER_MAPPING = {
         "second": timer.every_seconds,
         "minute": timer.every_minutes,
         "hour": timer.every_hours,
     }
-    return service.schedule(_TIMER_MAPPING[mode](value))
+    return service.schedule(_TIMER_MAPPING[mode](value), label=label)
 
 
-def invoke(delay: float):
+def invoke(delay: float, label: str | None = None):
     """延迟 delay 秒执行"""
-    return service.schedule(lambda: timedelta(seconds=delay), once=True)
+    return service.schedule(lambda: timedelta(seconds=delay), once=True, label=label)
 
 
 __all__ = ["scheduler", "schedule", "timer", "cron", "every", "invoke"]
