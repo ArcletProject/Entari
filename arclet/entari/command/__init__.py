@@ -113,7 +113,9 @@ class EntariCommands:
     def command(self, cmd: str, help_text: str | None = None, providers: TProviders | None = None):
         class Command(AlconnaString):
             def __call__(_cmd_self, func: Callable[..., TM]) -> Subscriber[TM]:
-                return self.on(_cmd_self.build(), providers)(func)
+                wrapper = self.on(_cmd_self.build(), providers)
+                wrapper._depth = 1
+                return wrapper(func)
 
         return Command(cmd, help_text)
 
@@ -149,10 +151,14 @@ class EntariCommands:
                     f" {arg.value.target}" for arg in _command.args if isinstance(arg.value, DirectPattern)
                 )
                 if plg:
-                    target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+                    wpr = plg.dispatch(CommandDispatch).handle(providers=providers)
+                    wpr._depth += 1 + getattr(wrapper, "_depth", 0)
+                    target = wpr(func)
                     plg._extra.setdefault("commands", []).append(([], _command.command))
                 else:
-                    target = self.scope.register(func, CommandDispatch, providers=providers)
+                    wpr = self.scope.register(event=CommandDispatch, providers=providers)
+                    wpr._depth += 1 + getattr(wrapper, "_depth", 0)
+                    target = wpr(func)
                 target.propagate(AlconnaSuppiler(_command, self._cache.setdefault(_command._hash, LRU(10)), self.block))
                 target.propagate(_after_execute, priority=0)
                 self.trie.setdefault(key, []).append(target.id)
@@ -181,10 +187,14 @@ class EntariCommands:
                     keys.append(prefix + _command.command)
 
             if plg:
-                target = plg.dispatch(CommandDispatch).handle(func, providers=providers)
+                wpr = plg.dispatch(CommandDispatch).handle(providers=providers)
+                wpr._depth += 1 + getattr(wrapper, "_depth", 0)
+                target = wpr(func)
                 plg._extra.setdefault("commands", []).append((_command.prefixes, _command.command))
             else:
-                target = self.scope.register(func, providers=providers)
+                wpr = self.scope.register(event=CommandDispatch, providers=providers)
+                wpr._depth += 1 + getattr(wrapper, "_depth", 0)
+                target = wpr(func)
             target.propagate(AlconnaSuppiler(_command, self._cache.setdefault(_command._hash, LRU(10)), self.block))
             target.propagate(_after_execute, priority=0)
             self.subscribers[target.id] = target

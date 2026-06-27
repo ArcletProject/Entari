@@ -73,7 +73,9 @@ class interval(Propagator):
         self.last_times: dict[str, datetime] = {}
 
     async def before(self, session: Session | None = None):
-        session_id = "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        session_id = (
+            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        )
         last_time = self.last_times.get(session_id, None)
         if not last_time:
             return
@@ -84,7 +86,9 @@ class interval(Propagator):
             return STOP
 
     async def after(self, session: Session | None = None):
-        session_id = "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        session_id = (
+            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        )
         self.last_times[session_id] = datetime.now()
 
     def compose(self):
@@ -103,7 +107,9 @@ class semaphore(Propagator):
         self.semaphores: dict[str, asyncio.Semaphore] = {}
 
     async def before(self, session: Session | None = None):
-        session_id = "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        session_id = (
+            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        )
         if session_id not in self.semaphores:
             self.semaphores[session_id] = asyncio.Semaphore(self.count)
         if not await self.semaphores[session_id].acquire():
@@ -112,7 +118,9 @@ class semaphore(Propagator):
             return STOP
 
     async def after(self, session: Session | None = None):
-        session_id = "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        session_id = (
+            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
+        )
         if session_id not in self.semaphores:
             self.semaphores[session_id] = asyncio.Semaphore(self.count)
         self.semaphores[session_id].release()

@@ -250,7 +250,8 @@ class Session(Generic[TEvent]):
         defer(step.dispose)
         result = await step.wait(timeout=timeout)
         if result is None:
-            await self.send(timeout_message)
+            if timeout_message:
+                await self.send(timeout_message)
             return None
         return result
 

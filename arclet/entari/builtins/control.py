@@ -92,7 +92,7 @@ plugin_control = Alconna(
         "管理特定频道/群组下功能插件的启用状态",
         usage="可传入多个功能名, 以空格分隔",
         example="$插件 列出\n$插件 禁用 help",
-        compact=True
+        compact=True,
     ),
 )
 plugin_control.shortcut("插件", command="plugin")
@@ -122,7 +122,7 @@ function_control = Alconna(
         "管理特定频道/群组下插件中功能的启用状态",
         usage="可传入多个功能名, 以空格分隔",
         example="$功能 列出\n$功能 禁用 Echo:echo",
-        compact=True
+        compact=True,
     ),
 )
 function_control.shortcut("功能", command="function")
