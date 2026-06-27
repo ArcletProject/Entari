@@ -83,7 +83,7 @@ plugin_control = Alconna(
     Subcommand(
         "enable",
         Args["names", MultiVar(str), Field(completion=lambda: "试试用 help")],
-        Option("--global", alias=["-g", "全局"], action=store_true, default=False, help_text="全局禁用"),
+        Option("--global", alias=["-g", "全局"], action=store_true, default=False, help_text="全局启用"),
         alias=["启用"],
         help_text="启用插件",
     ),
@@ -92,6 +92,7 @@ plugin_control = Alconna(
         "管理特定频道/群组下功能插件的启用状态",
         usage="可传入多个功能名, 以空格分隔",
         example="$插件 列出\n$插件 禁用 help",
+        compact=True
     ),
 )
 plugin_control.shortcut("插件", command="plugin")
@@ -106,13 +107,13 @@ function_control = Alconna(
     ),
     Subcommand(
         "disable",
-        Args["names", MultiVar(str), Field(completion=lambda: "试试用 help")],
+        Args["names", MultiVar(str), Field(completion=lambda: "试试用 help:help")],
         alias=["ban", "禁用"],
         help_text="禁用功能",
     ),
     Subcommand(
         "enable",
-        Args["names", MultiVar(str), Field(completion=lambda: "试试用 help")],
+        Args["names", MultiVar(str), Field(completion=lambda: "试试用 help:help")],
         alias=["启用"],
         help_text="启用功能",
     ),
@@ -121,6 +122,7 @@ function_control = Alconna(
         "管理特定频道/群组下插件中功能的启用状态",
         usage="可传入多个功能名, 以空格分隔",
         example="$功能 列出\n$功能 禁用 Echo:echo",
+        compact=True
     ),
 )
 function_control.shortcut("功能", command="function")
