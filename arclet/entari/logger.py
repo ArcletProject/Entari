@@ -196,6 +196,7 @@ def loguru_exc_callback(cls: type[BaseException], val: BaseException, tb: Traceb
 
 def loguru_print_trace(te: Trace):
     summary = te.stack[0]
+    true_frame = te.exc_traceback.tb_frame if te.exc_traceback else None
 
     class FakeFrame:
         f_code = type(
@@ -205,6 +206,7 @@ def loguru_print_trace(te: Trace):
         f_globals = {}
         f_locals = {}
         f_builtins = {}
+        f_back = true_frame if true_frame and true_frame.f_code.co_filename != summary.filename else None
 
     class FakeTraceback:
         tb_frame = FakeFrame()
