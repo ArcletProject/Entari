@@ -101,9 +101,17 @@ class Proxy:
         return bool(self.__origin)
 
 
+def _ensure_actions(cls: type):
+    if cls.__module__.startswith("pydantic"):
+        import arclet.entari.config.models.pyd
+    elif cls.__module__.startswith("msgspec"):
+        import arclet.entari.config.models.msgspec_
+
+
 def config_model_validate(base: type[C], data: dict[str, Any]) -> C:
     data = {k: v for k, v in data.items() if not k.startswith("$")}
     for b in base.__mro__[-2::-1]:
+        _ensure_actions(b)
         if b in _config_model_actions:
             return _config_model_actions[b].load(data, base)
     return base(**data)  # type: ignore
@@ -111,6 +119,7 @@ def config_model_validate(base: type[C], data: dict[str, Any]) -> C:
 
 def config_model_dump(obj: Any) -> dict[str, Any]:
     for b in obj.__class__.__mro__[-2::-1]:
+        _ensure_actions(b)
         if b in _config_model_actions:
             return _config_model_actions[b].dump(obj)
     return asdict(obj)  # type: ignore
@@ -118,6 +127,7 @@ def config_model_dump(obj: Any) -> dict[str, Any]:
 
 def config_model_keys(obj: Any) -> list[str]:
     for b in obj.__class__.__mro__[-2::-1]:
+        _ensure_actions(b)
         if b in _config_model_actions:
             return _config_model_actions[b].keys(obj)
     return [field_.name for field_ in fields(obj)]  # type: ignore

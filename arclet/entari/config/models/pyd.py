@@ -18,7 +18,7 @@ try:
 
         @classmethod
         def keys(cls, obj) -> list[str]:
-            return list(obj.model_fields.keys())
+            return list(obj.__class__.model_fields.keys())
 
         @classmethod
         def schema(cls, t: type[BaseModel], ref_root: str = "/"):  # type: ignore
