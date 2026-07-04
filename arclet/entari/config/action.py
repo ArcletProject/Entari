@@ -103,9 +103,9 @@ class Proxy:
 
 def _ensure_actions(cls: type):
     if cls.__module__.startswith("pydantic"):
-        import arclet.entari.config.models.pyd
+        import arclet.entari.config.models.pyd  # noqa: F401
     elif cls.__module__.startswith("msgspec"):
-        import arclet.entari.config.models.msgspec_
+        import arclet.entari.config.models.msgspec_  # noqa: F401
 
 
 def config_model_validate(base: type[C], data: dict[str, Any]) -> C:

@@ -139,6 +139,56 @@ def get_plugin_referents(plug: Plugin | str | None = None) -> set[str]:
     return plugin_service.referents.get(plg.id, set()).copy()
 
 
+def get_plugin_kept_ids(plug: Plugin | str | None = None) -> list[str]:
+    """获取指定插件的所有保持变量的 ID
+
+    Args:
+        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
+    """
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    return plg._extra.get("kept_variables", [])
+
+
+def get_plugin_commands(plug: Plugin | str | None = None) -> list[tuple[list[str], str]]:
+    """获取指定插件的所有命令
+
+    Args:
+        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
+    """
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    return plg._extra.get("commands", [])
+
+
+def get_plugin_depend_services(plug: Plugin | str | None = None) -> list[str]:
+    """获取指定插件依赖的所有服务的 ID
+
+    Args:
+        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
+    """
+    if isinstance(plug, Plugin):
+        plg = plug
+    elif plug in plugin_service.plugins:
+        plg = plugin_service.plugins[plug]
+    else:
+        plg = get_plugin(1)
+    injected_services = plg._extra.get("injected_services", [])
+    local_injected_services = plg._extra.get("local_injected_services", [])
+    services = injected_services[:]
+    for slot in local_injected_services:
+        services.extend(slot[1])
+    return list(set(services))
+
+
 @overload
 def dispatch(event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
 @overload
