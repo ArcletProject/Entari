@@ -1,3 +1,4 @@
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import MISSING, Field, asdict, dataclass, fields, is_dataclass
@@ -159,7 +160,7 @@ def _validate_single_value(value: Any, tp: Any) -> Any:
         if isinstance(value, dict):
             return _nested_validate(value, tp)
         return value
-    elif tp is Path:
+    elif tp is Path or tp == os.PathLike[str]:
         return Path(value)
     elif tp is datetime:
         if isinstance(value, (int, float)):  # noqa: UP038
@@ -179,7 +180,9 @@ def _validate_single_value(value: Any, tp: Any) -> Any:
 def _nested_validate(namespace: dict[str, Any], cls_):
     """递归验证嵌套的数据类"""
     result = {}
-    types_namespace = merge_cls_and_parent_ns(cls_)
+    types_namespace = {}
+    for base in cls_.__mro__[-1::-1]:
+        types_namespace = merge_cls_and_parent_ns(base, types_namespace)
 
     for field_ in fields(cls_):
         if field_.name not in namespace:
