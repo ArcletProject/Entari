@@ -255,6 +255,10 @@ def load_plugin(
                     continue
                 if referent.startswith(mod.__name__):
                     continue
+                if referent in plugin_service._subplugined and mod.__name__.startswith(
+                    plugin_service._subplugined[referent]
+                ):
+                    continue
                 if referent in plugin_service.plugins:
                     plugin_service.referents[mod.__name__].discard(referent)
                     log.plugin.debug(f"reloading <y>{escape_tag(mod.__name__)}</y>'s referent <y>{referent!r}</y>")

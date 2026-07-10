@@ -221,7 +221,7 @@ class Plugin:
     id: str
     module: ModuleType
 
-    subplugins: set[str] = field(default_factory=set)
+    subplugins: list[str] = field(default_factory=list)
     config: dict[str, Any] = field(default_factory=dict)
     is_static: bool = False
     path: str = field(init=False)
@@ -474,6 +474,7 @@ class Plugin:
             log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
+                    plugin_service._subplugined.pop(subplug, None)
                     continue
                 try:
                     tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
@@ -506,6 +507,12 @@ class Plugin:
                         plugin_service.plugins.pop(ref, None)
             for ret in plugin_service.referents[self.path].copy():
                 if ret not in plugin_service.plugins:
+                    continue
+                if (
+                    ret in plugin_service._subplugined
+                    and self.id in plugin_service._subplugined
+                    and plugin_service._subplugined[ret] == plugin_service._subplugined[self.id]
+                ):
                     continue
                 tasks.update(plugin_service.plugins[ret].disable())
         self._scope.dispose()

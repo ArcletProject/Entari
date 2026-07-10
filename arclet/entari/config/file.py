@@ -40,7 +40,7 @@ _loaders: dict[str, Callable[[str], dict]] = {}
 _dumpers: dict[str, Callable[[dict, int, str | None], tuple[str, bool]]] = {}
 
 
-@dataclass(unsafe_hash=True)
+@dataclass(unsafe_hash=True, slots=True)
 class _EnvReplaced:
     parts: tuple[str, ...]
     target: str
