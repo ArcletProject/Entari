@@ -31,7 +31,7 @@ except ImportError:
 if TYPE_CHECKING:
     from ..plugin import Plugin
 
-EXPR_CONTEXT_PAT = re.compile(r"\$\{\{\s?(?P<expr>[^}\s]+)\s?\}\}")
+EXPR_CONTEXT_PAT = re.compile(r"\$\{\{\s?(?P<expr>[^}]+)\s?\}\}")
 T = TypeVar("T")
 T_M = TypeVar("T_M", bound=MutableMapping)
 
@@ -56,9 +56,12 @@ def _iter_values(obj: dict[str, Any], transform: Callable[[Any, str, list[str]],
 def _interpolate(source: str, context: dict[str, Any], records: set[_EnvReplaced], history: list[str]):
     def handle(m: re.Match[str]):
         expr = m.group("expr")
+        expr, default = expr.partition(":-")[::2]
+        expr = expr.strip()
+        default = default.strip()
         ans = safe_eval(expr, context)
-        records.add(_EnvReplaced(tuple(history), str(ans or ""), m.group()))
-        return str(ans or "")
+        records.add(_EnvReplaced(tuple(history), str(ans or default), m.group()))
+        return str(ans or default)
 
     return re.sub(EXPR_CONTEXT_PAT, handle, source)
 
@@ -124,7 +127,10 @@ class EntariConfig:
                 for record in self._records[path.as_posix()]:
                     data = origin
                     for part in record.parts[:-1]:
-                        data = data.setdefault(part, {})
+                        if part.startswith("$") and part[1:].isdigit():
+                            data = data[int(part[1:])]
+                        else:
+                            data = data[part]
                     value = data[record.parts[-1]]
                     if isinstance(value, str):
                         data[record.parts[-1]] = value.replace(record.target, record.source)

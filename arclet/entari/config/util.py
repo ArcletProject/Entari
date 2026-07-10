@@ -28,8 +28,8 @@ class GetattrDict(Mapping):
     def __getattr__(self, item):
         try:
             ans = self._source[item]
-        except KeyError as e:
-            raise AttributeError(f"{item} not found") from e
+        except KeyError:
+            return None
         if isinstance(ans, Mapping):
             return GetattrDict(ans)
         return ans
