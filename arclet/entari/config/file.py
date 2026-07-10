@@ -31,13 +31,36 @@ except ImportError:
 if TYPE_CHECKING:
     from ..plugin import Plugin
 
-EXPR_CONTEXT_PAT = re.compile(r"['\"]?\$\{\{\s?(?P<expr>[^}\s]+)\s?\}\}['\"]?")
+EXPR_CONTEXT_PAT = re.compile(r"\$\{\{\s?(?P<expr>[^}\s]+)\s?\}\}")
 T = TypeVar("T")
 T_M = TypeVar("T_M", bound=MutableMapping)
 
 
 _loaders: dict[str, Callable[[str], dict]] = {}
 _dumpers: dict[str, Callable[[dict, int, str | None], tuple[str, bool]]] = {}
+
+
+@dataclass(unsafe_hash=True)
+class _EnvReplaced:
+    parts: tuple[str, ...]
+    target: str
+    source: str
+
+
+def _iter_values(obj: dict[str, Any], transform: Callable[[Any, str, list[str]], Any], history: list[str]):
+    for k, v in obj.items():
+        obj[k] = transform(v, k, history + [k])
+    return obj
+
+
+def _interpolate(source: str, context: dict[str, Any], records: set[_EnvReplaced], history: list[str]):
+    def handle(m: re.Match[str]):
+        expr = m.group("expr")
+        ans = safe_eval(expr, context)
+        records.add(_EnvReplaced(tuple(history), str(ans or ""), m.group()))
+        return str(ans or "")
+
+    return re.sub(EXPR_CONTEXT_PAT, handle, source)
 
 
 @dataclass
@@ -52,12 +75,12 @@ class EntariConfig:
     env_vars: dict[str, str] = field(default_factory=dict)
     _plugin_names: dict[str, list[str]] = field(default_factory=dict, init=False)
     _origin_data: dict[str, Any] = field(init=False)
-    _env_replaced: dict[str, dict[int, tuple[str, int]]] = field(default_factory=dict, init=False)
+    _records: dict[str, set[_EnvReplaced]] = field(default_factory=dict, init=False)
 
     instance: ClassVar["EntariConfig"]
     _inited: ClassVar[bool] = False
 
-    def loader(self, path: Path):
+    def loader(self, path: Path) -> dict[str, Any]:
         if not path.exists():
             return {}
         end = path.suffix.split(".")[-1]
@@ -65,18 +88,22 @@ class EntariConfig:
             ctx = {"env": GetattrDict(self.env_vars)}
 
             with path.open("r", encoding="utf-8") as f:
-                lines = f.readlines()
-            for i, line in enumerate(lines):
+                data = _loaders[end](f.read())
 
-                def handle(m: re.Match[str]):
-                    expr = m.group("expr")
-                    ans = safe_eval(expr, ctx)
-                    self._env_replaced.setdefault(path.as_posix(), {})[i] = (line, len(ans.splitlines()))
-                    return ans
+            records = self._records.setdefault(path.as_posix(), set())
 
-                lines[i] = EXPR_CONTEXT_PAT.sub(handle, line)
-            text = "".join(lines)
-            return _loaders[end](text)
+            def _transform(value, key, history):
+                if isinstance(value, str):
+                    return _interpolate(value, ctx, records, history)
+                elif isinstance(value, dict):
+                    return _iter_values(value, _transform, history)
+                elif isinstance(value, list):
+                    for i, v in enumerate(value):
+                        value[i] = _transform(v, "", history + [f"${i}"])
+                return value
+
+            data = _iter_values(data, _transform, [])
+            return data
 
         raise ValueError(f"Unsupported file format: {path.suffix}")
 
@@ -93,14 +120,16 @@ class EntariConfig:
         if apply_schema:
             schema_file = f"{save_path.stem}.schema.json"
         if end in _dumpers:
+            if path.as_posix() in self._records:
+                for record in self._records[path.as_posix()]:
+                    data = origin
+                    for part in record.parts[:-1]:
+                        data = data.setdefault(part, {})
+                    value = data[record.parts[-1]]
+                    if isinstance(value, str):
+                        data[record.parts[-1]] = value.replace(record.target, record.source)
+
             ans, applied = _dumpers[end](origin, indent, schema_file)
-            if path.as_posix() in self._env_replaced:
-                lines = ans.splitlines(keepends=True)
-                for i, (line, height) in self._env_replaced[path.as_posix()].items():
-                    lines[i + applied] = line
-                    for _ in range(height - 2):
-                        lines.pop(i + applied + 1)
-                ans = "".join(lines)
             with save_path.open("w", encoding="utf-8") as f:
                 f.write(ans)
             return
