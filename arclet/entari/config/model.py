@@ -11,11 +11,21 @@ class WebsocketsInfo(BasicConfModel):
         description="连接类型，必须是 'websocket'、'websockets' 或 'ws'"
     )
     host: str = model_field(default="localhost", description="服务器主机地址")
-    port: int = model_field(default=5140, description="服务器端口")
+    port: str | int = model_field(default=5140, description="服务器端口")
     path: str = model_field(default="", description="服务器路径")
     secure: bool = model_field(default=False, description="是否使用安全连接（wss 和 https）")
     token: str | None = model_field(default=None, description="连接的鉴权令牌")
     timeout: float | None = model_field(default=None, description="连接超时时间（秒）")
+
+    def dump(self):
+        return {
+            "host": str(self.host),
+            "port": int(self.port),
+            "path": str(self.path),
+            "secure": bool(self.secure),
+            "token": str(self.token) if self.token is not None else None,
+            "timeout": float(self.timeout) if self.timeout is not None else None,
+        }
 
 
 class WebhookInfo(BasicConfModel):
@@ -23,14 +33,27 @@ class WebhookInfo(BasicConfModel):
 
     type: Literal["webhook", "wh", "http"] = model_field(description="连接类型，必须是 'webhook'、'wh' 或 'http'")
     host: str = model_field(default="127.0.0.1", description="本机 Webhook 服务器主机地址")
-    port: int = model_field(default=8080, description="本机 Webhook 服务器端口")
+    port: str | int = model_field(default=8080, description="本机 Webhook 服务器端口")
     path: str = model_field(default="v1/events", description="本机 Webhook 服务器路径")
     secure: bool = model_field(default=False, description="是否使用安全连接（wss 和 https）")
     token: str | None = model_field(default=None, description="连接的鉴权令牌")
     server_host: str = model_field(default="localhost", description="发送请求的目标服务器主机地址")
-    server_port: int = model_field(default=5140, description="发送请求的目标服务器端口")
+    server_port: str | int = model_field(default=5140, description="发送请求的目标服务器端port")
     server_path: str = model_field(default="", description="发送请求的目标服务器路径")
     timeout: float | None = model_field(default=None, description="连接超时时间（秒）")
+
+    def dump(self):
+        return {
+            "host": str(self.host),
+            "port": int(self.port),
+            "path": str(self.path),
+            "secure": bool(self.secure),
+            "token": str(self.token) if self.token is not None else None,
+            "server_host": str(self.server_host),
+            "server_port": int(self.server_port),
+            "server_path": str(self.server_path),
+            "timeout": float(self.timeout) if self.timeout is not None else None,
+        }
 
 
 class LogSaveInfo(BasicConfModel):

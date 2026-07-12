@@ -3,7 +3,6 @@ import os
 import signal
 import sys
 from collections.abc import Iterable, Sequence
-from dataclasses import asdict
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import get_args
@@ -298,9 +297,9 @@ class Entari(App):
         configs = []
         for conf in config.basic.network:
             if conf.type in ("websocket", "websockets", "ws"):
-                configs.append(WebsocketsInfo(**{k: v for k, v in asdict(conf).items() if k != "type"}))
+                configs.append(WebsocketsInfo(**conf.dump()))
             elif conf.type in ("webhook", "wh", "http"):
-                configs.append(WebhookInfo(**{k: v for k, v in asdict(conf).items() if k != "type"}))
+                configs.append(WebhookInfo(**conf.dump()))
         return cls(
             *configs,
             log_level=log_level,

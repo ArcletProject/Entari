@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:4b4d5ffde2afa6412eccc25445e7d24134cab6f6852c582f1708336cb6c80c94"
+content_hash = "sha256:ff5971fff00cca2f21031effa0c543be4be9b16d453f356335f0dbdc7d66a559"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
