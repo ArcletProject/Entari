@@ -10,8 +10,10 @@ from arclet.letoderea.core import ExceptionEvent, publish_exc_event
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 
+from .config import BasicConfModel
+from .event.config import ConfigReload
 from .logger import log
-from .plugin import PluginRole, RootlessPlugin, get_plugin, metadata
+from .plugin import PluginRole, RootlessPlugin, get_plugin, metadata, plugin_config
 
 
 @make_event(name="entari.event/internal/schedule")
@@ -46,6 +48,7 @@ class Scheduler(Service):
 
     def __init__(self):
         super().__init__()
+        self.debug = True
         self.queue: asyncio.Queue[TimerTask] = asyncio.Queue()
         self.tasks: dict[str, TimerTask] = {}
 
@@ -65,7 +68,8 @@ class Scheduler(Service):
                 continue
             task.start(self.queue)
             if task.sub.available:
-                logger.debug(f"Executing scheduled task: <{task.sub.__repr__()[13:]}")
+                if self.debug:
+                    logger.debug(f"Executing scheduled task: <{task.sub.__repr__()[13:]}")
                 try:
                     await task.sub.handle(contexts.copy())
                 except Exception as e:
@@ -125,6 +129,10 @@ class Scheduler(Service):
     id = "entari.scheduler"
 
 
+class _SchedulerConf(BasicConfModel):
+    debug: bool = True
+
+
 scheduler = service = Scheduler()
 schedule = scheduler.schedule
 
@@ -132,8 +140,22 @@ schedule = scheduler.schedule
 @RootlessPlugin.apply("scheduler", default=True)
 def _(plg: RootlessPlugin):
     metadata(
-        "Simple Scheduler with interval / crontab task", PluginRole.LIBRARY, ["RF-Tar-Railt <rf_tar_railt@qq.com>"]
+        "Simple Scheduler with interval / crontab task",
+        PluginRole.LIBRARY,
+        ["RF-Tar-Railt <rf_tar_railt@qq.com>"],
+        config=_SchedulerConf,
     )
+
+    conf = plugin_config(_SchedulerConf)
+    service.debug = conf.debug
+
+    @plg.dispatch(ConfigReload).handle
+    def update(event: ConfigReload):
+        if event.scope == "basic":
+            return
+        if event.key != ".scheduler":
+            return
+        scheduler.debug = event.value.get("debug", True)
 
     plg.service(service)
 

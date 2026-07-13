@@ -126,14 +126,14 @@ class EntariConfig:
             if path.as_posix() in self._records:
                 for record in self._records[path.as_posix()]:
                     data = origin
-                    for part in record.parts[:-1]:
-                        if part.startswith("$") and part[1:].isdigit():
-                            data = data[int(part[1:])]
-                        else:
-                            data = data[part]
-                    value = data[record.parts[-1]]
+                    parts = [
+                        int(part[1:]) if part.startswith("$") and part[1:].isdigit() else part for part in record.parts
+                    ]
+                    for part in parts[:-1]:
+                        data = data[part]
+                    value = data[parts[-1]]
                     if isinstance(value, str):
-                        data[record.parts[-1]] = value.replace(record.target, record.source)
+                        data[parts[-1]] = value.replace(record.target, record.source)
 
             ans, applied = _dumpers[end](origin, indent, schema_file)
             with save_path.open("w", encoding="utf-8") as f:
