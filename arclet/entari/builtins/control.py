@@ -202,7 +202,7 @@ async def _():
 
 
 @plugin_ctl_disp.assign("list")
-async def _(session: Session):
+async def plugin_ctl_list(session: Session):
     plgs = plugin.get_plugins()
     plgs = [plg for plg in plgs if not plg.metadata or plg.metadata.role is PluginRole.NORMAL]
     res = "已安装的功能插件：\n"
@@ -219,7 +219,7 @@ async def _(session: Session):
 
 @plugin_ctl_disp.assign("disable")
 @admins()
-async def _(
+async def plugin_ctl_disable(
     session: Session,
     names: tuple[str, ...],
     global_: command.Query[bool] = command.Query("disable.global.value", False),
@@ -252,7 +252,7 @@ async def _(
 
 @plugin_ctl_disp.assign("enable")
 @admins()
-async def _(
+async def plugin_ctl_enable(
     session: Session, names: tuple[str, ...], global_: command.Query[bool] = command.Query("enable.global.value", False)
 ):
     plgs = plugin.get_plugins()
@@ -280,7 +280,7 @@ async def _(
 
 @plugin_ctl_disp.assign("clear")
 @admins()
-async def _(session: Session):
+async def plugin_ctl_clear(session: Session):
     if session.event.channel:
         ch_id = session.event.channel.id
         if ch_id in plugin_disables:
@@ -292,7 +292,7 @@ async def _(session: Session):
 
 
 @function_ctl_disp.assign("$main")
-async def _():
+async def function_ctl_main():
     return """\
 功能管理
 - 列出：列出所有已安装的功能插件下的功能
@@ -303,7 +303,7 @@ async def _():
 
 
 @function_ctl_disp.assign("list")
-async def _(
+async def function_ctl_list(
     session: Session, name: str | None = None, hide: command.Query[bool] = command.Query("list.hide.value", False)
 ):
     plg_ids = set(plugin_functions.keys())
@@ -353,7 +353,7 @@ async def _(
 
 @function_ctl_disp.assign("disable")
 @admins()
-async def _(
+async def function_ctl_disable(
     session: Session,
     names: tuple[str, ...],
 ):
@@ -385,7 +385,7 @@ async def _(
 
 @function_ctl_disp.assign("enable")
 @admins()
-async def _(
+async def function_ctl_enable(
     session: Session,
     names: tuple[str, ...],
 ):
@@ -414,7 +414,7 @@ async def _(
 
 @function_ctl_disp.assign("clear")
 @admins()
-async def _(session: Session):
+async def function_ctl_clear(session: Session):
     if session.event.channel:
         ch_id = session.event.channel.id
         if ch_id in plugin_disables:

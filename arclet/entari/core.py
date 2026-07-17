@@ -230,6 +230,8 @@ class RecordConfig(BasicConfModel):
     """是否仅记录提及 Bot 自己的消息"""
     record_send: bool = False
     """是否记录发送的消息"""
+    short_message: bool = False
+    """是否在日志中使用简短的消息内容"""
 
 
 @RootlessPlugin.apply("record_message", default=True)
@@ -245,7 +247,7 @@ def record(plg: RootlessPlugin):
 
     # fmt: off
 
-    @plg.dispatch(MessageCreatedEvent).on(priority=0)
+    @le.on(MessageCreatedEvent, priority=0)
     async def log_msg(event: MessageCreatedEvent, is_notice_me: bool = False, is_reply_me: bool = False):
         if cfg.to_me_only and not is_notice_me and not is_reply_me:
             return
@@ -253,12 +255,15 @@ def record(plg: RootlessPlugin):
             scene = f"[{event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
         else:
             scene = f"[{event.guild.name or event.guild.id}" + (f"({event.guild.id})" if event.guild.name else "") + f" / {event.channel.name or event.channel.id}" + (f"({event.channel.id})]" if event.channel.name else "]")  # noqa: E501
-
-        log.message.info(f"{scene} {event.member.nick if event.member and event.member.nick else (event.user.name or event.user.id)}({event.user.id}) -> {event.message.content!r}")  # noqa: E501
+        if cfg.short_message:
+            content = event.content.display()
+        else:
+            content = event.message.content
+        log.message.info(f"{scene} {event.member.nick if event.member and event.member.nick else (event.user.name or event.user.id)}({event.user.id}) -> {content!r}")  # noqa: E501
 
     if cfg.record_send:
 
-        @plg.dispatch(SendResponse)
+        @le.on(SendResponse)
         async def log_send(event: SendResponse):
             if event.session:
                 ev = event.session.event

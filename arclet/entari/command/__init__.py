@@ -10,6 +10,7 @@ from arclet.alconna import Alconna, Arg, Args, Arparma, CommandMeta, command_man
 from arclet.alconna.tools.construct import AlconnaString, alconna_from_format
 from arclet.alconna.typing import TAValue
 from arclet.letoderea import EVENT, RESULT, Contexts, ExitState, Scope, Subscriber, make_event
+from arclet.letoderea import on as listen
 from arclet.letoderea.provider import TProviders, get_providers
 from arclet.letoderea.utils import Result
 from nepattern import DirectPattern
@@ -252,7 +253,7 @@ class CommandsConfig(BasicConfModel):
 
 
 @RootlessPlugin.apply("commands", default=True)
-def _(plg: RootlessPlugin):
+def command_plugin(_):
     metadata(
         "Commands Plugin",
         PluginRole.LIBRARY,
@@ -268,17 +269,17 @@ def _(plg: RootlessPlugin):
     _commands.judge.use_config_prefix = conf.use_config_prefix
     _commands.judge.ignore_prefix_checker = _commands.judge._checker(conf.ignore_prefix_filter)
 
-    plg.dispatch(MessageCreatedEvent).handle(_commands.execute).propagate(_commands.judge)
+    listen(MessageCreatedEvent, _commands.execute, propagators=[_commands.judge])
 
     async def _inspect(result: Arparma[MessageChain]):
         logger.debug(f"{result.origin.display()!r} parsed result: {result}")
 
     if log.levelno <= DEBUG_NO:
-        sub = plg.dispatch(CommandParse).handle(_inspect)
+        sub = listen(CommandParse, _inspect)
     else:
         sub = None
 
-    @plg.dispatch(ConfigReload).handle
+    @listen(ConfigReload)
     def update(event: ConfigReload):
         nonlocal sub
         if event.scope == "basic":
@@ -287,7 +288,7 @@ def _(plg: RootlessPlugin):
             if sub is not None:
                 sub.dispose()
             if log.levelno <= DEBUG_NO:
-                sub = plg.dispatch(CommandParse).handle(_inspect)
+                sub = listen(CommandParse, _inspect)
             else:
                 sub = None
             return

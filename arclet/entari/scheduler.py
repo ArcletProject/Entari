@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Literal
 
-from arclet.letoderea import Scope, Subscriber, make_event
+from arclet.letoderea import Scope, Subscriber, make_event, on
 from arclet.letoderea.context import Contexts
 from arclet.letoderea.core import ExceptionEvent, publish_exc_event
 from launart import Launart, Service, any_completed
@@ -149,7 +149,7 @@ def _(plg: RootlessPlugin):
     conf = plugin_config(_SchedulerConf)
     service.debug = conf.debug
 
-    @plg.dispatch(ConfigReload).handle
+    @on(ConfigReload)
     def update(event: ConfigReload):
         if event.scope == "basic":
             return

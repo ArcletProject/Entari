@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex
 
 from satori import select as satori_select
-from satori.element import At, Custom, Element, Emoji, Link, Quote, Raw, Sharp, Style, Text, transform
+from satori.element import At, Custom, Element, Emoji, Link, Quote, Raw, Resource, Sharp, Style, Text, transform
 from satori.model import MessageObject
 from satori.parser import parse
 
@@ -627,14 +627,17 @@ class MessageChain(list[TE]):
         return self.__class__(copy)
 
     def display(self):
-        return "".join(
-            (
-                str(elem)
-                if isinstance(elem, (Text, Style, At, Sharp, Link, Quote, Emoji, Raw, Custom))
-                else f"<{elem.__class__.__name__.lower()}/>"
-            )  # noqa: UP038
-            for elem in self
-        )
+        texts = []
+        for elem in self:
+            if isinstance(elem, (Text, Style, At, Sharp, Link, Quote, Emoji, Raw)):
+                texts.append(str(elem))
+            elif isinstance(elem, Custom) and not elem.attributes():
+                texts.append(str(elem))
+            elif isinstance(elem, Resource) and not elem.src.startswith("data:"):
+                texts.append(str(elem))
+            else:
+                texts.append(f"<{elem.__class__.__name__.lower()}/>")
+        return "".join(texts)
 
     @staticmethod
     def of(text: str) -> MessageChain:

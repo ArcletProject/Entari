@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing_extensions import ParamSpec
 
+from arclet.letoderea import on
 from launart import Launart
 from launart.service import Phase, Service
 from nonestorage import user_cache_dir, user_data_dir
@@ -124,7 +125,7 @@ def localdata_apply(plg: RootlessPlugin):
     local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
     local_data.base_dir = conf.base_dir
 
-    @plg.dispatch(ConfigReload)
+    @on(ConfigReload)
     def reload_config(event: ConfigReload):
         if event.scope != "plugin":
             return
