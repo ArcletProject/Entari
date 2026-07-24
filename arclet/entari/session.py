@@ -1,6 +1,9 @@
 import asyncio
+import inspect
 import secrets
 from collections.abc import Awaitable, Callable, Iterable
+from functools import wraps
+from types import MethodType
 from typing import Any, Generic, NoReturn, cast, overload
 from typing_extensions import TypeVar
 
@@ -26,6 +29,7 @@ from satori.model import (
 
 from . import command
 from .config import EntariConfig
+from .event.api import APIRequest, APIResponse, SendRequest, SendResponse
 from .event.base import (
     FriendRequestEvent,
     GuildMemberRequestEvent,
@@ -35,7 +39,6 @@ from .event.base import (
     Reply,
     SatoriEvent,
 )
-from .event.send import SendRequest, SendResponse
 from .message import MessageChain, Render
 
 TEvent = TypeVar("TEvent", bound=SatoriEvent, default=SatoriEvent)
@@ -55,14 +58,51 @@ async def component_transform(session: "Session", content: MessageChain):
     return await content.transform_async(rule, session)
 
 
+STATIC_METHODS = frozenset(
+    {
+        "__init__",
+        "call_api",
+        "request_internal",
+        "send",
+        "send_message",
+        "send_private_message",
+        "update_message",
+        "message_create",
+    }
+)
+
+
 class EntariProtocol(ApiProtocol):
     # fmt: off
+
+    def __init__(self, account: Account["EntariProtocol"]):
+        super().__init__(account)
+        funcs = inspect.getmembers(self, predicate=lambda x: isinstance(x, MethodType))
+        for name, func in funcs:
+            if name in STATIC_METHODS:
+                continue
+
+            @wraps(func)
+            async def wrapper(*args, _func=func, _sig=inspect.signature(func), **kwargs):
+                bounds = _sig.bind(*args, **kwargs)
+                bounds.apply_defaults()
+                try:
+                    if result := await es.post(APIRequest(self.account, _func.__name__, bounds.arguments)):
+                        ans = result.value
+                    else:
+                        ans = await _func(**bounds.arguments)
+                    success = True
+                except Exception as e:
+                    ans = e
+                    success = False
+                await es.publish(APIResponse(self.account, _func.__name__, bounds.arguments, success, ans))
+                return ans
+            setattr(self, name, wrapper)
 
     async def send_message(self, channel: str | Channel, message: str | Iterable[str | Element], at_sender: At | None = None, reply_to: Quote | None = None, referrer: dict[str, Any] | None = None) -> list[MessageObject]:  # noqa: E501
         """发送消息。返回一个 `MessageReceipt` 对象构成的数组。
 
-        Args:
-            channel (str | Channel): 要发送的频道 ID
+        Args:            channel (str | Channel): 要发送的频道 ID
             message (str | Iterable[str | Element]): 要发送的消息
             at_sender (At | None): 是否 @ 发送者，默认为 None
             reply_to (Quote | None): 是否作为回复发送，默认为 None
