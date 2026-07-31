@@ -1,18 +1,16 @@
-import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
-from datetime import datetime
 from typing import Final, TypeAlias
 from typing_extensions import ParamSpec
 
-from arclet.letoderea import STOP, Propagator, enter_if, propagate
-from arclet.letoderea.utils import TCallable
+from arclet.letoderea import enter_if
 from tarina import is_coroutinefunction
 
-from ..config import EntariConfig
-from ..message import MessageChain
 from ..session import Session
 from . import common
+from .limit import interval as interval, semaphore as semaphore
+from .permission import admins as admins, superusers as superusers
+from .message import startswith as startswith, endswith as endswith
 
 _SessionFilter: TypeAlias = Callable[[Session], bool] | Callable[[Session], Awaitable[bool]]
 
@@ -62,117 +60,3 @@ class _Filter:
 
 filter_: Final[_Filter] = _Filter()
 F = filter_
-
-
-class interval(Propagator):
-    def __init__(self, value: float, limit_prompt: str | MessageChain | None = None, priority: int = 80):
-        self.success = True
-        self.value = value
-        self.priority = priority
-        self.limit_prompt = limit_prompt
-        self.last_times: dict[str, datetime] = {}
-
-    async def before(self, session: Session | None = None):
-        session_id = (
-            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
-        )
-        last_time = self.last_times.get(session_id, None)
-        if not last_time:
-            return
-        self.success = (datetime.now() - last_time).total_seconds() > self.value
-        if not self.success:
-            if session and self.limit_prompt:
-                await session.send(self.limit_prompt)
-            return STOP
-
-    async def after(self, session: Session | None = None):
-        session_id = (
-            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
-        )
-        self.last_times[session_id] = datetime.now()
-
-    def compose(self):
-        yield self.before, True, self.priority
-        yield self.after, False, self.priority
-
-    def __call__(self, func: TCallable) -> TCallable:
-        return propagate(self)(func)
-
-
-class semaphore(Propagator):
-    def __init__(self, count: int, limit_prompt: str | MessageChain | None = None, priority: int = 80):
-        self.count = count
-        self.limit_prompt = limit_prompt
-        self.priority = priority
-        self.semaphores: dict[str, asyncio.Semaphore] = {}
-
-    async def before(self, session: Session | None = None):
-        session_id = (
-            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
-        )
-        if session_id not in self.semaphores:
-            self.semaphores[session_id] = asyncio.Semaphore(self.count)
-        if not await self.semaphores[session_id].acquire():
-            if session and self.limit_prompt:
-                await session.send(self.limit_prompt)
-            return STOP
-
-    async def after(self, session: Session | None = None):
-        session_id = (
-            "$global" if not session else f"{session.account.platform}/{session.account.self_id}/{session.channel.id}"
-        )
-        if session_id not in self.semaphores:
-            self.semaphores[session_id] = asyncio.Semaphore(self.count)
-        self.semaphores[session_id].release()
-
-    def compose(self):
-        yield self.before, True, self.priority
-        yield self.after, False, self.priority
-
-    def __call__(self, func: TCallable) -> TCallable:
-        return propagate(self)(func)
-
-
-class superusers(Propagator):
-
-    async def check(self, session: Session | None = None):
-        if not session:
-            return STOP
-        config = EntariConfig.instance.basic.superusers
-        if session.account.platform not in config:
-            return STOP
-        if not session.event.user:
-            return STOP
-        if session.event.user.id not in config[session.account.platform]:
-            return STOP
-
-    def compose(self):
-        yield self.check, True, 50
-
-    def __call__(self, func: TCallable) -> TCallable:
-        return propagate(self)(func)
-
-
-class admins(Propagator):
-
-    async def check(self, session: Session | None = None):
-        if not session:
-            return STOP
-        if session.event.member and session.event.member.roles:
-            for role in session.event.member.roles:
-                if any(keyword in role.id.lower() for keyword in ("admin", "administrator", "owner")):
-                    return
-        config = EntariConfig.instance.basic.superusers
-        if (
-            session.account.platform in config
-            and session.event.user
-            and session.event.user.id in config[session.account.platform]
-        ):
-            return
-        return STOP
-
-    def compose(self):
-        yield self.check, True, 50
-
-    def __call__(self, func: TCallable) -> TCallable:
-        return propagate(self)(func)
