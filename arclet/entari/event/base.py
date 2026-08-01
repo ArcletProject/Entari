@@ -384,6 +384,10 @@ class InteractionButtonEvent(InteractionEvent):
 
     button: ButtonInteraction = attr()
 
+    async def gather(self, context: Contexts):
+        await super().gather(context)
+        context["$button"] = self.button
+
     class ButtonProvider(Provider[ButtonInteraction]):
         async def __call__(self, context: Contexts):
             return context.get("$button")
@@ -395,6 +399,10 @@ class InteractionCommandEvent(InteractionEvent):
 
 class InteractionCommandArgvEvent(InteractionCommandEvent):
     argv: ArgvInteraction = attr()
+
+    async def gather(self, context: Contexts):
+        await super().gather(context)
+        context["$argv"] = self.argv
 
     class ArgvProvider(Provider[ArgvInteraction]):
         async def __call__(self, context: Contexts):
