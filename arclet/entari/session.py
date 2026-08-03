@@ -163,7 +163,7 @@ class EntariProtocol(ApiProtocol):
             msg = await component_transform(sess, msg)
             referrer = {k: v for k, v in referrer.items() if k != "source"}
             sess.elements = msg
-        btns = select(msg, Button)
+        btns = select(msg.content, Button)
         for btn in btns:
             if btn.type != "link" and not btn.id:
                 btn.id = secrets.token_urlsafe(16)
