@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from arclet.letoderea import STOP, Propagator, propagate, Contexts, provide
+from arclet.letoderea import STOP, Contexts, Propagator, deref, propagate, provide
 from arclet.letoderea.utils import TCallable
 from nepattern import ANY, BasePattern, MatchMode, parser
 from satori import Text
@@ -137,4 +137,80 @@ class endswith(Propagator):
         return propagate(self)(func)
 
 
-__all__ = ["startswith", "endswith"]
+class fullmatch(Propagator):
+    def __init__(
+        self, pattern: str | tuple[str, ...], ignorecase: bool = False, bind: str = "fullmatch", priority: int = 80
+    ):
+        """
+        完全匹配
+
+        Args:
+            pattern: 指定消息全匹配字符串元组
+            ignorecase: 是否忽略大小写, 默认为 False
+            bind: 指定注入返回值的参数名称，默认为 "fullmatch"
+            priority: 优先级
+        """
+        if isinstance(pattern, str):
+            pattern = (pattern,)
+        self.pattern = tuple(map(str.casefold, pattern)) if ignorecase else pattern
+        self.ignorecase = ignorecase
+        self.priority = priority
+        self.bind = bind
+
+    def providers(self):
+        if self.bind:
+            return [provide(str, self.bind, call=f"$fullmatch_{self.bind}", priority=4)]
+        return []
+
+    async def before(self, ctx: Contexts, message: MessageChain):
+        text = message.extract_plain_text()
+        if not text:
+            return STOP
+        text = text.casefold() if self.ignorecase else text
+        if text in self.pattern:
+            return {f"$fullmatch_{self.bind}": text}
+        return STOP
+
+    def compose(self):
+        yield self.before, True, self.priority
+
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)
+
+
+class regexmatch(Propagator):
+    def __init__(self, pattern: str, flags: int | re.RegexFlag = 0, priority: int = 80):
+        """
+        正则匹配，注意正则表达式匹配使用 search 而非 match，如需从头匹配请使用 `r"^xxx"` 来确保匹配开头
+
+        Args:
+            pattern: 需要匹配的正则表达式
+            flags: 正则匹配标志, 默认为 0
+            priority: 优先级
+        """
+        self.pattern = re.compile(pattern, flags)
+        self.priority = priority
+
+    def providers(self):
+        return [provide(re.Match, call="$regexmatch", priority=4)]
+
+    async def before(self, ctx: Contexts, message: MessageChain):
+        text = message.extract_plain_text()
+        if not text:
+            return STOP
+        if matched := self.pattern.search(text):
+            return {"$regexmatch": matched}
+        return STOP
+
+    def compose(self):
+        yield self.before, True, self.priority
+
+    def __call__(self, func: TCallable) -> TCallable:
+        return propagate(self)(func)
+
+
+def regex_origin():
+    return deref(re.Match)
+
+
+__all__ = ["startswith", "endswith", "fullmatch", "regexmatch", "regex_origin"]

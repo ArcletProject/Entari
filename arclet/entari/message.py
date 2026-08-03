@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterable, Sequence, MutableSequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, MutableSequence, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload, Iterator
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
 from typing_extensions import Self, SupportsIndex
 
 from satori import select as satori_select

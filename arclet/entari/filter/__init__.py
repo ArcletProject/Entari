@@ -8,9 +8,12 @@ from tarina import is_coroutinefunction
 
 from ..session import Session
 from . import common
-from .limit import interval as interval, semaphore as semaphore
-from .permission import admins as admins, superusers as superusers
-from .message import startswith as startswith, endswith as endswith
+from .limit import interval as interval
+from .limit import semaphore as semaphore
+from .message import endswith as endswith
+from .message import startswith as startswith
+from .permission import admins as admins
+from .permission import superusers as superusers
 
 _SessionFilter: TypeAlias = Callable[[Session], bool] | Callable[[Session], Awaitable[bool]]
 

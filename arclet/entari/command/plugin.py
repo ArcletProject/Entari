@@ -56,7 +56,7 @@ class _ExecuteDispatcher(PluginDispatcher[str | MessageChain]):
 class AlconnaPluginDispatcher(PluginDispatcher[T]):
     def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
-        self.cache: "LRU[str, asyncio.Future]" = LRU(10)
+        self.cache: "LRU[str, asyncio.Future]" = LRU(10)  # noqa: UP037
         self.supplier = AlconnaSuppiler(command, self.cache, block, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         plugin.collect(
