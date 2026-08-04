@@ -5,7 +5,6 @@ import sys
 import tokenize
 from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
-from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
 from importlib.metadata import Distribution, PackageNotFoundError, distribution, distributions
 from importlib.util import module_from_spec, resolve_name
@@ -204,9 +203,8 @@ class PluginLoader(SourceFileLoader):
 
         """
         source_path = self.get_filename(fullname)
-        source_bytes = None
-        if source_bytes is None:
-            source_bytes = self.get_data(source_path)
+        # --- SourceFileLoader's cache handler removed ---
+        source_bytes = self.get_data(source_path)
         code_object = self.source_to_code(source_bytes, source_path)
         return code_object
 
@@ -252,11 +250,7 @@ class PluginLoader(SourceFileLoader):
         if self.name in plugin_service._subplugined:
             self.loaded = True
             return plugin_service.plugins[plugin_service._subplugined[self.name]].subproxy(self.name)
-        if (
-            any((k.startswith(self.name) and k.rfind("@") != -1) for k in plugin_service.plugins)
-            and self.plugin_id.rfind("@") == -1
-        ):
-            raise ReusablePluginError(f"reusable plugin {self.name!r} cannot be imported directly")
+        _check_reusable(self.name, self.plugin_id)
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
@@ -405,20 +399,39 @@ def _path_find_spec(fullname, path=None, target=None) -> ModuleSpec | None:
         return spec
 
 
-class _PluginFinder(MetaPathFinder):
+def _as_plugin(module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str) -> ModuleSpec:
+    module_spec.loader = PluginLoader(fullname, module_origin, plugin_id)
+    return module_spec
+
+
+def _as_submodule(
+    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, parent: str
+) -> ModuleSpec:
+    module_spec.loader = PluginLoader(fullname, module_origin, plugin_id, parent)
+    return module_spec
+
+
+def _check_reusable(name: str, plugin_id: str) -> None:
+    if any(k.startswith(name) and k.rfind("@") != -1 for k in plugin_service.plugins) and plugin_id.rfind("@") == -1:
+        raise ReusablePluginError(f"reusable plugin {name!r} cannot be imported directly")
+
+
+class _PluginFinder(PathFinder):
     @classmethod
     def find_spec(
         cls,
         fullname: str,
-        path: Sequence[str] | None,
+        path: Sequence[str] | None = None,
         target: ModuleType | None = None,
         origin_id_: str | None = None,
-    ):
+        force: bool = False,
+    ) -> ModuleSpec | None:
         # get the module spec using the default path-finder
         module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
             return
         module_origin = module_spec.origin
+        plugin_id = origin_id_ or fullname
         # if the module has no origin, it might be a namespace package or a built-in module.
         # We only care about namespace packages here, as built-in modules should not be treated as plugins.
         # For namespace packages, we can still return the spec without modification,
@@ -435,28 +448,25 @@ class _PluginFinder(MetaPathFinder):
         if plug := current_plugin.get(None):
             # if the module being imported is the same as the plugin's module,
             # return the plugin's module spec directly to avoid infinite recursion.
-            if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
+            if plug.module.__spec__ and plug.module.__spec__.origin == module_origin:
                 return plug.module.__spec__
             # get the top-level plugin id (the parent) of the current plugin
-            plugin_id = plug.id
-            while plugin_id in plugin_service._subplugined:
-                plugin_id = plugin_service._subplugined[plugin_id]
+            parent_id = plug.id
+            while parent_id in plugin_service._subplugined:
+                parent_id = plugin_service._subplugined[parent_id]
             # if the module being imported is a submodule of the top-level plugin,
-            if module_spec.name.startswith(plugin_service.plugins[plugin_id].module.__name__ + "."):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
-                return module_spec
-            # if the module being imported is in the waitlist of the top-level plugin,
+            # or if the module being imported is in the waitlist of the top-level plugin,
             # it means it is marked as a submodule by the plugin author.
-            if module_spec.name in _SUBMODULE_WAITLIST.get(plugin_id, ()):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
-                # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
-                # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
-                return module_spec
+            if module_spec.name.startswith(
+                plugin_service.plugins[parent_id].module.__name__ + "."
+            ) or module_spec.name in _SUBMODULE_WAITLIST.get(  # noqa: E501
+                parent_id, ()
+            ):
+                return _as_submodule(module_spec, fullname, module_origin, plugin_id, parent_id)
         # in the following cases, the module is imported directly (probably from Entari App)
         # 1. the module is already a plugin.
         if module_spec.name in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
-            return module_spec
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id)
         # 2. the module is marked as a plugin by the plugin author, or followed the naming convention for plugins.
         marked = (
             module_spec.name in _ENSURE_IS_PLUGIN
@@ -487,7 +497,7 @@ class _PluginFinder(MetaPathFinder):
                 except (KeyError, ValueError):
                     pass
         if marked:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
+            _as_plugin(module_spec, fullname, module_origin, plugin_id)
             # if there already exists a plugin that is importing this module,
             # we should add the plugin as a referent of this module
             if plug:
@@ -495,33 +505,23 @@ class _PluginFinder(MetaPathFinder):
             return module_spec
         # 3. the module is marked as a submodule by other plugin, or it is a submodule of a plugin.
         if module_spec.name in plugin_service._subplugined:
-            module_spec.loader = PluginLoader(
-                fullname, module_origin, origin_id_ or fullname, plugin_service._subplugined[module_spec.name]
+            return _as_submodule(  # noqa: E501
+                module_spec, fullname, module_origin, plugin_id, plugin_service._subplugined[module_spec.name]
             )
-            return module_spec
         # 4. if the module is already a plugin, but it is assigned an unique id (usage of reusable plugin),
         # it cannot be imported directly, otherwise it will break the uniqueness of the plugin instance.
-        if (
-            any(k.startswith(module_spec.name) and k.rfind("@") != -1 for k in plugin_service.plugins)
-            and (origin_id_ or fullname).rfind("@") == -1
-        ):
-            raise ReusablePluginError(f"reusable plugin {module_spec.name!r} cannot be imported directly")
+        _check_reusable(module_spec.name, plugin_id)
         # 5. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
         # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, module_spec.parent)
-            return module_spec
-        # 6. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
-        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
-        if module_spec.name.rpartition(".")[0] in plugin_service.plugins:
-            module_spec.loader = PluginLoader(
-                fullname, module_origin, origin_id_ or fullname, module_spec.name.rpartition(".")[0]
-            )
-            return module_spec
+            return _as_submodule(module_spec, fullname, module_origin, plugin_id, module_spec.parent)
+        # 6. force-wrap as a plugin when explicitly requested by import_plugin.
+        if force:
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id)
         return
 
 
-def find_spec(id_, package=None) -> ModuleSpec | None:
+def import_plugin(id_, package=None, config: dict | None = None):
     uid_index = id_.rfind("@")
     name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
@@ -542,20 +542,13 @@ def find_spec(id_, package=None) -> ModuleSpec | None:
             if _current in plugin_service.plugins:
                 parent = plugin_service.plugins[_current].module
                 enter_plugin = True
-                _current += "."
-                continue
-            if _current in _ENSURE_IS_PLUGIN:
-                parent = import_plugin(_current)
-                if parent:
+            elif _current in _ENSURE_IS_PLUGIN or enter_plugin:
+                if parent := import_plugin(_current):
                     enter_plugin = True
                 else:
                     parent = __import__(_current, fromlist=["__path__"])
-                _current += "."
-                continue
-            if enter_plugin and (parent := import_plugin(_current)):
-                pass
+                    enter_plugin = False
             else:
-                enter_plugin = False
                 parent = __import__(_current, fromlist=["__path__"])
             _current += "."
         if parent is None:
@@ -566,46 +559,29 @@ def find_spec(id_, package=None) -> ModuleSpec | None:
         parent_path = parent.__path__
     else:
         parent_path = None
-    if isinstance(parent_path, _bootstrap_external._NamespacePath):  # type: ignore
-        parent_path = _NamespacePath(parent_path._name, parent_path._path, PathFinder._get_spec)  # type: ignore
-    if spec := _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_):
-        return spec
-    module_spec = _path_find_spec(fullname, parent_path, None)
-    if not module_spec:
+    spec = _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_, force=True)
+    if not spec:
         return
-    module_origin = module_spec.origin
-    if not module_origin:
-        return
-    if isinstance(module_spec.loader, ExtensionFileLoader):
-        return
-    module_spec.loader = PluginLoader(fullname, module_origin, id_)
-    return module_spec
-
-
-def import_plugin(id_, package=None, config: dict | None = None):
-    spec = find_spec(id_, package)
-    if spec:
-        mod = module_from_spec(spec)
-        if spec.loader:
-            if isinstance(spec.loader, PluginLoader):
-                spec.loader.exec_module(mod, config=config)
-                protected_modules = set()
-                module_name = mod.__name__
-                if module_name:
-                    prefix = []
-                    for part in module_name.split("."):
-                        prefix.append(part)
-                        protected_modules.add(".".join(prefix))
-                sys.modules.pop(module_name, None)
-                for _imported in _IMPORTING:
-                    if _imported in protected_modules or _imported in plugin_service.plugins:
-                        continue
-                    sys.modules.pop(_imported, None)
-                _IMPORTING.clear()
-            else:
-                spec.loader.exec_module(mod)
-        return mod
-    return
+    mod = module_from_spec(spec)
+    if spec.loader:
+        if isinstance(spec.loader, PluginLoader):
+            spec.loader.exec_module(mod, config=config)
+            protected_modules = set()
+            module_name = mod.__name__
+            if module_name:
+                prefix = []
+                for part in module_name.split("."):
+                    prefix.append(part)
+                    protected_modules.add(".".join(prefix))
+            sys.modules.pop(module_name, None)
+            for _imported in _IMPORTING:
+                if _imported in protected_modules or _imported in plugin_service.plugins:
+                    continue
+                sys.modules.pop(_imported, None)
+            _IMPORTING.clear()
+        else:
+            spec.loader.exec_module(mod)
+    return mod
 
 
 sys.meta_path.insert(0, _PluginFinder())
