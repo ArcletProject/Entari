@@ -111,7 +111,20 @@ def attr(*args, internal: bool = False) -> Any:
     return Attr(key, cls, internal)
 
 
-SATORI_NAMES = {"login", "argv", "button", "channel", "guild", "member", "message", "operator", "role", "user", "referrer", "emoji"}
+SATORI_NAMES = {
+    "login",
+    "argv",
+    "button",
+    "channel",
+    "guild",
+    "member",
+    "message",
+    "operator",
+    "role",
+    "user",
+    "referrer",
+    "emoji",
+}
 
 
 class SatoriEvent:
