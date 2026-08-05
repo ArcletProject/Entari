@@ -24,7 +24,6 @@ from tarina import gen_subclass
 
 from ..const import (
     ITEM_ACCOUNT,
-    ITEM_GUILD,
     ITEM_MESSAGE_CONTENT,
     ITEM_MESSAGE_ORIGIN,
     ITEM_MESSAGE_REPLY,
@@ -74,8 +73,6 @@ class Attr:
 
     def __set_name__(self, owner: type["SatoriEvent"], name: str):
         self.key = self.key or name
-        if name not in ("id", "timestamp"):
-            owner._attrs.add(name)
 
     def __get__(self, instance: "SatoriEvent", owner: type["SatoriEvent"]):
         if self.internal and instance._origin._data:
@@ -114,9 +111,11 @@ def attr(*args, internal: bool = False) -> Any:
     return Attr(key, cls, internal)
 
 
+SATORI_NAMES = {"login", "argv", "button", "channel", "guild", "member", "message", "operator", "role", "user", "referrer", "emoji"}
+
+
 class SatoriEvent:
     type: ClassVar[str]
-    _attrs: ClassVar[set[str]] = set()
     _origin: OriginEvent
     account: Account
 
@@ -135,9 +134,6 @@ class SatoriEvent:
     referrer: dict | None = attr()
     emoji: EmojiObject | None = attr()
 
-    def __init_subclass__(cls, **kwargs):
-        cls._attrs = set()
-
     def __init__(self, account: Account, origin: OriginEvent):
         self.account = account
         self._origin = origin
@@ -146,7 +142,7 @@ class SatoriEvent:
         context[ITEM_ACCOUNT] = self.account
         context[ITEM_ORIGIN_EVENT] = self._origin
 
-        for name in self.__class__._attrs:
+        for name in SATORI_NAMES:
             value = getattr(self, name)
             if value is not None:
                 context[ITEM_MESSAGE_ORIGIN if name == "message" else f"${name}"] = value
@@ -187,10 +183,6 @@ class FriendRequestEvent(FriendEvent):
 
 class GuildEvent(NoticeEvent):
     guild: Guild = attr()
-
-    async def gather(self, context: Contexts):
-        await super().gather(context)
-        context[ITEM_GUILD] = self.guild
 
 
 class GuildAddedEvent(GuildEvent):
