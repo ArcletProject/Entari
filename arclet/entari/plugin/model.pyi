@@ -1,4 +1,6 @@
+import ast
 import asyncio
+
 from enum import Enum
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -196,6 +198,11 @@ class PluginMetadata:
 def inject(*services: type[Service] | str | DependService) -> Callable[[TCallable], TCallable]: ...
 @overload
 def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> Check: ...
+@dataclass(slots=True)
+class PluginInspect:
+    nodes: ast.AST
+    dump: str
+
 @dataclass
 class Plugin:
     id: str
@@ -206,6 +213,7 @@ class Plugin:
     is_static: bool = ...
     path: str = ...
     uid: str | None = ...
+    _inspect: PluginInspect | None = ...
     _metadata: PluginMetadata | None = ...
     _is_disposed: bool = ...
     _services: dict[str, Service] = field(init=False, default_factory=dict)

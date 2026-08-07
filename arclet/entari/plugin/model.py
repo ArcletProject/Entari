@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import inspect
 import re
@@ -216,6 +217,12 @@ def inject(*services: type[Service] | str | dict, _is_global: bool = False):
     return wrapper
 
 
+@dataclass(slots=True)
+class PluginInspect:
+    nodes: ast.AST
+    dump: str
+
+
 @dataclass
 class Plugin:
     id: str
@@ -226,13 +233,13 @@ class Plugin:
     is_static: bool = False
     path: str = field(init=False)
     uid: str | None = None
+    _inspect: PluginInspect | None = field(default=None, repr=False)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
     _config_key: str = field(init=False)
-    # _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
-    _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
+    _apply: Callable[[Plugin], Any] | None = field(default=None, init=False, repr=False)
 
     @property
     def reusable(self) -> bool:
@@ -519,6 +526,7 @@ class Plugin:
         self._scope.propagators.clear()
         del plugin_service.plugins[self.id]
         del self.module
+        del self._inspect
         return tasks
 
     def dispatch(self, event, name: str | None = None):

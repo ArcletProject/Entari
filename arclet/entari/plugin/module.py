@@ -9,6 +9,7 @@ from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, Sou
 from importlib.metadata import Distribution, PackageNotFoundError, distribution, distributions
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
+from os import PathLike
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -21,7 +22,7 @@ from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
-from .model import Plugin, PluginMetadata, current_plugin
+from .model import Plugin, PluginInspect, PluginMetadata, current_plugin
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -76,10 +77,10 @@ def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix="")
 
 # fmt: off
 class _Visitor(ast.NodeVisitor):
-    def __init__(self, pid: str, pname: str, path: str, plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
+    def __init__(self, pid: str, pname: str, path: bytes | str | PathLike[str], plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
         self.pid = pid
         self.pname = pname
-        self.path = path
+        self.path = path.decode() if isinstance(path, bytes) else f"{Path(path)}"
         self.signed_plugin_lineno = plg_lineno
         self.signed_subplugin_lineno = sub_lineno
         self.signed_namespace_lineno = ns_lineno
@@ -193,6 +194,7 @@ class PluginLoader(SourceFileLoader):
         self.loaded = False
         self.plugin_id = plugin_id
         self.parent_plugin_id = parent_plugin_id
+        self._inspect: PluginInspect = None  # type: ignore
         super().__init__(fullname, path)
 
     def get_code(self, fullname):
@@ -208,7 +210,7 @@ class PluginLoader(SourceFileLoader):
         code_object = self.source_to_code(source_bytes, source_path)
         return code_object
 
-    def source_to_code(self, data, path="<string>"):
+    def source_to_code(self, data, path="<string>", *, _optimize: int = -1):
         """Return the code object compiled from source.
 
         The 'data' argument can be any object type that compile() supports.
@@ -234,13 +236,13 @@ class PluginLoader(SourceFileLoader):
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:
             return _bootstrap._call_with_frames_removed(  # type: ignore
-                compile, data, path, "exec", dont_inherit=True, optimize=-1
+                compile, data, path, "exec", dont_inherit=True, optimize=_optimize
             )
         visitor = _Visitor(self.plugin_id, name, path, plg_lineno, sub_lineno, ns_lineno)
         visitor.visit(nodes)
-
+        self._inspect = PluginInspect(nodes, ast.dump(nodes, include_attributes=False))
         return _bootstrap._call_with_frames_removed(  # type: ignore
-            compile, nodes, path, "exec", dont_inherit=True, optimize=-1
+            compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize
         )
 
     def create_module(self, spec) -> ModuleType | None:
@@ -299,7 +301,10 @@ class PluginLoader(SourceFileLoader):
         if not plugin.is_static:
             token1 = scope_ctx.set(plugin._scope)
         try:
-            super().exec_module(module)
+            code = self.get_code(module.__name__)
+            if code is None:
+                raise ImportError(f"cannot load module {module.__name__r} when get_code() returns None")
+            _bootstrap._call_with_frames_removed(exec, code, module.__dict__)  # type: ignore
         except RegisterNotInPluginError as e:
             deleted = []
             for frame in reversed(inspect.trace()):
@@ -316,7 +321,10 @@ class PluginLoader(SourceFileLoader):
                 _ensure_plugin(deleted[-1:], False, self.plugin_id, self.name)
                 _ENSURE_IS_PLUGIN.update(deleted[:-1])
             try:
-                super().exec_module(module)
+                code = self.get_code(module.__name__)
+                if code is None:
+                    raise ImportError(f"cannot load module {module.__name__r} when get_code() returns None")
+                _bootstrap._call_with_frames_removed(exec, code, module.__dict__)  # type: ignore
             except Exception as e1:
                 if isinstance(e1, RegisterNotInPluginError):
                     log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e1.msg}")
@@ -350,6 +358,8 @@ class PluginLoader(SourceFileLoader):
         if metadata and not plugin.metadata:
             plugin.metadata = metadata
         plugin._apply = getattr(module, "__plugin_apply__", None)
+        plugin._inspect = self._inspect
+        del self._inspect
         if not is_sub:
             if plugin._apply:
                 log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")

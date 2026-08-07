@@ -1,6 +1,8 @@
+import ast
 import asyncio
 from dataclasses import asdict
 from pathlib import Path
+from traceback import format_exception_only
 
 from arclet.letoderea import post, publish
 from launart import Launart, Service, any_completed
@@ -17,6 +19,7 @@ from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
+from arclet.entari.utils import escape_tag
 
 # declare_static()
 loguru_logger.disable("watchfiles.main")
@@ -92,6 +95,22 @@ class Watcher(Service):
                     if plugin.is_static:
                         logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
+
+                    if (
+                        plugin._inspect
+                        and plugin.module.__file__
+                        and (path := Path(change[1]).resolve()) == Path(plugin.module.__file__).resolve()
+                    ):
+                        try:
+                            nodes = ast.parse(path.read_bytes(), filename=path, type_comments=True)
+                        except (OSError, SyntaxError) as e:
+                            trace = escape_tag("".join(format_exception_only(e)))
+                            logger.error(f"Change in <y>{plugin.id!r}</y> occurred exception, skipped:\n{trace}")
+                            continue
+                        else:
+                            if ast.dump(nodes, include_attributes=False) == plugin._inspect.dump:
+                                logger.debug(f"Change in <y>{plugin.id!r}</y> has no semantic difference, skipped.")
+                                continue
                     logger.info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
                     pid = plugin.id
                     _conf = plugin.config.copy()
