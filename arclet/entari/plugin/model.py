@@ -470,8 +470,6 @@ class Plugin:
         t.add_done_callback(tasks.discard)
         tasks.add(t)
         self._services.clear()
-        if self.module.__spec__ and self.module.__spec__.cached:
-            Path(self.module.__spec__.cached).unlink(missing_ok=True)
         sys.modules.pop(self.module.__name__, None)
         tasks.update(self.restore())
         delattr(self.module, "__plugin__")

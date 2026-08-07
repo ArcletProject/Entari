@@ -18,7 +18,7 @@ from arclet.entari import add_service, load_plugin, metadata, plugin_config
 from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
-from arclet.entari.plugin import PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
+from arclet.entari.plugin import Plugin, PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
 from arclet.entari.utils import escape_tag
 
 # declare_static()
@@ -84,52 +84,72 @@ class Watcher(Service):
     def __init__(self, config: Config):
         self.config = config
         self.fail: dict[str, tuple[str, dict]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         super().__init__()
+
+    def _lock_for(self, plugin_id: str) -> asyncio.Lock:
+        if plugin_id not in self._locks:
+            self._locks[plugin_id] = asyncio.Lock()
+        return self._locks[plugin_id]
 
     async def watch(self):
         async for event in awatch(
             *self.config.watch_dirs, debounce=self.config.debounce, step=self.config.step, watch_filter=PythonFilter()
         ):
+            pending: dict[str, tuple[str, Plugin]] = {}
+            failed: list[str] = []
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
                     if plugin.is_static:
                         logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
-
-                    if (
-                        plugin._inspect
-                        and plugin.module.__file__
-                        and (path := Path(change[1]).resolve()) == Path(plugin.module.__file__).resolve()
-                    ):
-                        try:
-                            nodes = ast.parse(path.read_bytes(), filename=path, type_comments=True)
-                        except (OSError, SyntaxError) as e:
-                            trace = escape_tag("".join(format_exception_only(e)))
-                            logger.error(f"Change in <y>{plugin.id!r}</y> occurred exception, skipped:\n{trace}")
+                    pending.setdefault(plugin.id, (change[1], plugin))
+                elif change[1] in self.fail:
+                    failed.append(change[1])
+            for pid, (file_path, plugin) in pending.items():
+                if (
+                    plugin._inspect
+                    and plugin.module.__file__
+                    and (path := Path(file_path).resolve()) == Path(plugin.module.__file__).resolve()
+                ):
+                    try:
+                        nodes = ast.parse(path.read_bytes(), filename=path, type_comments=True)
+                    except (OSError, SyntaxError) as e:
+                        trace = escape_tag("".join(format_exception_only(e)))
+                        logger.error(f"Change in <y>{pid!r}</y> occurred exception, skipped:\n{trace}")
+                        continue
+                    else:
+                        if ast.dump(nodes, include_attributes=False) == plugin._inspect.dump:
+                            logger.debug(f"Change in <y>{pid!r}</y> has no semantic difference, skipped.")
+                            self.fail.pop(file_path, None)
                             continue
-                        else:
-                            if ast.dump(nodes, include_attributes=False) == plugin._inspect.dump:
-                                logger.debug(f"Change in <y>{plugin.id!r}</y> has no semantic difference, skipped.")
-                                continue
-                    logger.info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
-                    pid = plugin.id
-                    _conf = plugin.config.copy()
-                    del plugin
+                logger.info(f"Detected change in <blue>{pid!r}</blue>, reloading...")
+                _conf = plugin.config.copy()
+                del plugin
+                async with self._lock_for(pid):
                     await unload_plugin_async(pid)
                     if plugin := load_plugin(pid, _conf):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
+                        self.fail.pop(file_path, None)
                     else:
                         logger.error(f"Failed to reload <blue>{pid!r}</blue>")
-                        self.fail[change[1]] = (pid, _conf)
-                elif change[1] in self.fail:
-                    logger.info(f"Detected change in {change[1]!r} which failed to reload, retrying...")
-                    if plugin := load_plugin(*self.fail[change[1]]):
+                        self.fail[file_path] = (pid, _conf)
+            pending.clear()
+            for file_path in failed:
+                if file_path not in self.fail:
+                    continue
+                pid, _conf = self.fail[file_path]
+                async with self._lock_for(pid):
+                    if file_path not in self.fail:
+                        continue
+                    logger.info(f"Detected change in {file_path!r} which failed to reload, retrying...")
+                    if plugin := load_plugin(pid, _conf):
                         logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
                         del plugin
-                        del self.fail[change[1]]
+                        del self.fail[file_path]
                     else:
-                        logger.error(f"Failed to reload <blue>{self.fail[change[1]][0]!r}</blue>")
+                        logger.error(f"Failed to reload <blue>{pid!r}</blue>")
 
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
@@ -215,13 +235,14 @@ class Watcher(Service):
                             _conf = plg.config.copy()
 
                             async def _():
-                                await unload_plugin_async(pid)
-                                if plg := load_plugin(plugin_name, new_conf):
-                                    logger.info(f"Reloaded <blue>{plg.id!r}</blue>")
-                                    del plg
-                                else:
-                                    logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
-                                    self.fail[plugin_file] = (pid, _conf)
+                                async with self._lock_for(pid):
+                                    await unload_plugin_async(pid)
+                                    if plg := load_plugin(plugin_name, new_conf):
+                                        logger.info(f"Reloaded <blue>{plg.id!r}</blue>")
+                                        del plg
+                                    else:
+                                        logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
+                                        self.fail[plugin_file] = (pid, _conf)
 
                             await asyncio.shield(_())
                         else:
