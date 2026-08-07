@@ -19,6 +19,7 @@ from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import Plugin, PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
+from arclet.entari.plugin.swap import classify, swap_functions
 from arclet.entari.utils import escape_tag
 
 # declare_static()
@@ -107,6 +108,7 @@ class Watcher(Service):
                 elif change[1] in self.fail:
                     failed.append(change[1])
             for pid, (file_path, plugin) in pending.items():
+                nodes: ast.Module | None = None
                 if (
                     plugin._inspect
                     and plugin.module.__file__
@@ -116,7 +118,7 @@ class Watcher(Service):
                         nodes = ast.parse(path.read_bytes(), filename=path, type_comments=True)
                     except (OSError, SyntaxError) as e:
                         trace = escape_tag("".join(format_exception_only(e)))
-                        logger.error(f"Change in <y>{pid!r}</y> occurred exception, skipped:\n{trace}")
+                        logger.error(f"Change in <blue>{pid!r}</blue> occurred exception, skipped:\n{trace}")
                         continue
                     else:
                         if ast.dump(nodes, include_attributes=False) == plugin._inspect.dump:
@@ -124,6 +126,20 @@ class Watcher(Service):
                             self.fail.pop(file_path, None)
                             continue
                 logger.info(f"Detected change in <blue>{pid!r}</blue>, reloading...")
+                if plugin._inspect and nodes:
+                    changes = classify(plugin._inspect.nodes, nodes)
+                    if changes is not None and swap_functions(plugin, nodes, changes):
+                        if changes:
+                            logger.info(
+                                f"Hot swapped functions in <blue>{pid!r}</blue>: "
+                                f"{', '.join(f'<m>{change.qualname}</m>' for change in changes)} "
+                                f"successfully."
+                            )
+                        else:
+                            logger.debug(f"Change in <y>{pid!r}</y> has no function-level diff, skipped.")
+                        self.fail.pop(file_path, None)
+                        continue
+                    logger.debug(f"Hot swap functions in <y>{pid!r}</y> failed, falling back to full reload.")
                 _conf = plugin.config.copy()
                 del plugin
                 async with self._lock_for(pid):

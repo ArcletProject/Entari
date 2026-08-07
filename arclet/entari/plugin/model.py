@@ -219,7 +219,7 @@ def inject(*services: type[Service] | str | dict, _is_global: bool = False):
 
 @dataclass(slots=True)
 class PluginInspect:
-    nodes: ast.AST
+    nodes: ast.Module
     dump: str
 
 

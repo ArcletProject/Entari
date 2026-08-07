@@ -199,7 +199,7 @@ def inject(*services: type[Service] | str | DependService) -> Callable[[TCallabl
 def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> Check: ...
 @dataclass(slots=True)
 class PluginInspect:
-    nodes: ast.AST
+    nodes: ast.Module
     dump: str
 
 @dataclass
