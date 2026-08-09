@@ -9,17 +9,20 @@ from dataclasses import dataclass
 from types import ModuleType
 from typing import Any
 
+from arclet.letoderea.scope import scope_ctx
+
 from ..logger import log
-from .model import Plugin, PluginInspect
+from .model import Plugin, PluginInspect, current_plugin
 
 
-@dataclass
+@dataclass(slots=True)
 class FunctionChange:
     qualname: str
     ordinal: int
     count: int
     node: ast.FunctionDef | ast.AsyncFunctionDef
     signature_changed: bool
+    append: bool = False
 
 
 def list_dump(nodes: Sequence[ast.AST]) -> str:
@@ -27,7 +30,7 @@ def list_dump(nodes: Sequence[ast.AST]) -> str:
     return f"[{', '.join(ast.dump(x, include_attributes=False) for x in nodes)}]"
 
 
-def iter_functions(nodes: ast.Module) -> Iterator[tuple[str, int, ast.FunctionDef | ast.AsyncFunctionDef]]:
+def iter_functions(body: list[ast.stmt]) -> Iterator[tuple[str, int, ast.FunctionDef | ast.AsyncFunctionDef]]:
     """按 qualname 收集模块顶层函数与类方法（含嵌套类）"""
 
     def _walk(body: list[ast.stmt], prefix: str) -> Iterator[tuple[str, int, ast.FunctionDef | ast.AsyncFunctionDef]]:
@@ -41,7 +44,7 @@ def iter_functions(nodes: ast.Module) -> Iterator[tuple[str, int, ast.FunctionDe
             elif isinstance(stmt, ast.ClassDef):
                 yield from _walk(stmt.body, f"{prefix}{stmt.name}.")
 
-    yield from _walk(nodes.body, "")
+    yield from _walk(body, "")
 
 
 def _structurally_same(o: ast.stmt, n: ast.stmt) -> bool:
@@ -69,17 +72,22 @@ def classify(old_nodes: ast.Module, new_nodes: ast.Module) -> list[FunctionChang
 
     函数配对：先按（名称组, 完整节点 dump 相同）锚定未变化函数（容忍位置交换/重排），
     剩余函数按组内顺序配对比较（容忍原地编辑）；重命名（组键变化）与增删
-    （组内数量不匹配）→ 全量。
+    （组内数量不匹配）→ 全量。文件底部追加的新 def 走 append 路径（整句执行，
+    含装饰器注册）——要求旧 body 是新的结构前缀且尾部新增全为 def。
     """
-    if len(old_nodes.body) != len(new_nodes.body) or not all(
-        _structurally_same(o, n) for o, n in zip(old_nodes.body, new_nodes.body)
-    ):
+    old_body = old_nodes.body
+    new_body = new_nodes.body
+    if len(new_body) < len(old_body) or not all(_structurally_same(o, n) for o, n in zip(old_body, new_body)):
         return None
+    tail: list[ast.FunctionDef | ast.AsyncFunctionDef] = new_body[len(old_body) :]  # type: ignore
+    if tail and not all(isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) for stmt in tail):
+        return None
+    prefix_new = new_body[: len(old_body)]
     old_groups: dict[str, list[tuple[int, ast.FunctionDef | ast.AsyncFunctionDef]]] = {}
     new_groups: dict[str, list[tuple[int, ast.FunctionDef | ast.AsyncFunctionDef]]] = {}
-    for qualname, ordinal, fn in iter_functions(old_nodes):
+    for qualname, ordinal, fn in iter_functions(old_body):
         old_groups.setdefault(qualname, []).append((ordinal, fn))
-    for qualname, ordinal, fn in iter_functions(new_nodes):
+    for qualname, ordinal, fn in iter_functions(prefix_new):
         new_groups.setdefault(qualname, []).append((ordinal, fn))
     if set(old_groups.keys()) != set(new_groups.keys()):
         return None
@@ -110,6 +118,8 @@ def classify(old_nodes: ast.Module, new_nodes: ast.Module) -> list[FunctionChang
             ) != ast.dump(o_node.args, include_attributes=False)
             # if signature_changed or list_dump(n_node.body) != list_dump(o_node.body):
             changes.append(FunctionChange(qualname, o_ord, len(old_list), n_node, signature_changed))
+    for stmt in tail:
+        changes.append(FunctionChange(stmt.name, 0, 1, stmt, signature_changed=False, append=True))
     return changes
 
 
@@ -339,6 +349,43 @@ def _build_new_fn(new_node: ast.FunctionDef | ast.AsyncFunctionDef, module: Modu
     return fn if isinstance(fn, types.FunctionType) else None
 
 
+def _decorator_global_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """装饰器表达式中的全局引用（append 路径整句执行时需解析）"""
+    used: set[str] = set()
+    for dec in node.decorator_list:
+        for name in ast.walk(dec):
+            if isinstance(name, ast.Name) and isinstance(name.ctx, ast.Load):
+                used.add(name.id)
+    return used
+
+
+def _exec_append(plugin: Plugin, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """在插件上下文（current_plugin + scope）中整句执行新增语句，完成装饰器注册"""
+    module = plugin.module
+    stmt = copy.deepcopy(node)
+    ast.fix_missing_locations(stmt)
+    code = compile(
+        ast.Module(body=[stmt], type_ignores=[]),
+        module.__name__,
+        "exec",
+        dont_inherit=True,
+        optimize=-1,
+    )
+    token = current_plugin.set(plugin)
+    try:
+        if not plugin.is_static:
+            token1 = scope_ctx.set(plugin._scope)
+            try:
+                exec(code, module.__dict__)
+            finally:
+                scope_ctx.reset(token1)
+        else:
+            exec(code, module.__dict__)
+    finally:
+        current_plugin.reset(token)
+    return True
+
+
 def swap_functions(plugin: Plugin, new_nodes: ast.Module, changes: list[FunctionChange]) -> bool:
     """就地替换函数实现，如果会影响插件自身或下游依赖方则返回 False，调用方走全量重载"""
     module = plugin.module
@@ -353,6 +400,16 @@ def swap_functions(plugin: Plugin, new_nodes: ast.Module, changes: list[Function
                 "fallback to full reload"
             )
             return False
+        if change.append:
+            free_names |= _decorator_global_names(new_fn)
+            missing = {name for name in free_names if name not in module.__dict__ and name not in vars(builtins)}
+            if missing:
+                log.plugin.warning(
+                    f"cannot append <blue>{change.qualname!r}</blue>: free names {missing!r} missing, "
+                    "fallback to full reload"
+                )
+                return False
+            continue
         old_fn = _resolve_old_fn(plugin, change.qualname, change.ordinal, change.count)
         if old_fn is None:
             log.plugin.warning(f"cannot resolve <blue>{change.qualname!r}</blue> in module, fallback to full reload")
@@ -385,5 +442,12 @@ def swap_functions(plugin: Plugin, new_nodes: ast.Module, changes: list[Function
                         sub._recompile()
                     except Exception as e:
                         log.plugin.error(f"failed to recompile subscriber of <blue>{change.qualname!r}</blue>: {e!r}")
+    for change in changes:
+        if change.append:
+            try:
+                _exec_append(plugin, change.node)
+            except Exception as e:
+                log.plugin.error(f"failed to append <blue>{change.qualname!r}</blue>: {e!r}")
+                return False
     plugin._inspect = PluginInspect(new_nodes, ast.dump(new_nodes, include_attributes=False))
     return True
