@@ -200,6 +200,29 @@ def _cascade_dep(dep_id: str, referent_set: set[str], recursive_guard: set[str])
         recursive_guard.add(dep_id)
 
 
+def _topo_dependents(dependents: set[str]) -> list[str]:
+    """依赖方按 references 图拓扑排序：被依赖者先于依赖者重载
+
+    依赖者 C（`from B import x`）若在 B 之前级联，会绑定旧 B，随后 B 重载时, C 已在 recursive_guard 中被跳过 → 静默。
+    拓扑序保证 B 先重载。
+    """
+    ordered: list[str] = []
+    visited: set[str] = set()
+
+    def visit(dep_id: str):
+        if dep_id in visited:
+            return
+        visited.add(dep_id)
+        for ref in plugin_service.references.get(dep_id, ()):
+            if ref in dependents:
+                visit(ref)
+        ordered.append(dep_id)
+
+    for dep_id in sorted(dependents):
+        visit(dep_id)
+    return ordered
+
+
 def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
     """插件完成（重）加载后处理依赖方：公开面未变 → 全部重绑；否则按模块层使用细粒度重绑或级联
 
@@ -214,7 +237,7 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
         return
     surface_changed = _fingerprint_changed(plugin)
     referent_set = plugin_service.referents.setdefault(path, set())
-    for dep_id in sorted(dependents):
+    for dep_id in _topo_dependents(dependents):
         if dep_id in recursive_guard:
             continue
         if dep_id.startswith(path + "."):

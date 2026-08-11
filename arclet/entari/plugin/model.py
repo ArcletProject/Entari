@@ -451,19 +451,23 @@ class Plugin:
 
         _services = [s for serv in self._services.values() for s in _gen(serv)]
 
+        async def _clean_one(service: Service):
+            if not manager.task_group:
+                return
+            plugin_service.service_waiter.clear(service.id)
+            if service.id not in manager.task_group.sideload_trackers:
+                return
+            try:
+                tracker = manager.task_group.sideload_trackers[service.id]
+                manager.remove_component(service)
+                await asyncio.wait([tracker, add_task(service.status.wait_for("finished"))])
+            except (ValueError, KeyError):
+                pass
+
         async def _clean(services: list[Service]):
             if not manager.task_group:
                 return
-            for serv in services:
-                plugin_service.service_waiter.clear(serv.id)
-                if serv.id not in manager.task_group.sideload_trackers:
-                    continue
-                try:
-                    tracker = manager.task_group.sideload_trackers[serv.id]
-                    manager.remove_component(serv)
-                    await asyncio.wait([tracker, add_task(serv.status.wait_for("finished"))])
-                except (ValueError, KeyError):
-                    pass
+            await asyncio.gather(*(_clean_one(serv) for serv in services))
 
         return add_task(_clean(_services))
 
