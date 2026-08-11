@@ -32,7 +32,7 @@ async def cleanup():
 
 @plug.dispatch(MessageCreatedEvent)
 @filter_.public
-async def _(session: Session):
+async def invoke_test(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...", at_sender=True)
 
@@ -49,13 +49,13 @@ async def filter_content(session: Session):
 
 
 @disp_message.on().if_(filter_content)
-async def _(session: Session):
+async def filter_content1(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
 @disp_message
 @filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) != "aaa")
-async def _(session: Session):
+async def filter_content2(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
 

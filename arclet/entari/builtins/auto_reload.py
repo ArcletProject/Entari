@@ -23,7 +23,9 @@ from arclet.entari.plugin import (
     PluginRole,
     find_plugin,
     find_plugin_by_file,
+    plugin_service,
     reload_plugin,
+    reload_subplugin,
     unload_plugin_async,
 )
 from arclet.entari.plugin.swap import classify, swap_functions
@@ -102,6 +104,8 @@ class Watcher(Service):
 
     async def _reload(self, pid: str, cfg: dict) -> bool:
         async with self._lock_for(pid):
+            if pid in plugin_service._subplugined:
+                return await reload_subplugin(pid, cfg)
             return await reload_plugin(pid, cfg)
 
     async def watch(self):

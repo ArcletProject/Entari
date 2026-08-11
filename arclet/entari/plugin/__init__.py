@@ -18,10 +18,11 @@ from ..event.config import ConfigReload
 from ..exceptions import StaticPluginDispatchError
 from ..message import Fragment, MessageChain, Render
 from ..session import COMPONENTS, Session, component_transform
-from .dependent import find_plugin as find_plugin
-from .dependent import load_plugin as load_plugin
-from .dependent import reload_plugin as reload_plugin
-from .dependent import unload_plugin as unload_plugin
+from .loader import find_plugin as find_plugin
+from .loader import load_plugin as load_plugin
+from .loader import reload_plugin as reload_plugin
+from .loader import reload_subplugin as reload_subplugin
+from .loader import unload_plugin as unload_plugin
 from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import PluginRole as PluginRole

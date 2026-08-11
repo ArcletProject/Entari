@@ -401,16 +401,17 @@ class PluginLoader(SourceFileLoader):
         plugin._apply = getattr(module, "__plugin_apply__", None)
         plugin._inspect = self._inspect
         del self._inspect
+        staged = "staged " if self.staged else ""
         if not is_sub:
             if plugin._apply:
-                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")
+                log.plugin.success(f"{staged}loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")
             else:
-                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue>")
+                log.plugin.success(f"{staged}loaded plugin <blue>{self.plugin_id!r}</blue>")
         else:
-            log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
+            log.plugin.trace(f"{staged}loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
         if not plugin._apply:
             publish(PluginLoadedSuccess(self.plugin_id))
-        if plugin_service.status.blocking:
+        if plugin_service.status.blocking and not self.staged:
             if plugin._apply:
                 plugin.exec_apply()
             plugin.check_disable()
@@ -504,6 +505,7 @@ class _PluginFinder(PathFinder):
             return
         # current import statement is within a plugin.
         if plug := current_plugin.get(None):
+            _record_binding(plug.id, module_spec.name.split(".")[0], module_spec.name, None)
             # if the module being imported is the same as the plugin's module,
             # return the plugin's module spec directly to avoid infinite recursion.
             if plug.module.__spec__ and plug.module.__spec__.origin == module_origin:

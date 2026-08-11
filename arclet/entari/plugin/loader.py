@@ -79,23 +79,37 @@ def _rebind_imports(plugin: Plugin, path: str) -> bool:
 
     模块绑定（attr 为 None）仅在名字等同于目标模块或其末组件时写回：`import a.b` 风格的名字是顶层包，
     其子模块链由 promote 的父属性写回维护，不在此处理。
+    绑定目标为 path 的父包、且父包绑定记录将该名字解析到 path 时，
+    经父模块 getattr 取新值（父包在 sorted 依赖序中先于其子模块处理，故已重绑完成）。
     """
     module = plugin.module
+    parent_pkg = path.rpartition(".")[0]
     for name, (target, attr) in plugin.bindings.items():
-        if not (target == path or target.startswith(path + ".")):
-            continue
-        if target not in plugin_service.plugins:
-            continue
-        new_module = plugin_service.plugins[target].module
-        if attr is None:
-            if name != target and name != target.rpartition(".")[-1]:
+        if target == path or target.startswith(path + "."):
+            if target not in plugin_service.plugins:
                 continue
-            value: Any = new_module
-        else:
-            value = getattr(new_module, attr, _MISSING)
-            if value is _MISSING:
-                return False
-        module.__dict__[name] = value
+            new_module = plugin_service.plugins[target].module
+            if attr is None:
+                if name != target and name != target.rpartition(".")[-1]:
+                    continue
+                value: Any = new_module
+            else:
+                value = getattr(new_module, attr, _MISSING)
+                if value is _MISSING:
+                    return False
+            module.__dict__[name] = value
+        elif (
+            parent_pkg
+            and target == parent_pkg
+            and parent_pkg in plugin_service.bindings
+            and parent_pkg in plugin_service.plugins
+        ):
+            parent_chain = plugin_service.bindings[parent_pkg]
+            if parent_chain.get(attr or name, (None, None))[0] == path:
+                value = getattr(plugin_service.plugins[parent_pkg].module, attr or name, _MISSING)
+                if value is _MISSING:
+                    return False
+                module.__dict__[name] = value
     return True
 
 
@@ -150,12 +164,15 @@ def dependents_of(path: str) -> list[str]:
 
 
 def _fingerprint_changed(plugin: Plugin) -> bool:
-    """比较插件公开面指纹（存储的旧指纹 vs 现算新指纹），并更新存储"""
+    """比较插件公开面指纹（存储的旧指纹 vs 现算新指纹），并更新存储
+
+    旧指纹缺失（未存储过）时视为已变化：无法证明公开面未变 → 保守级联。
+    """
     path = plugin.path
     old = plugin_service.fingerprints.get(path)
     new = public_fingerprint(plugin)
     plugin_service.fingerprints[path] = new or ""
-    return bool(old) and old != new
+    return old is None or old != new
 
 
 def _rebind_dep(dep: Plugin, path: str):
@@ -197,7 +214,7 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
     for dep_id in sorted(dependents):
         if dep_id in recursive_guard:
             continue
-        if dep_id.startswith(path):
+        if dep_id.startswith(path + "."):
             continue
         if dep_id in plugin_service._subplugined and path.startswith(plugin_service._subplugined[dep_id]):
             continue
@@ -321,6 +338,8 @@ def promote_staged(plugin: Plugin):
             if sid != plugin.id:
                 plugin_service._subplugined[sid] = plugin.id
             staged.check_disable()
+            if plugin_service.status.blocking:
+                publish(Ready(), staged._scope)
     plugin_service._unloaded.discard(plugin.id)
     for sid in plugin.subplugins:
         if sid not in plugin_service.plugins or sid not in plugin_service._subplugined:
@@ -340,11 +359,42 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     if plugin.is_static:
         return False
     _conf = conf if conf is not None else plugin.config.copy()
+    log.plugin.debug(f"staged loading <y>{path!r}</y>, old plugin keeps running until swap")
     if not (new_plugin := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return False
     if tasks := plugin.dispose():
         await asyncio.wait(tasks)
+    promote_staged(new_plugin)
+    _handle_dependents(new_plugin)
+    return True
+
+
+async def reload_subplugin(path: str, conf: dict | None = None) -> bool:
+    """子插件粒度重载：仅替换子插件自身，父插件与兄弟经绑定索引重绑
+
+    父插件在模块层使用该子插件名字（基类/模块级装饰器/顶层实例化）→ 回退整树重载；
+    子插件自身经暂存机制原子替换（失败时旧子插件继续运行）。
+    """
+    path = path.replace("::", "arclet.entari.builtins.")
+    if path not in plugin_service.plugins or path not in plugin_service._subplugined:
+        return False
+    plugin = plugin_service.plugins[path]
+    parent_id = plugin_service._subplugined[path]
+    parent = plugin_service.plugins.get(parent_id)
+    if parent and _uses_module_level(parent, path):
+        log.plugin.debug(f"parent <y>{parent_id!r}</y> uses <y>{path!r}</y> at module level, full tree reload")
+        return await reload_plugin(parent_id, parent.config.copy())
+    _conf = conf if conf is not None else plugin.config.copy()
+    log.plugin.debug(
+        f"build-then-swap: staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap"
+    )
+    if not (mod := import_plugin(path, config=_conf, staged=True)):
+        log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")
+        return False
+    if tasks := plugin.dispose():
+        await asyncio.wait(tasks)
+    new_plugin = mod.__plugin__  # type: ignore
     promote_staged(new_plugin)
     _handle_dependents(new_plugin)
     return True
