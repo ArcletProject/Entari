@@ -400,6 +400,7 @@ class PluginLoader(SourceFileLoader):
             plugin.metadata = metadata
         plugin._apply = getattr(module, "__plugin_apply__", None)
         plugin._inspect = self._inspect
+        plugin.restore_kept_state()
         del self._inspect
         staged = "staged " if self.staged else ""
         if not is_sub:

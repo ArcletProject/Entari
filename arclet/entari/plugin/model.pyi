@@ -355,6 +355,7 @@ class Plugin:
     def proxy(self) -> ModuleType: ...
     def subproxy(self, sub_id: str) -> ModuleType: ...
     def service(self, serv: TS | type[TS]) -> TS: ...
+    def restore_kept_state(self) -> None: ...
 
 class RootlessPlugin(Plugin):
     @classmethod
@@ -370,15 +371,28 @@ class RootlessPlugin(Plugin):
 class KeepingVariable(Generic[T]):
     obj: T
     _dispose: Callable[[T], Awaitable[None]] | None
-    def __init__(self, obj: T, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None): ...
+    module_attr: str | None
+    def __init__(
+        self,
+        obj: T,
+        dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+        module_attr: str | None = None,
+    ): ...
     async def dispose(self): ...
 
 @overload
-def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
+def keeping(
+    id_: str,
+    obj: T,
+    *,
+    dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+    module_attr: str | None = None,
+) -> T: ...
 @overload
 def keeping(
     id_: str,
     *,
     obj_factory: Callable[[], T],
     dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+    module_attr: str | None = None,
 ) -> T: ...

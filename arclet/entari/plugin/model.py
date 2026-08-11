@@ -603,6 +603,12 @@ class Plugin:
             plugin_service.service_waiter.assign(serv.id)
         return serv
 
+    def restore_kept_state(self):
+        """重载后将保持的模块级可变对象重新绑定到模块 dict"""
+        for kept in plugin_service._keep_values.get(self.id, {}).values():
+            if kept.module_attr:
+                self.module.__dict__[kept.module_attr] = kept.obj
+
 
 class RootlessPlugin(Plugin):
     # fmt: off
@@ -643,9 +649,10 @@ class RootlessPlugin(Plugin):
 
 
 class KeepingVariable(Generic[T]):
-    def __init__(self, obj: T, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None):
+    def __init__(self, obj: T, dispose=None, module_attr=None):
         self.obj = obj
         self._dispose = None
+        self.module_attr = module_attr
         if hasattr(self.obj, "dispose"):
             _dispose = self.obj.dispose.__func__  # type: ignore
             if _is_awaitable(_dispose):
@@ -669,7 +676,7 @@ class KeepingVariable(Generic[T]):
 
 
 # fmt: off
-def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T:  # noqa: E501
+def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None, module_attr: str | None = None) -> T:  # noqa: E501
 # fmt: on
     if not (plug := current_plugin.get(None)):
         raise LookupError("no plugin context found")
@@ -678,5 +685,5 @@ def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None 
             raise ValueError("Either `obj` or `obj_factory` must be provided")
         _obj = obj_factory() if obj_factory else obj
         plug._extra.setdefault("kept_variables", []).append(id_)
-        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)  # type: ignore
+        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose, module_attr)  # type: ignore
     return plugin_service._keep_values[plug.id][id_].obj  # type: ignore
