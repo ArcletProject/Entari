@@ -20,6 +20,7 @@ from ..message import Fragment, MessageChain, Render
 from ..session import COMPONENTS, Session, component_transform
 from .dependent import find_plugin as find_plugin
 from .dependent import load_plugin as load_plugin
+from .dependent import reload_plugin as reload_plugin
 from .dependent import unload_plugin as unload_plugin
 from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata

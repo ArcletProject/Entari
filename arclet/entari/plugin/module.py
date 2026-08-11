@@ -227,6 +227,7 @@ class PluginLoader(SourceFileLoader):
         self.plugin_id = plugin_id
         self.parent_plugin_id = parent_plugin_id
         self._inspect: PluginInspect = None  # type: ignore
+        self.staged = False
         super().__init__(fullname, path)
 
     def get_code(self, fullname):
@@ -278,6 +279,8 @@ class PluginLoader(SourceFileLoader):
         )
 
     def create_module(self, spec) -> ModuleType | None:
+        if self.staged:
+            return super().create_module(spec)
         if self.name in plugin_service.plugins:
             self.loaded = True
             return plugin_service.plugins[self.name].proxy()
@@ -289,8 +292,14 @@ class PluginLoader(SourceFileLoader):
 
     def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
         is_sub = False
-        if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
-            plugin.subplugins.append(self.plugin_id)
+        plugin = (
+            (plugin_service.plugins.get(self.parent_plugin_id) or plugin_service._staged.get(self.parent_plugin_id))
+            if self.parent_plugin_id
+            else None
+        )
+        if plugin:
+            if self.plugin_id not in plugin.subplugins:
+                plugin.subplugins.append(self.plugin_id)
             plugin_service._subplugined[self.plugin_id] = plugin.id
             is_sub = True
             if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
@@ -441,15 +450,21 @@ def _path_find_spec(fullname, path=None, target=None) -> ModuleSpec | None:
         return spec
 
 
-def _as_plugin(module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str) -> ModuleSpec:
-    module_spec.loader = PluginLoader(fullname, module_origin, plugin_id)
+def _as_plugin(
+    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, staged: bool = False
+) -> ModuleSpec:
+    loader = PluginLoader(fullname, module_origin, plugin_id)
+    loader.staged = staged
+    module_spec.loader = loader
     return module_spec
 
 
 def _as_submodule(
-    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, parent: str
+    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, parent: str, staged: bool = False
 ) -> ModuleSpec:
-    module_spec.loader = PluginLoader(fullname, module_origin, plugin_id, parent)
+    loader = PluginLoader(fullname, module_origin, plugin_id, parent)
+    loader.staged = staged
+    module_spec.loader = loader
     return module_spec
 
 
@@ -467,6 +482,7 @@ class _PluginFinder(PathFinder):
         target: ModuleType | None = None,
         origin_id_: str | None = None,
         force: bool = False,
+        staged: bool = False,
     ) -> ModuleSpec | None:
         # get the module spec using the default path-finder
         module_spec = _path_find_spec(fullname, path, target)
@@ -504,11 +520,27 @@ class _PluginFinder(PathFinder):
             ) or module_spec.name in _SUBMODULE_WAITLIST.get(  # noqa: E501
                 parent_id, ()
             ):
-                return _as_submodule(module_spec, fullname, module_origin, plugin_id, parent_id)
+                return _as_submodule(
+                    module_spec,
+                    fullname,
+                    module_origin,
+                    plugin_id,
+                    parent_id,
+                    staged=staged or plug.id in plugin_service._staged,
+                )  # noqa: E501
         # in the following cases, the module is imported directly (probably from Entari App)
         # 1. the module is already a plugin.
         if module_spec.name in plugin_service.plugins:
-            return _as_plugin(module_spec, fullname, module_origin, plugin_id)
+            if module_spec.name in plugin_service._subplugined:
+                return _as_submodule(
+                    module_spec,
+                    fullname,
+                    module_origin,
+                    plugin_id,
+                    plugin_service._subplugined[module_spec.name],
+                    staged=staged,
+                )  # noqa: E501
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
         # 2. the module is marked as a plugin by the plugin author, or followed the naming convention for plugins.
         marked = (
             module_spec.name in _ENSURE_IS_PLUGIN
@@ -539,7 +571,7 @@ class _PluginFinder(PathFinder):
                 except (KeyError, ValueError):
                     pass
         if marked:
-            _as_plugin(module_spec, fullname, module_origin, plugin_id)
+            _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
             # if there already exists a plugin that is importing this module,
             # we should add the plugin as a referent of this module
             if plug:
@@ -547,23 +579,28 @@ class _PluginFinder(PathFinder):
             return module_spec
         # 3. the module is marked as a submodule by other plugin, or it is a submodule of a plugin.
         if module_spec.name in plugin_service._subplugined:
-            return _as_submodule(  # noqa: E501
-                module_spec, fullname, module_origin, plugin_id, plugin_service._subplugined[module_spec.name]
-            )
+            return _as_submodule(
+                module_spec,
+                fullname,
+                module_origin,
+                plugin_id,
+                plugin_service._subplugined[module_spec.name],
+                staged=staged,
+            )  # noqa: E501
         # 4. if the module is already a plugin, but it is assigned an unique id (usage of reusable plugin),
         # it cannot be imported directly, otherwise it will break the uniqueness of the plugin instance.
         _check_reusable(module_spec.name, plugin_id)
         # 5. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
         # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
-            return _as_submodule(module_spec, fullname, module_origin, plugin_id, module_spec.parent)
+            return _as_submodule(module_spec, fullname, module_origin, plugin_id, module_spec.parent, staged=staged)
         # 6. force-wrap as a plugin when explicitly requested by import_plugin.
         if force:
-            return _as_plugin(module_spec, fullname, module_origin, plugin_id)
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
         return
 
 
-def import_plugin(id_, package=None, config: dict | None = None):
+def import_plugin(id_, package=None, config: dict | None = None, staged: bool = False) -> ModuleType | None:
     uid_index = id_.rfind("@")
     name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
@@ -601,7 +638,7 @@ def import_plugin(id_, package=None, config: dict | None = None):
         parent_path = parent.__path__
     else:
         parent_path = None
-    spec = _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_, force=True)
+    spec = _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_, force=True, staged=staged)
     if not spec:
         return
     mod = module_from_spec(spec)

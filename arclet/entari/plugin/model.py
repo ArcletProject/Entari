@@ -288,7 +288,7 @@ class Plugin:
         self.path = self.id[:uid_index] if uid_index != -1 else self.id
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
         if self.id in plugin_service.plugins and not self.id.startswith("."):
-            # build-then-swap 暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
+            # 原子重载暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
             self._scope = _make_scope(self).of(f"{self.id}@staging")
             self._scope.disable()
             plugin_service._staged[self.id] = self  # type: ignore

@@ -1,4 +1,5 @@
 import ast
+import asyncio
 from typing import Any
 
 from arclet.letoderea import publish
@@ -76,7 +77,8 @@ _MISSING = object()
 def _rebind_imports(plugin: Plugin, path: str) -> bool:
     """将插件对 path（或其子树）的 import 绑定改写为新对象；False 表示有绑定无法满足（升级全量）
 
-    模块绑定（attr 为 None）仅在名字等同于目标模块或其末组件时写回：`import a.b` 风格的名字是顶层包，其子模块链由 promote 的父属性写回维护，不在此处理。
+    模块绑定（attr 为 None）仅在名字等同于目标模块或其末组件时写回：`import a.b` 风格的名字是顶层包，
+    其子模块链由 promote 的父属性写回维护，不在此处理。
     """
     module = plugin.module
     for name, (target, attr) in plugin.bindings.items():
@@ -217,7 +219,11 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
 
 
 def load_plugin(
-    path: str, config: dict | None = None, recursive_guard: set[str] | None = None, prelude: bool = False
+    path: str,
+    config: dict | None = None,
+    recursive_guard: set[str] | None = None,
+    prelude: bool = False,
+    staged: bool = False,
 ) -> Plugin | None:
     """
     以导入路径方式加载模块
@@ -227,6 +233,7 @@ def load_plugin(
         config (dict): 模块配置
         recursive_guard (set[str]): 递归保护
         prelude (bool): 是否为前置插件
+        staged (bool): 是否为暂存加载
     """
     if config is not None:
         config["$path"] = path
@@ -250,14 +257,17 @@ def load_plugin(
             return plugin_service.plugins[path]
         log.plugin.trace(f"loaded rootless plugin <y>{path!r}</y>")
         return plugin_service._apply[path][0](config)
-    if plug := find_plugin(path):
+    if not staged and (plug := find_plugin(path)):
         plugin_service._direct_plugins.add(plug.path)
         return plug
     try:
-        mod = import_plugin(path, config=config)
+        mod = import_plugin(path, config=config, staged=staged)
         if not mod:
             mod = next(
-                (import_plugin(_path, config=config) for _path in EntariConfig.instance._plugin_names.get(path, [])),
+                (
+                    import_plugin(_path, config=config, staged=staged)
+                    for _path in EntariConfig.instance._plugin_names.get(path, [])
+                ),
                 None,
             )
         if not mod:
@@ -265,7 +275,8 @@ def load_plugin(
             publish(PluginLoadedFailed(path))
             return
         plugin_service._direct_plugins.add(mod.__name__)
-        _handle_dependents(mod.__plugin__, recursive_guard)
+        if not staged:
+            _handle_dependents(mod.__plugin__, recursive_guard)
         return mod.__plugin__
     except (ImportError, RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError):
         return
@@ -288,10 +299,52 @@ def find_plugin(name: str) -> Plugin | None:
 
 
 def unload_plugin(plugin: str):
+    """卸载插件及其子插件"""
     plugin = plugin.replace("::", "arclet.entari.builtins.")
     while plugin in plugin_service._subplugined:
         plugin = plugin_service._subplugined[plugin]
     if not (_plugin := find_plugin(plugin)):
         return False
     _plugin.dispose()
+    return True
+
+
+def promote_staged(plugin: Plugin):
+    """将暂存插件及其子插件正式注册进 plugin_service，并恢复启用状态与父绑定
+
+    子插件按加载顺序已记入父插件 subplugins 列表；
+    父属性写回（插件导入链）使模块中的属性指向新模块对象。
+    """
+    for sid in [plugin.id, *plugin.subplugins]:
+        if staged := plugin_service._staged.pop(sid, None):
+            plugin_service.plugins[sid] = staged
+            if sid != plugin.id:
+                plugin_service._subplugined[sid] = plugin.id
+            staged.check_disable()
+    plugin_service._unloaded.discard(plugin.id)
+    for sid in plugin.subplugins:
+        if sid not in plugin_service.plugins or sid not in plugin_service._subplugined:
+            continue
+        parent = plugin_service.plugins.get(plugin_service._subplugined[sid])
+        if parent is not None:
+            parent.module.__dict__[sid.rpartition(".")[-1]] = plugin_service.plugins[sid].module
+
+
+async def reload_plugin(path: str, conf: dict | None = None) -> bool:
+    """原子重载：导入失败时旧插件继续运行；成功后处理依赖方"""
+    path = path.replace("::", "arclet.entari.builtins.")
+    while path in plugin_service._subplugined:
+        path = plugin_service._subplugined[path]
+    if not (plugin := find_plugin(path)):
+        return False
+    if plugin.is_static:
+        return False
+    _conf = conf if conf is not None else plugin.config.copy()
+    if not (new_plugin := load_plugin(path, _conf, staged=True)):
+        log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
+        return False
+    if tasks := plugin.dispose():
+        await asyncio.wait(tasks)
+    promote_staged(new_plugin)
+    _handle_dependents(new_plugin)
     return True
