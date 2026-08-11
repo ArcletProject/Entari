@@ -147,12 +147,15 @@ def public_fingerprint(plugin: Plugin) -> str | None:
 
 
 def dependents_of(path: str) -> list[str]:
-    """path 的依赖方插件：直接导入者 + 经父包再导出链一层（F5）"""
+    """path（及其子树）的依赖方插件：直接导入者 + 经父包再导出链一层（F5）
+
+    子树匹配使整树重载时，依赖子插件的下游插件同样被处理（子插件随树重建，绑定需重绑/级联）。
+    """
     parent_pkg = path.rpartition(".")[0]
     result: list[str] = []
     for plug_id, bindings in plugin_service.bindings.items():
         for name, (target, attr) in bindings.items():
-            if target == path:
+            if target == path or target.startswith(path + "."):
                 result.append(plug_id)
                 break
             if parent_pkg and target == parent_pkg and parent_pkg in plugin_service.bindings:
@@ -363,9 +366,24 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     if not (new_plugin := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return False
+    old_subplugins = list(plugin.subplugins)
     if tasks := plugin.dispose():
         await asyncio.wait(tasks)
     promote_staged(new_plugin)
+    # 恢复未随 staged exec 重新导入的子插件（load_plugins/config 方式加载的模块在
+    # 暂存加载期间 load_plugin 上溯命中旧插件早退，且不记入新插件 subplugins）
+    for sub_id in old_subplugins:
+        if sub_id in new_plugin.subplugins or sub_id in plugin_service.plugins:
+            continue
+        try:
+            mod = import_plugin(sub_id)
+        except Exception as e:
+            log.plugin.error(f"failed to restore sub-plugin <r>{sub_id!r}</r>: {e!r}")
+            continue
+        if mod is None:
+            log.plugin.error(f"cannot restore sub-plugin <r>{sub_id!r}</r>: module not found")
+            continue
+        log.plugin.debug(f"restored sub-plugin <y>{sub_id!r}</y> not re-imported by staged reload")
     _handle_dependents(new_plugin)
     return True
 
