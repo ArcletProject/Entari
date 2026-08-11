@@ -242,6 +242,11 @@ class Plugin:
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False, repr=False)
 
     @property
+    def bindings(self) -> dict[str, tuple[str, str | None]]:
+        """本插件模块导入层绑定的 {名字: (目标模块, 属性)}；attr 为 None 表示模块绑定"""
+        return plugin_service.bindings.get(self.id, {})
+
+    @property
     def reusable(self) -> bool:
         return self.uid is not None and self.uid != ""
 
@@ -277,6 +282,46 @@ class Plugin:
             value.config.__doc__ is None or value.config.__doc__.startswith(f"{value.config.__name__}(")
         ):
             value.config.__doc__ = value.description or value.name
+
+    def __post_init__(self):
+        uid_index = self.id.rfind("@")
+        self.path = self.id[:uid_index] if uid_index != -1 else self.id
+        self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
+        if self.id in plugin_service.plugins and not self.id.startswith("."):
+            # build-then-swap 暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
+            self._scope = _make_scope(self).of(f"{self.id}@staging")
+            self._scope.disable()
+            plugin_service._staged[self.id] = self  # type: ignore
+        else:
+            self._scope = _make_scope(self).of(self.id)
+            plugin_service.plugins[self.id] = self  # type: ignore
+        self.effect = self._scope.effect
+        self._config_key = self.config.pop("$path", self.id)
+        if filter_expr := self.config.get("$filter", ""):
+            self._scope.propagators.append(FilterPropagator(filter_expr))
+        # if self._metadata and self._metadata.depend_services:
+        #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
+        #     self._extra["injected_services"] = [
+        #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
+        #     ]
+        if "$disable" in self.config and isinstance(self.config["$disable"], str):
+
+            async def _check_reload(event: ConfigReload):
+                if event.scope == "basic":
+                    self.check_disable()
+
+            sub = on(ConfigReload, _check_reload)
+            self.collect(sub.dispose)
+
+        self.is_static = self.config.pop("$static", False)
+        if self.id not in plugin_service._keep_values:
+            plugin_service._keep_values[self.id] = {}
+        if self.path not in plugin_service.referents:
+            plugin_service.referents[self.path] = set()
+        if self.path not in plugin_service.references:
+            plugin_service.references[self.path] = set()
+        plugin_service._unloaded.discard(self.id)
+        finalize(self, self.dispose, is_cleanup=True)
 
     def exec_apply(self):
         if not self._apply:
@@ -395,40 +440,6 @@ class Plugin:
         """回收所有副作用"""
         return self._scope._effect_manager.dispose()
 
-    def __post_init__(self):
-        uid_index = self.id.rfind("@")
-        self.path = self.id[:uid_index] if uid_index != -1 else self.id
-        self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
-        self._scope = _make_scope(self).of(self.id)
-        self.effect = self._scope.effect
-        plugin_service.plugins[self.id] = self  # type: ignore
-        self._config_key = self.config.pop("$path", self.id)
-        if filter_expr := self.config.get("$filter", ""):
-            self._scope.propagators.append(FilterPropagator(filter_expr))
-        # if self._metadata and self._metadata.depend_services:
-        #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
-        #     self._extra["injected_services"] = [
-        #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
-        #     ]
-        if "$disable" in self.config and isinstance(self.config["$disable"], str):
-
-            async def _check_reload(event: ConfigReload):
-                if event.scope == "basic":
-                    self.check_disable()
-
-            sub = on(ConfigReload, _check_reload)
-            self.collect(sub.dispose)
-
-        self.is_static = self.config.pop("$static", False)
-        if self.id not in plugin_service._keep_values:
-            plugin_service._keep_values[self.id] = {}
-        if self.path not in plugin_service.referents:
-            plugin_service.referents[self.path] = set()
-        if self.path not in plugin_service.references:
-            plugin_service.references[self.path] = set()
-        plugin_service._unloaded.discard(self.id)
-        finalize(self, self.dispose, is_cleanup=True)
-
     def _clean_service(self):
         manager = it(Launart)
 
@@ -464,6 +475,7 @@ class Plugin:
             return
         if not self.id.startswith(".") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
+        _was_staged = self.id in plugin_service._staged
         self._is_disposed = True
         tasks = set()
         t = self._clean_service()
@@ -479,7 +491,10 @@ class Plugin:
             log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
-                    plugin_service._subplugined.pop(subplug, None)
+                    if subplug in plugin_service._staged:
+                        tasks.update(plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup))
+                    else:
+                        plugin_service._subplugined.pop(subplug, None)
                     continue
                 try:
                     tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
@@ -488,7 +503,7 @@ class Plugin:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
-        if not is_cleanup:
+        if not is_cleanup and not _was_staged:
             publish(PluginUnloaded(self.id))
             for ref in plugin_service.references.pop(self.path):
                 if ref not in plugin_service.plugins:
@@ -522,7 +537,10 @@ class Plugin:
                 tasks.update(plugin_service.plugins[ret].disable())
         self._scope.dispose()
         self._scope.propagators.clear()
-        del plugin_service.plugins[self.id]
+        if self.id in plugin_service.plugins:
+            del plugin_service.plugins[self.id]
+        else:
+            plugin_service._staged.pop(self.id, None)
         del self.module
         del self._inspect
         return tasks

@@ -75,6 +75,27 @@ def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix="")
         _IMPORTING.add(f"{prefix}{name}")
 
 
+def _resolve_from_target(node: ast.ImportFrom, pname: str, is_init: bool) -> str | None:
+    """from-import 的目标模块全限定名（相对导入按当前模块解析）"""
+    if node.level == 0:
+        return node.module
+    parts = pname.split(".")
+    pkg = parts if is_init else parts[:-1]
+    if node.level > len(pkg) + 1:
+        return None
+    base = pkg if node.level == 1 else pkg[: 1 - node.level]
+    if node.module:
+        return ".".join([*base, node.module])
+    return ".".join(base) if base else None
+
+
+def _record_binding(pid: str, name: str, target: str, attr: str | None):
+    """记录名字级 import 绑定（name → (target, attr)），供重载侧查询与改写"""
+    if not target:
+        return
+    plugin_service.bindings.setdefault(pid, {})[name] = (target, attr)
+
+
 # fmt: off
 class _Visitor(ast.NodeVisitor):
     def __init__(self, pid: str, pname: str, path: bytes | str | PathLike[str], plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
@@ -96,6 +117,8 @@ class _Visitor(ast.NodeVisitor):
 
         if self._in_type_checking():
             return
+        for alias in node.names:
+            _record_binding(self.pid, alias.asname or alias.name.split(".")[0], alias.name, None)
         if node.lineno in self.signed_plugin_lineno or all(x.name in _ENSURE_IS_PLUGIN for x in node.names):
             _ensure_plugin([alias.name for alias in node.names], False, self.pid, self.pname)
         elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST.get(self.pname, ()) for x in node.names):  # noqa: E501
@@ -105,6 +128,15 @@ class _Visitor(ast.NodeVisitor):
         name = self.pname
         if self._in_type_checking():
             return
+        target = _resolve_from_target(node, name, self.path.endswith("__init__.py"))
+        if target:
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                if node.level == 1 and node.module is None:
+                    _record_binding(self.pid, alias.asname or alias.name, f"{target}.{alias.name}", None)
+                else:
+                    _record_binding(self.pid, alias.asname or alias.name, target, alias.name)
         if node.module is None:  # from . import xxx
             _ensure_plugin([alias.name for alias in node.names], node.lineno not in self.signed_plugin_lineno, self.pid, name, f"{name}.")  # noqa: E501
         elif node.level == 0:  # from xxx import xxx

@@ -42,13 +42,26 @@ class PluginManagerService(Service):
     id = "entari.plugin.manager"
 
     plugins: dict[str, Plugin]
-    _keep_values: dict[str, dict[str, KeepingVariable]]
+    """插件字典，键为插件ID，值为插件对象"""
     referents: dict[str, set[str]]
+    """插件引用字典，键为插件ID，值为引用该插件的其他插件ID集合"""
     references: dict[str, set[str]]
+    """插件被引用字典，键为插件ID，值为该插件引用的其他插件ID集合"""
+    bindings: dict[str, dict[str, tuple[str, str | None]]]
+    """插件导入绑定字典，键为插件ID，值为该插件中导入的其他插件的绑定信息 {名字: (目标模块, 属性)}"""
+    fingerprints: dict[str, str]
+    """插件指纹字典，键为插件ID，值为该插件的指纹字符串"""
+    service_waiter: ServiceWaiters
+    _keep_values: dict[str, dict[str, KeepingVariable]]
     _direct_plugins: set[str]
+    """直接插件集合，存储所有直接加载（反过来即只由插件导入的插件）的插件ID"""
     _unloaded: set[str]
+    """卸载插件集合，存储所有已卸载的插件ID"""
     _subplugined: dict[str, str]
+    """子插件字典，键为子插件ID，值为父插件ID"""
     _apply: dict[str, tuple[Callable[[dict[str, Any]], RootlessPlugin], bool]]
+    _staged: dict[str, Plugin]
+    """插件暂存"""
 
     def __init__(self):
         super().__init__()
@@ -60,6 +73,9 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self._apply = {}
+        self.bindings = {}
+        self.fingerprints = {}
+        self._staged = {}
         self.service_waiter = ServiceWaiters()
 
     @property
