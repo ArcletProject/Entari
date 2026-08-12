@@ -293,7 +293,9 @@ class PluginLoader(SourceFileLoader):
     def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
         is_sub = False
         plugin = (
-            (plugin_service.plugins.get(self.parent_plugin_id) or plugin_service._staged.get(self.parent_plugin_id))
+            # 暂存期间 plugins 中仍是旧顶插件，须优先取 _staged 中的新插件，
+            # 否则新子插件的父链接指向旧插件
+            (plugin_service._staged.get(self.parent_plugin_id) or plugin_service.plugins.get(self.parent_plugin_id))
             if self.parent_plugin_id
             else None
         )

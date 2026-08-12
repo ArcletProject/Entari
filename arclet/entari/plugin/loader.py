@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import sys
 from typing import Any
 
 from arclet.letoderea import publish
@@ -25,6 +26,8 @@ def collect_module_level_names(nodes: ast.Module) -> set[str]:
         for child in ast.iter_child_nodes(expr):
             if isinstance(child, ast.expr):
                 visit_expr(child)
+            elif isinstance(child, ast.keyword) and child.value is not None:
+                visit_expr(child.value)
 
     def visit_stmt(stmt: ast.stmt):
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -55,6 +58,8 @@ def collect_module_level_names(nodes: ast.Module) -> set[str]:
                 visit_expr(child)
             elif isinstance(child, ast.stmt):
                 visit_stmt(child)
+            elif isinstance(child, ast.keyword) and child.value is not None:
+                visit_expr(child.value)
 
     for stmt in nodes.body:
         visit_stmt(stmt)
@@ -100,6 +105,7 @@ def _rebind_imports(plugin: Plugin, path: str) -> bool:
             module.__dict__[name] = value
         elif (
             parent_pkg
+            and attr is not None
             and target == parent_pkg
             and parent_pkg in plugin_service.bindings
             and parent_pkg in plugin_service.plugins
@@ -150,15 +156,18 @@ def dependents_of(path: str) -> list[str]:
     """path（及其子树）的依赖方插件：直接导入者 + 经父包再导出链一层（F5）
 
     子树匹配使整树重载时，依赖子插件的下游插件同样被处理（子插件随树重建，绑定需重绑/级联）。
+    插件（或其子模块）对自身子树的绑定属内部边，不构成依赖方，直接跳过。
     """
     parent_pkg = path.rpartition(".")[0]
     result: list[str] = []
     for plug_id, bindings in plugin_service.bindings.items():
+        if plug_id == path or plug_id.startswith(path + "."):
+            continue
         for name, (target, attr) in bindings.items():
             if target == path or target.startswith(path + "."):
                 result.append(plug_id)
                 break
-            if parent_pkg and target == parent_pkg and parent_pkg in plugin_service.bindings:
+            if parent_pkg and attr is not None and target == parent_pkg and parent_pkg in plugin_service.bindings:
                 parent_chain = plugin_service.bindings[parent_pkg]
                 if parent_chain.get(attr or name, (None, None))[0] == path:
                     result.append(plug_id)
@@ -200,7 +209,7 @@ def _cascade_dep(dep_id: str, referent_set: set[str], recursive_guard: set[str])
         recursive_guard.add(dep_id)
 
 
-def _topo_dependents(dependents: set[str]) -> list[str]:
+def topo_dependents(dependents: set[str]) -> list[str]:
     """依赖方按 references 图拓扑排序：被依赖者先于依赖者重载
 
     依赖者 C（`from B import x`）若在 B 之前级联，会绑定旧 B，随后 B 重载时, C 已在 recursive_guard 中被跳过 → 静默。
@@ -237,12 +246,10 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
         return
     surface_changed = _fingerprint_changed(plugin)
     referent_set = plugin_service.referents.setdefault(path, set())
-    for dep_id in _topo_dependents(dependents):
+    for dep_id in topo_dependents(dependents):
         if dep_id in recursive_guard:
             continue
-        if dep_id.startswith(path + "."):
-            continue
-        if dep_id in plugin_service._subplugined and path.startswith(plugin_service._subplugined[dep_id]):
+        if dep_id == path or dep_id.startswith(path + "."):
             continue
         dep = plugin_service.plugins.get(dep_id)
         if dep is None:
@@ -385,6 +392,8 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     if plugin.is_static:
         return False
     _conf = conf if conf is not None else plugin.config.copy()
+    for name in plugin.subplugins:
+        sys.modules.pop(name, None)
     log.plugin.debug(f"staged loading <y>{path!r}</y>, old plugin keeps running until swap")
     if not (new_plugin := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
@@ -428,7 +437,7 @@ async def reload_subplugin(path: str, conf: dict | None = None) -> bool:
         return await reload_plugin(parent_id, parent.config.copy())
     _conf = conf if conf is not None else plugin.config.copy()
     log.plugin.debug(
-        f"build-then-swap: staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap"
+        f"staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap"
     )
     if not (mod := import_plugin(path, config=_conf, staged=True)):
         log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")

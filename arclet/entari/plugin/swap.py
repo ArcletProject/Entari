@@ -197,6 +197,8 @@ class _GlobalNameCollector:
             for child in ast.iter_child_nodes(expr):
                 if isinstance(child, ast.expr):
                     self.visit_expr(child)
+                elif isinstance(child, ast.keyword) and child.value is not None:
+                    self.visit_expr(child.value)
 
     def visit_stmt(self, stmt: ast.stmt):
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
