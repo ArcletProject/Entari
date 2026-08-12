@@ -1,8 +1,11 @@
 import ast
 import asyncio
+import importlib
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from traceback import format_exception_only
+from types import ModuleType
 
 from arclet.letoderea import post, publish
 from launart import Launart, Service, any_completed
@@ -28,6 +31,7 @@ from arclet.entari.plugin import (
     reload_subplugin,
     unload_plugin_async,
 )
+from arclet.entari.plugin.loader import dependents_of, topo_dependents
 from arclet.entari.plugin.swap import classify, swap_functions
 from arclet.entari.utils import escape_tag
 
@@ -80,6 +84,29 @@ metadata(
 logger = log.wrapper("[AutoReload]").opt(colors=True)
 
 
+def module_name_from_path(path: Path) -> str | None:
+    path = Path(path).resolve()
+
+    for entry in map(Path, sys.path):
+        try:
+            relative = path.relative_to(entry.resolve())
+        except ValueError:
+            continue
+
+        if relative.suffix == ".py":
+            relative = relative.with_suffix("")
+
+        parts = list(relative.parts)
+
+        # __init__.py 对应包本身
+        if parts[-1] == "__init__":
+            parts.pop()
+
+        return ".".join(parts)
+
+    return None
+
+
 class Watcher(Service):
     id = "entari.plugin.auto_reload/watcher"
 
@@ -108,12 +135,45 @@ class Watcher(Service):
                 return await reload_subplugin(pid, cfg)
             return await reload_plugin(pid, cfg)
 
+    async def _reload_upstream(self, module_name: str) -> list[str]:
+        """刷新非插件上游模块，并重载依赖它的插件
+
+        必须先刷新 sys.modules 中的内容, 否则依赖插件重载时 import 链命中 sys.modules 缓存，拿到的仍是旧模块。
+
+        Returns:
+            实际重载的插件 id 列表（供同批次去重）。
+        """
+        if module_name in plugin_service.plugins or module_name in plugin_service._subplugined:
+            return []
+        mod = sys.modules.get(module_name)
+        if mod is None or not isinstance(mod, ModuleType):
+            return []
+        dependents = [dep for dep in dependents_of(module_name) if dep in plugin_service.plugins]
+        if not dependents:
+            return []
+        plugins = ", ".join(sorted(dependents))
+        logger.debug(f"Reloading upstream module <y>{module_name!r}</y>, affected plugins: <red>{plugins}</red>")
+        try:
+            importlib.reload(mod)
+        except Exception as e:
+            logger.error(f"Failed to reload upstream module <blue>{module_name!r}</blue>: {e!r}")
+            return []
+        reloaded: list[str] = []
+        for dep_id in topo_dependents(set(dependents)):
+            async with self._lock_for(dep_id):
+                if await reload_plugin(dep_id):
+                    reloaded.append(dep_id)
+                else:
+                    logger.error(f"Failed to reload plugin <blue>{dep_id!r}</blue> after upstream module reload")
+        return reloaded
+
     async def watch(self):
         async for event in awatch(
             *self.config.watch_dirs, debounce=self.config.debounce, step=self.config.step, watch_filter=PythonFilter()
         ):
             pending: dict[str, tuple[str, Plugin]] = {}
             failed: list[str] = []
+            upstream: set[str] = set()
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
                     if plugin.is_static:
@@ -122,7 +182,15 @@ class Watcher(Service):
                     pending.setdefault(plugin.id, (change[1], plugin))
                 elif change[1] in self.fail:
                     failed.append(change[1])
+                elif module_name := module_name_from_path(Path(change[1])):
+                    upstream.add(module_name)
+            reloaded: set[str] = set()
+            for module_name in upstream:
+                reloaded.update(await self._reload_upstream(module_name))
             for pid, (file_path, plugin) in pending.items():
+                if pid in reloaded:
+                    self.fail.pop(file_path, None)
+                    continue
                 nodes: ast.Module | None = None
                 if (
                     plugin._inspect
