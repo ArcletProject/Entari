@@ -397,9 +397,9 @@ class Plugin:
                 continue
             plugin_service.plugins[ret].disable()
         tasks = set()
-        t = self._clean_service()
-        t.add_done_callback(tasks.discard)
-        tasks.add(t)
+        if (t := self._clean_service()) is not None:
+            t.add_done_callback(tasks.discard)
+            tasks.add(t)
         self._scope.disable()
         if "$disable" not in self.config or isinstance(self.config["$disable"], bool):
             self.config["$disable"] = True
@@ -450,6 +450,8 @@ class Plugin:
             yield service
 
         _services = [s for serv in self._services.values() for s in _gen(serv)]
+        if not _services:
+            return
 
         async def _clean_one(service: Service):
             if not manager.task_group:
@@ -482,9 +484,9 @@ class Plugin:
         _was_staged = self.id in plugin_service._staged
         self._is_disposed = True
         tasks = set()
-        t = self._clean_service()
-        t.add_done_callback(tasks.discard)
-        tasks.add(t)
+        if (t := self._clean_service()) is not None:
+            t.add_done_callback(tasks.discard)
+            tasks.add(t)
         self._services.clear()
         sys.modules.pop(self.module.__name__, None)
         tasks.update(self.restore())

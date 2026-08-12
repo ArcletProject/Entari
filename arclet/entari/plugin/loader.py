@@ -10,7 +10,7 @@ from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
-from .model import Plugin
+from .model import Plugin, current_plugin
 from .module import import_plugin
 from .service import plugin_service
 
@@ -246,8 +246,13 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
         return
     surface_changed = _fingerprint_changed(plugin)
     referent_set = plugin_service.referents.setdefault(path, set())
+    current = current_plugin.get(None)
     for dep_id in topo_dependents(dependents):
         if dep_id in recursive_guard:
+            continue
+        if current is not None and (dep_id == current.id or dep_id.startswith(current.id + ".")):
+            # 如果依赖方是当前正在加载的插件或其子插件，说明它们在同一 load_plugins 调用链中被导入，
+            # 且已在当前上下文中处理过依赖关系。
             continue
         if dep_id == path or dep_id.startswith(path + "."):
             continue
@@ -382,6 +387,24 @@ def promote_staged(plugin: Plugin):
             parent.module.__dict__[sid.rpartition(".")[-1]] = plugin_service.plugins[sid].module
 
 
+def _collect_subtree(plugin: Plugin) -> list[str]:
+    """DFS 收集插件树的全部子插件 id（父在前，去重）"""
+    ids: list[str] = []
+    seen: set[str] = set()
+
+    def walk(plug: Plugin):
+        for sid in plug.subplugins:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            ids.append(sid)
+            if sub := plugin_service.plugins.get(sid):
+                walk(sub)
+
+    walk(plugin)
+    return ids
+
+
 async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     """原子重载：导入失败时旧插件继续运行；成功后处理依赖方"""
     path = path.replace("::", "arclet.entari.builtins.")
@@ -392,13 +415,13 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     if plugin.is_static:
         return False
     _conf = conf if conf is not None else plugin.config.copy()
-    for name in plugin.subplugins:
+    old_subplugins = _collect_subtree(plugin)
+    for name in old_subplugins:
         sys.modules.pop(name, None)
     log.plugin.debug(f"staged loading <y>{path!r}</y>, old plugin keeps running until swap")
     if not (new_plugin := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return False
-    old_subplugins = list(plugin.subplugins)
     if tasks := plugin.dispose():
         await asyncio.wait(tasks)
     promote_staged(new_plugin)
@@ -436,9 +459,7 @@ async def reload_subplugin(path: str, conf: dict | None = None) -> bool:
         log.plugin.debug(f"parent <y>{parent_id!r}</y> uses <y>{path!r}</y> at module level, full tree reload")
         return await reload_plugin(parent_id, parent.config.copy())
     _conf = conf if conf is not None else plugin.config.copy()
-    log.plugin.debug(
-        f"staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap"
-    )
+    log.plugin.debug(f"staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap")
     if not (mod := import_plugin(path, config=_conf, staged=True)):
         log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")
         return False

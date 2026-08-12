@@ -380,7 +380,7 @@ class PluginLoader(SourceFileLoader):
                 if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                     raise e1 from None
                 else:
-                    raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path) from None
+                    raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path)
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
@@ -388,7 +388,7 @@ class PluginLoader(SourceFileLoader):
             if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                 raise
             else:
-                raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path) from None
+                raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path)
         finally:
             # leave plugin context
             delattr(module, "__cached__")
@@ -508,7 +508,9 @@ class _PluginFinder(PathFinder):
             return
         # current import statement is within a plugin.
         if plug := current_plugin.get(None):
-            _record_binding(plug.id, module_spec.name.split(".")[0], module_spec.name, None)
+            # only record outside import, as inside import are already recorded by the plugin's loader.
+            if module_spec.name != plug.module.__name__ and not module_spec.name.startswith(plug.module.__name__ + "."):
+                _record_binding(plug.id, module_spec.name.split(".")[0], module_spec.name, None)
             # if the module being imported is the same as the plugin's module,
             # return the plugin's module spec directly to avoid infinite recursion.
             if plug.module.__spec__ and plug.module.__spec__.origin == module_origin:
@@ -596,9 +598,13 @@ class _PluginFinder(PathFinder):
         # it cannot be imported directly, otherwise it will break the uniqueness of the plugin instance.
         _check_reusable(module_spec.name, plugin_id)
         # 5. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
-        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
+        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins.
+        # notice: cannot merge two conditions below, because some spec with submodule_search_locations (Namespace),
+        # their parent is the spec itself, not the parent module name.
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
             return _as_submodule(module_spec, fullname, module_origin, plugin_id, module_spec.parent, staged=staged)
+        if (parent_name := module_spec.name.rpartition(".")[0]) and parent_name in plugin_service.plugins:
+            return _as_submodule(module_spec, fullname, module_origin, plugin_id, parent_name, staged=staged)
         # 6. force-wrap as a plugin when explicitly requested by import_plugin.
         if force:
             return _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)

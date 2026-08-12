@@ -69,7 +69,15 @@ class AlconnaPluginDispatcher(PluginDispatcher[T]):
 
         @plugin.collect
         def dispose():
-            command_manager.delete(self.supplier.cmd)
+            _cmd = self.supplier.cmd
+            # if returned, it means the subscriber is already staged reload.
+            try:
+                record = command_manager._resolve(_cmd._hash)
+            except KeyError:
+                pass
+            else:
+                if id(_cmd) == id(record):
+                    command_manager.delete(_cmd)
             del self.supplier.cmd
             del self.supplier
 
