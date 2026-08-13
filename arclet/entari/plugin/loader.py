@@ -152,29 +152,6 @@ def public_fingerprint(plugin: Plugin) -> str | None:
     return "\n".join(parts)
 
 
-def dependents_of(path: str) -> list[str]:
-    """path（及其子树）的依赖方插件：直接导入者 + 经父包再导出链一层（F5）
-
-    子树匹配使整树重载时，依赖子插件的下游插件同样被处理（子插件随树重建，绑定需重绑/级联）。
-    插件（或其子模块）对自身子树的绑定属内部边，不构成依赖方，直接跳过。
-    """
-    parent_pkg = path.rpartition(".")[0]
-    result: list[str] = []
-    for plug_id, bindings in plugin_service.bindings.items():
-        if plug_id == path or plug_id.startswith(path + "."):
-            continue
-        for name, (target, attr) in bindings.items():
-            if target == path or target.startswith(path + "."):
-                result.append(plug_id)
-                break
-            if parent_pkg and attr is not None and target == parent_pkg and parent_pkg in plugin_service.bindings:
-                parent_chain = plugin_service.bindings[parent_pkg]
-                if parent_chain.get(attr or name, (None, None))[0] == path:
-                    result.append(plug_id)
-                    break
-    return result
-
-
 def _fingerprint_changed(plugin: Plugin) -> bool:
     """比较插件公开面指纹（存储的旧指纹 vs 现算新指纹），并更新存储
 
@@ -209,29 +186,6 @@ def _cascade_dep(dep_id: str, referent_set: set[str], recursive_guard: set[str])
         recursive_guard.add(dep_id)
 
 
-def topo_dependents(dependents: set[str]) -> list[str]:
-    """依赖方按 references 图拓扑排序：被依赖者先于依赖者重载
-
-    依赖者 C（`from B import x`）若在 B 之前级联，会绑定旧 B，随后 B 重载时, C 已在 recursive_guard 中被跳过 → 静默。
-    拓扑序保证 B 先重载。
-    """
-    ordered: list[str] = []
-    visited: set[str] = set()
-
-    def visit(dep_id: str):
-        if dep_id in visited:
-            return
-        visited.add(dep_id)
-        for ref in plugin_service.references.get(dep_id, ()):
-            if ref in dependents:
-                visit(ref)
-        ordered.append(dep_id)
-
-    for dep_id in sorted(dependents):
-        visit(dep_id)
-    return ordered
-
-
 def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
     """插件完成（重）加载后处理依赖方：公开面未变 → 全部重绑；否则按模块层使用细粒度重绑或级联
 
@@ -241,13 +195,13 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
     if recursive_guard is None:
         recursive_guard = set()
     path = plugin.path
-    dependents = set(plugin_service.referents.get(path, ())) | set(dependents_of(path))
+    dependents = set(plugin_service.referents.get(path, ())) | set(plugin_service.dependents_of(path, ensure=False))
     if not dependents:
         return
     surface_changed = _fingerprint_changed(plugin)
     referent_set = plugin_service.referents.setdefault(path, set())
     current = current_plugin.get(None)
-    for dep_id in topo_dependents(dependents):
+    for dep_id in plugin_service.topo_dependents(dependents):
         if dep_id in recursive_guard:
             continue
         if current is not None and (dep_id == current.id or dep_id.startswith(current.id + ".")):
@@ -422,7 +376,7 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     if not (new_plugin := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return False
-    if tasks := plugin.dispose():
+    if tasks := plugin.dispose(replacing=True):
         await asyncio.wait(tasks)
     promote_staged(new_plugin)
     # 恢复未随 staged exec 重新导入的子插件（load_plugins/config 方式加载的模块在
@@ -463,7 +417,7 @@ async def reload_subplugin(path: str, conf: dict | None = None) -> bool:
     if not (mod := import_plugin(path, config=_conf, staged=True)):
         log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")
         return False
-    if tasks := plugin.dispose():
+    if tasks := plugin.dispose(replacing=True):
         await asyncio.wait(tasks)
     new_plugin = mod.__plugin__  # type: ignore
     promote_staged(new_plugin)

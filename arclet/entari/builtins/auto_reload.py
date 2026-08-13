@@ -31,7 +31,6 @@ from arclet.entari.plugin import (
     reload_subplugin,
     unload_plugin_async,
 )
-from arclet.entari.plugin.loader import dependents_of, topo_dependents
 from arclet.entari.plugin.swap import classify, swap_functions
 from arclet.entari.utils import escape_tag
 
@@ -148,7 +147,7 @@ class Watcher(Service):
         mod = sys.modules.get(module_name)
         if mod is None or not isinstance(mod, ModuleType):
             return []
-        dependents = [dep for dep in dependents_of(module_name) if dep in plugin_service.plugins]
+        dependents = plugin_service.dependents_of(module_name, ensure=True)
         if not dependents:
             return []
         plugins = ", ".join(sorted(dependents))
@@ -159,7 +158,7 @@ class Watcher(Service):
             logger.error(f"Failed to reload upstream module <blue>{module_name!r}</blue>: {e!r}")
             return []
         reloaded: list[str] = []
-        for dep_id in topo_dependents(set(dependents)):
+        for dep_id in plugin_service.topo_dependents(set(dependents)):
             async with self._lock_for(dep_id):
                 if await reload_plugin(dep_id):
                     reloaded.append(dep_id)

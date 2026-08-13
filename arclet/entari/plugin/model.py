@@ -473,7 +473,11 @@ class Plugin:
 
         return add_task(_clean(_services))
 
-    def dispose(self, *, is_cleanup: bool = False):
+    def dispose(self, *, is_cleanup: bool = False, replacing: bool = False):
+        """拆卸插件
+
+        replacing=True 表示是重载插件下的卸载（reload_plugin/reload_subplugin）
+        """
         if not is_cleanup and self.is_static:
             return  # static plugin can only be disposed in cleanup phase
         plugin_service._unloaded.add(self.id)
@@ -498,12 +502,14 @@ class Plugin:
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
                     if subplug in plugin_service._staged:
-                        tasks.update(plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup))
+                        tasks.update(
+                            plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing)
+                        )
                     else:
                         plugin_service._subplugined.pop(subplug, None)
                     continue
                 try:
-                    tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
+                    tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing))
                     plugin_service._subplugined.pop(subplug, None)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
@@ -511,6 +517,7 @@ class Plugin:
             self.subplugins.clear()
         if not is_cleanup and not _was_staged:
             publish(PluginUnloaded(self.id))
+        if not is_cleanup and not _was_staged and not replacing:
             for ref in plugin_service.references.pop(self.path):
                 if ref not in plugin_service.plugins:
                     continue
@@ -531,7 +538,10 @@ class Plugin:
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
-            for ret in plugin_service.referents[self.path].copy():
+            # bindings-only 依赖方在卸载时同样需要停用，否则 A 永久卸载后其持有僵尸绑定继续运行
+            _dependents = set(plugin_service.referents[self.path])
+            _dependents.update(plugin_service.dependents_of(self.path, ensure=True))
+            for ret in _dependents:
                 if ret not in plugin_service.plugins:
                     continue
                 if (
