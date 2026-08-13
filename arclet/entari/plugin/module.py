@@ -5,11 +5,11 @@ import sys
 import tokenize
 from collections.abc import Sequence
 from importlib import _bootstrap, _bootstrap_external  # type: ignore
-from importlib.abc import MetaPathFinder
 from importlib.machinery import ExtensionFileLoader, ModuleSpec, PathFinder, SourceFileLoader
 from importlib.metadata import Distribution, PackageNotFoundError, distribution, distributions
 from importlib.util import module_from_spec, resolve_name
 from io import BytesIO
+from os import PathLike
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -22,7 +22,7 @@ from ..event.lifespan import Ready
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
-from .model import Plugin, PluginMetadata, current_plugin
+from .model import Plugin, PluginInspect, PluginMetadata, current_plugin
 from .service import plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
@@ -75,12 +75,33 @@ def _ensure_plugin(names: list[str], sub: bool, pid: str, pname: str, prefix="")
         _IMPORTING.add(f"{prefix}{name}")
 
 
+def _resolve_from_target(node: ast.ImportFrom, pname: str, is_init: bool) -> str | None:
+    """from-import 的目标模块全限定名（相对导入按当前模块解析）"""
+    if node.level == 0:
+        return node.module
+    parts = pname.split(".")
+    pkg = parts if is_init else parts[:-1]
+    if node.level > len(pkg) + 1:
+        return None
+    base = pkg if node.level == 1 else pkg[: 1 - node.level]
+    if node.module:
+        return ".".join([*base, node.module])
+    return ".".join(base) if base else None
+
+
+def _record_binding(pid: str, name: str, target: str, attr: str | None):
+    """记录名字级 import 绑定（name → (target, attr)），供重载侧查询与改写"""
+    if not target:
+        return
+    plugin_service.bindings.setdefault(pid, {})[name] = (target, attr)
+
+
 # fmt: off
 class _Visitor(ast.NodeVisitor):
-    def __init__(self, pid: str, pname: str, path: str, plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
+    def __init__(self, pid: str, pname: str, path: bytes | str | PathLike[str], plg_lineno: list[int], sub_lineno: list[int], ns_lineno: list[int]):  # noqa: E501
         self.pid = pid
         self.pname = pname
-        self.path = path
+        self.path = path.decode() if isinstance(path, bytes) else f"{Path(path)}"
         self.signed_plugin_lineno = plg_lineno
         self.signed_subplugin_lineno = sub_lineno
         self.signed_namespace_lineno = ns_lineno
@@ -96,6 +117,8 @@ class _Visitor(ast.NodeVisitor):
 
         if self._in_type_checking():
             return
+        for alias in node.names:
+            _record_binding(self.pid, alias.asname or alias.name.split(".")[0], alias.name, None)
         if node.lineno in self.signed_plugin_lineno or all(x.name in _ENSURE_IS_PLUGIN for x in node.names):
             _ensure_plugin([alias.name for alias in node.names], False, self.pid, self.pname)
         elif node.lineno in self.signed_subplugin_lineno or all(x.name in _SUBMODULE_WAITLIST.get(self.pname, ()) for x in node.names):  # noqa: E501
@@ -105,6 +128,15 @@ class _Visitor(ast.NodeVisitor):
         name = self.pname
         if self._in_type_checking():
             return
+        target = _resolve_from_target(node, name, self.path.endswith("__init__.py"))
+        if target:
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                if node.level == 1 and node.module is None:
+                    _record_binding(self.pid, alias.asname or alias.name, f"{target}.{alias.name}", None)
+                else:
+                    _record_binding(self.pid, alias.asname or alias.name, target, alias.name)
         if node.module is None:  # from . import xxx
             _ensure_plugin([alias.name for alias in node.names], node.lineno not in self.signed_plugin_lineno, self.pid, name, f"{name}.")  # noqa: E501
         elif node.level == 0:  # from xxx import xxx
@@ -194,6 +226,8 @@ class PluginLoader(SourceFileLoader):
         self.loaded = False
         self.plugin_id = plugin_id
         self.parent_plugin_id = parent_plugin_id
+        self._inspect: PluginInspect = None  # type: ignore
+        self.staged = False
         super().__init__(fullname, path)
 
     def get_code(self, fullname):
@@ -204,13 +238,12 @@ class PluginLoader(SourceFileLoader):
 
         """
         source_path = self.get_filename(fullname)
-        source_bytes = None
-        if source_bytes is None:
-            source_bytes = self.get_data(source_path)
+        # --- SourceFileLoader's cache handler removed ---
+        source_bytes = self.get_data(source_path)
         code_object = self.source_to_code(source_bytes, source_path)
         return code_object
 
-    def source_to_code(self, data, path="<string>"):
+    def source_to_code(self, data, path="<string>", *, _optimize: int = -1):
         """Return the code object compiled from source.
 
         The 'data' argument can be any object type that compile() supports.
@@ -236,33 +269,39 @@ class PluginLoader(SourceFileLoader):
             nodes = ast.parse(data, type_comments=True)
         except SyntaxError:
             return _bootstrap._call_with_frames_removed(  # type: ignore
-                compile, data, path, "exec", dont_inherit=True, optimize=-1
+                compile, data, path, "exec", dont_inherit=True, optimize=_optimize
             )
         visitor = _Visitor(self.plugin_id, name, path, plg_lineno, sub_lineno, ns_lineno)
         visitor.visit(nodes)
-
+        self._inspect = PluginInspect(nodes, ast.dump(nodes, include_attributes=False))
         return _bootstrap._call_with_frames_removed(  # type: ignore
-            compile, nodes, path, "exec", dont_inherit=True, optimize=-1
+            compile, nodes, path, "exec", dont_inherit=True, optimize=_optimize
         )
 
     def create_module(self, spec) -> ModuleType | None:
+        if self.staged:
+            return super().create_module(spec)
         if self.name in plugin_service.plugins:
             self.loaded = True
             return plugin_service.plugins[self.name].proxy()
         if self.name in plugin_service._subplugined:
             self.loaded = True
             return plugin_service.plugins[plugin_service._subplugined[self.name]].subproxy(self.name)
-        if (
-            any((k.startswith(self.name) and k.rfind("@") != -1) for k in plugin_service.plugins)
-            and self.plugin_id.rfind("@") == -1
-        ):
-            raise ReusablePluginError(f"reusable plugin {self.name!r} cannot be imported directly")
+        _check_reusable(self.name, self.plugin_id)
         return super().create_module(spec)
 
     def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
         is_sub = False
-        if plugin := plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None:
-            plugin.subplugins.append(self.plugin_id)
+        plugin = (
+            # 暂存期间 plugins 中仍是旧顶插件，须优先取 _staged 中的新插件，
+            # 否则新子插件的父链接指向旧插件
+            (plugin_service._staged.get(self.parent_plugin_id) or plugin_service.plugins.get(self.parent_plugin_id))
+            if self.parent_plugin_id
+            else None
+        )
+        if plugin:
+            if self.plugin_id not in plugin.subplugins:
+                plugin.subplugins.append(self.plugin_id)
             plugin_service._subplugined[self.plugin_id] = plugin.id
             is_sub = True
             if config is None or not {k: v for k, v in config.items() if k not in ("$path", "$static")}:
@@ -305,7 +344,10 @@ class PluginLoader(SourceFileLoader):
         if not plugin.is_static:
             token1 = scope_ctx.set(plugin._scope)
         try:
-            super().exec_module(module)
+            code = self.get_code(module.__name__)
+            if code is None:
+                raise ImportError(f"cannot load module {module.__name__r} when get_code() returns None")
+            _bootstrap._call_with_frames_removed(exec, code, module.__dict__)  # type: ignore
         except RegisterNotInPluginError as e:
             deleted = []
             for frame in reversed(inspect.trace()):
@@ -322,7 +364,10 @@ class PluginLoader(SourceFileLoader):
                 _ensure_plugin(deleted[-1:], False, self.plugin_id, self.name)
                 _ENSURE_IS_PLUGIN.update(deleted[:-1])
             try:
-                super().exec_module(module)
+                code = self.get_code(module.__name__)
+                if code is None:
+                    raise ImportError(f"cannot load module {module.__name__r} when get_code() returns None")
+                _bootstrap._call_with_frames_removed(exec, code, module.__dict__)  # type: ignore
             except Exception as e1:
                 if isinstance(e1, RegisterNotInPluginError):
                     log.plugin.error(f"failed to load plugin <blue>{self.plugin_id!r}</blue>:\n{e1.msg}")
@@ -335,7 +380,7 @@ class PluginLoader(SourceFileLoader):
                 if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                     raise e1 from None
                 else:
-                    raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path) from None
+                    raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path)
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
             plugin.dispose()
@@ -343,7 +388,7 @@ class PluginLoader(SourceFileLoader):
             if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                 raise
             else:
-                raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path) from None
+                raise ImportError(f"{e!r} in {self.name!r}", name=self.name, path=self.path)
         finally:
             # leave plugin context
             delattr(module, "__cached__")
@@ -356,16 +401,20 @@ class PluginLoader(SourceFileLoader):
         if metadata and not plugin.metadata:
             plugin.metadata = metadata
         plugin._apply = getattr(module, "__plugin_apply__", None)
+        plugin._inspect = self._inspect
+        plugin.restore_kept_state()
+        del self._inspect
+        staged = "staged " if self.staged else ""
         if not is_sub:
             if plugin._apply:
-                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")
+                log.plugin.success(f"{staged}loaded plugin <blue>{self.plugin_id!r}</blue> partially applied")
             else:
-                log.plugin.success(f"loaded plugin <blue>{self.plugin_id!r}</blue>")
+                log.plugin.success(f"{staged}loaded plugin <blue>{self.plugin_id!r}</blue>")
         else:
-            log.plugin.trace(f"loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
+            log.plugin.trace(f"{staged}loaded sub-plugin <r>{plugin.id!r}</r> of <y>{self.parent_plugin_id!r}</y>")
         if not plugin._apply:
             publish(PluginLoadedSuccess(self.plugin_id))
-        if plugin_service.status.blocking:
+        if plugin_service.status.blocking and not self.staged:
             if plugin._apply:
                 plugin.exec_apply()
             plugin.check_disable()
@@ -405,20 +454,46 @@ def _path_find_spec(fullname, path=None, target=None) -> ModuleSpec | None:
         return spec
 
 
-class _PluginFinder(MetaPathFinder):
+def _as_plugin(
+    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, staged: bool = False
+) -> ModuleSpec:
+    loader = PluginLoader(fullname, module_origin, plugin_id)
+    loader.staged = staged
+    module_spec.loader = loader
+    return module_spec
+
+
+def _as_submodule(
+    module_spec: ModuleSpec, fullname: str, module_origin: str, plugin_id: str, parent: str, staged: bool = False
+) -> ModuleSpec:
+    loader = PluginLoader(fullname, module_origin, plugin_id, parent)
+    loader.staged = staged
+    module_spec.loader = loader
+    return module_spec
+
+
+def _check_reusable(name: str, plugin_id: str) -> None:
+    if any(k.startswith(name) and k.rfind("@") != -1 for k in plugin_service.plugins) and plugin_id.rfind("@") == -1:
+        raise ReusablePluginError(f"reusable plugin {name!r} cannot be imported directly")
+
+
+class _PluginFinder(PathFinder):
     @classmethod
     def find_spec(
         cls,
         fullname: str,
-        path: Sequence[str] | None,
+        path: Sequence[str] | None = None,
         target: ModuleType | None = None,
         origin_id_: str | None = None,
-    ):
+        force: bool = False,
+        staged: bool = False,
+    ) -> ModuleSpec | None:
         # get the module spec using the default path-finder
         module_spec = _path_find_spec(fullname, path, target)
         if not module_spec:
             return
         module_origin = module_spec.origin
+        plugin_id = origin_id_ or fullname
         # if the module has no origin, it might be a namespace package or a built-in module.
         # We only care about namespace packages here, as built-in modules should not be treated as plugins.
         # For namespace packages, we can still return the spec without modification,
@@ -433,30 +508,46 @@ class _PluginFinder(MetaPathFinder):
             return
         # current import statement is within a plugin.
         if plug := current_plugin.get(None):
+            # only record outside import, as inside import are already recorded by the plugin's loader.
+            if module_spec.name != plug.module.__name__ and not module_spec.name.startswith(plug.module.__name__ + "."):
+                _record_binding(plug.id, module_spec.name.split(".")[0], module_spec.name, None)
             # if the module being imported is the same as the plugin's module,
             # return the plugin's module spec directly to avoid infinite recursion.
-            if plug.module.__spec__ and plug.module.__spec__.origin == module_spec.origin:
+            if plug.module.__spec__ and plug.module.__spec__.origin == module_origin:
                 return plug.module.__spec__
             # get the top-level plugin id (the parent) of the current plugin
-            plugin_id = plug.id
-            while plugin_id in plugin_service._subplugined:
-                plugin_id = plugin_service._subplugined[plugin_id]
+            parent_id = plug.id
+            while parent_id in plugin_service._subplugined:
+                parent_id = plugin_service._subplugined[parent_id]
             # if the module being imported is a submodule of the top-level plugin,
-            if module_spec.name.startswith(plugin_service.plugins[plugin_id].module.__name__ + "."):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
-                return module_spec
-            # if the module being imported is in the waitlist of the top-level plugin,
+            # or if the module being imported is in the waitlist of the top-level plugin,
             # it means it is marked as a submodule by the plugin author.
-            if module_spec.name in _SUBMODULE_WAITLIST.get(plugin_id, ()):
-                module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, plugin_id)
-                # plugin_service.referents.setdefault(module_spec.name, set()).add(plug.id)
-                # _SUBMODULE_WAITLIST[plug.module.__name__].remove(module_spec.name)
-                return module_spec
+            if module_spec.name.startswith(
+                plugin_service.plugins[parent_id].module.__name__ + "."
+            ) or module_spec.name in _SUBMODULE_WAITLIST.get(  # noqa: E501
+                parent_id, ()
+            ):
+                return _as_submodule(
+                    module_spec,
+                    fullname,
+                    module_origin,
+                    plugin_id,
+                    parent_id,
+                    staged=staged or plug.id in plugin_service._staged,
+                )  # noqa: E501
         # in the following cases, the module is imported directly (probably from Entari App)
         # 1. the module is already a plugin.
         if module_spec.name in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
-            return module_spec
+            if module_spec.name in plugin_service._subplugined:
+                return _as_submodule(
+                    module_spec,
+                    fullname,
+                    module_origin,
+                    plugin_id,
+                    plugin_service._subplugined[module_spec.name],
+                    staged=staged,
+                )  # noqa: E501
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
         # 2. the module is marked as a plugin by the plugin author, or followed the naming convention for plugins.
         marked = (
             module_spec.name in _ENSURE_IS_PLUGIN
@@ -487,7 +578,7 @@ class _PluginFinder(MetaPathFinder):
                 except (KeyError, ValueError):
                     pass
         if marked:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname)
+            _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
             # if there already exists a plugin that is importing this module,
             # we should add the plugin as a referent of this module
             if plug:
@@ -495,33 +586,32 @@ class _PluginFinder(MetaPathFinder):
             return module_spec
         # 3. the module is marked as a submodule by other plugin, or it is a submodule of a plugin.
         if module_spec.name in plugin_service._subplugined:
-            module_spec.loader = PluginLoader(
-                fullname, module_origin, origin_id_ or fullname, plugin_service._subplugined[module_spec.name]
-            )
-            return module_spec
+            return _as_submodule(
+                module_spec,
+                fullname,
+                module_origin,
+                plugin_id,
+                plugin_service._subplugined[module_spec.name],
+                staged=staged,
+            )  # noqa: E501
         # 4. if the module is already a plugin, but it is assigned an unique id (usage of reusable plugin),
         # it cannot be imported directly, otherwise it will break the uniqueness of the plugin instance.
-        if (
-            any(k.startswith(module_spec.name) and k.rfind("@") != -1 for k in plugin_service.plugins)
-            and (origin_id_ or fullname).rfind("@") == -1
-        ):
-            raise ReusablePluginError(f"reusable plugin {module_spec.name!r} cannot be imported directly")
+        _check_reusable(module_spec.name, plugin_id)
         # 5. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
-        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
+        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins.
+        # notice: cannot merge two conditions below, because some spec with submodule_search_locations (Namespace),
+        # their parent is the spec itself, not the parent module name.
         if module_spec.parent and module_spec.parent in plugin_service.plugins:
-            module_spec.loader = PluginLoader(fullname, module_origin, origin_id_ or fullname, module_spec.parent)
-            return module_spec
-        # 6. the module is a submodule of a plugin, but it is not marked as a submodule by the plugin author,
-        # we should still treat it as a submodule of the plugin to avoid breaking existing plugins
-        if module_spec.name.rpartition(".")[0] in plugin_service.plugins:
-            module_spec.loader = PluginLoader(
-                fullname, module_origin, origin_id_ or fullname, module_spec.name.rpartition(".")[0]
-            )
-            return module_spec
+            return _as_submodule(module_spec, fullname, module_origin, plugin_id, module_spec.parent, staged=staged)
+        if (parent_name := module_spec.name.rpartition(".")[0]) and parent_name in plugin_service.plugins:
+            return _as_submodule(module_spec, fullname, module_origin, plugin_id, parent_name, staged=staged)
+        # 6. force-wrap as a plugin when explicitly requested by import_plugin.
+        if force:
+            return _as_plugin(module_spec, fullname, module_origin, plugin_id, staged=staged)
         return
 
 
-def find_spec(id_, package=None) -> ModuleSpec | None:
+def import_plugin(id_, package=None, config: dict | None = None, staged: bool = False) -> ModuleType | None:
     uid_index = id_.rfind("@")
     name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
@@ -542,20 +632,13 @@ def find_spec(id_, package=None) -> ModuleSpec | None:
             if _current in plugin_service.plugins:
                 parent = plugin_service.plugins[_current].module
                 enter_plugin = True
-                _current += "."
-                continue
-            if _current in _ENSURE_IS_PLUGIN:
-                parent = import_plugin(_current)
-                if parent:
+            elif _current in _ENSURE_IS_PLUGIN or enter_plugin:
+                if parent := import_plugin(_current):
                     enter_plugin = True
                 else:
                     parent = __import__(_current, fromlist=["__path__"])
-                _current += "."
-                continue
-            if enter_plugin and (parent := import_plugin(_current)):
-                pass
+                    enter_plugin = False
             else:
-                enter_plugin = False
                 parent = __import__(_current, fromlist=["__path__"])
             _current += "."
         if parent is None:
@@ -566,46 +649,29 @@ def find_spec(id_, package=None) -> ModuleSpec | None:
         parent_path = parent.__path__
     else:
         parent_path = None
-    if isinstance(parent_path, _bootstrap_external._NamespacePath):  # type: ignore
-        parent_path = _NamespacePath(parent_path._name, parent_path._path, PathFinder._get_spec)  # type: ignore
-    if spec := _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_):
-        return spec
-    module_spec = _path_find_spec(fullname, parent_path, None)
-    if not module_spec:
+    spec = _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_, force=True, staged=staged)
+    if not spec:
         return
-    module_origin = module_spec.origin
-    if not module_origin:
-        return
-    if isinstance(module_spec.loader, ExtensionFileLoader):
-        return
-    module_spec.loader = PluginLoader(fullname, module_origin, id_)
-    return module_spec
-
-
-def import_plugin(id_, package=None, config: dict | None = None):
-    spec = find_spec(id_, package)
-    if spec:
-        mod = module_from_spec(spec)
-        if spec.loader:
-            if isinstance(spec.loader, PluginLoader):
-                spec.loader.exec_module(mod, config=config)
-                protected_modules = set()
-                module_name = mod.__name__
-                if module_name:
-                    prefix = []
-                    for part in module_name.split("."):
-                        prefix.append(part)
-                        protected_modules.add(".".join(prefix))
-                sys.modules.pop(module_name, None)
-                for _imported in _IMPORTING:
-                    if _imported in protected_modules or _imported in plugin_service.plugins:
-                        continue
-                    sys.modules.pop(_imported, None)
-                _IMPORTING.clear()
-            else:
-                spec.loader.exec_module(mod)
-        return mod
-    return
+    mod = module_from_spec(spec)
+    if spec.loader:
+        if isinstance(spec.loader, PluginLoader):
+            spec.loader.exec_module(mod, config=config)
+            protected_modules = set()
+            module_name = mod.__name__
+            if module_name:
+                prefix = []
+                for part in module_name.split("."):
+                    prefix.append(part)
+                    protected_modules.add(".".join(prefix))
+            sys.modules.pop(module_name, None)
+            for _imported in _IMPORTING:
+                if _imported in protected_modules or _imported in plugin_service.plugins:
+                    continue
+                sys.modules.pop(_imported, None)
+            _IMPORTING.clear()
+        else:
+            spec.loader.exec_module(mod)
+    return mod
 
 
 sys.meta_path.insert(0, _PluginFinder())

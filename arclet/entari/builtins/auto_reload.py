@@ -1,6 +1,11 @@
+import ast
 import asyncio
+import importlib
+import sys
 from dataclasses import asdict
 from pathlib import Path
+from traceback import format_exception_only
+from types import ModuleType
 
 from arclet.letoderea import post, publish
 from launart import Launart, Service, any_completed
@@ -16,7 +21,18 @@ from arclet.entari import add_service, load_plugin, metadata, plugin_config
 from arclet.entari.config import BasicConfModel, EntariConfig, model_field
 from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
-from arclet.entari.plugin import PluginRole, find_plugin, find_plugin_by_file, unload_plugin_async
+from arclet.entari.plugin import (
+    Plugin,
+    PluginRole,
+    find_plugin,
+    find_plugin_by_file,
+    plugin_service,
+    reload_plugin,
+    reload_subplugin,
+    unload_plugin_async,
+)
+from arclet.entari.plugin.swap import classify, swap_functions
+from arclet.entari.utils import escape_tag
 
 # declare_static()
 loguru_logger.disable("watchfiles.main")
@@ -67,6 +83,29 @@ metadata(
 logger = log.wrapper("[AutoReload]").opt(colors=True)
 
 
+def module_name_from_path(path: Path) -> str | None:
+    path = Path(path).resolve()
+
+    for entry in map(Path, sys.path):
+        try:
+            relative = path.relative_to(entry.resolve())
+        except ValueError:
+            continue
+
+        if relative.suffix == ".py":
+            relative = relative.with_suffix("")
+
+        parts = list(relative.parts)
+
+        # __init__.py 对应包本身
+        if parts[-1] == "__init__":
+            parts.pop()
+
+        return ".".join(parts)
+
+    return None
+
+
 class Watcher(Service):
     id = "entari.plugin.auto_reload/watcher"
 
@@ -81,36 +120,129 @@ class Watcher(Service):
     def __init__(self, config: Config):
         self.config = config
         self.fail: dict[str, tuple[str, dict]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         super().__init__()
+
+    def _lock_for(self, plugin_id: str) -> asyncio.Lock:
+        if plugin_id not in self._locks:
+            self._locks[plugin_id] = asyncio.Lock()
+        return self._locks[plugin_id]
+
+    async def _reload(self, pid: str, cfg: dict) -> bool:
+        async with self._lock_for(pid):
+            if pid in plugin_service._subplugined:
+                return await reload_subplugin(pid, cfg)
+            return await reload_plugin(pid, cfg)
+
+    async def _reload_upstream(self, module_name: str) -> list[str]:
+        """刷新非插件上游模块，并重载依赖它的插件
+
+        必须先刷新 sys.modules 中的内容, 否则依赖插件重载时 import 链命中 sys.modules 缓存，拿到的仍是旧模块。
+
+        Returns:
+            实际重载的插件 id 列表（供同批次去重）。
+        """
+        if module_name in plugin_service.plugins or module_name in plugin_service._subplugined:
+            return []
+        mod = sys.modules.get(module_name)
+        if mod is None or not isinstance(mod, ModuleType):
+            return []
+        dependents = plugin_service.dependents_of(module_name, ensure=True)
+        if not dependents:
+            return []
+        plugins = ", ".join(sorted(dependents))
+        logger.debug(f"Reloading upstream module <y>{module_name!r}</y>, affected plugins: <red>{plugins}</red>")
+        try:
+            importlib.reload(mod)
+        except Exception as e:
+            logger.error(f"Failed to reload upstream module <blue>{module_name!r}</blue>: {e!r}")
+            return []
+        reloaded: list[str] = []
+        for dep_id in plugin_service.topo_dependents(set(dependents)):
+            async with self._lock_for(dep_id):
+                if await reload_plugin(dep_id):
+                    reloaded.append(dep_id)
+                else:
+                    logger.error(f"Failed to reload plugin <blue>{dep_id!r}</blue> after upstream module reload")
+        return reloaded
 
     async def watch(self):
         async for event in awatch(
             *self.config.watch_dirs, debounce=self.config.debounce, step=self.config.step, watch_filter=PythonFilter()
         ):
+            pending: dict[str, tuple[str, Plugin]] = {}
+            failed: list[str] = []
+            upstream: set[str] = set()
             for change in event:
                 if plugin := find_plugin_by_file(change[1]):
                     if plugin.is_static:
                         logger.info(f"Plugin <y>{plugin.id!r}</y> is static, ignored.")
                         continue
-                    logger.info(f"Detected change in <blue>{plugin.id!r}</blue>, reloading...")
-                    pid = plugin.id
-                    _conf = plugin.config.copy()
-                    del plugin
-                    await unload_plugin_async(pid)
-                    if plugin := load_plugin(pid, _conf):
-                        logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
-                        del plugin
-                    else:
-                        logger.error(f"Failed to reload <blue>{pid!r}</blue>")
-                        self.fail[change[1]] = (pid, _conf)
+                    pending.setdefault(plugin.id, (change[1], plugin))
                 elif change[1] in self.fail:
-                    logger.info(f"Detected change in {change[1]!r} which failed to reload, retrying...")
-                    if plugin := load_plugin(*self.fail[change[1]]):
-                        logger.info(f"Reloaded <blue>{plugin.id!r}</blue>")
-                        del plugin
-                        del self.fail[change[1]]
+                    failed.append(change[1])
+                elif module_name := module_name_from_path(Path(change[1])):
+                    upstream.add(module_name)
+            reloaded: set[str] = set()
+            for module_name in upstream:
+                reloaded.update(await self._reload_upstream(module_name))
+            for pid, (file_path, plugin) in pending.items():
+                if pid in reloaded:
+                    self.fail.pop(file_path, None)
+                    continue
+                nodes: ast.Module | None = None
+                if (
+                    plugin._inspect
+                    and plugin.module.__file__
+                    and (path := Path(file_path).resolve()) == Path(plugin.module.__file__).resolve()
+                ):
+                    try:
+                        nodes = ast.parse(path.read_bytes(), filename=path, type_comments=True)
+                    except (OSError, SyntaxError) as e:
+                        trace = escape_tag("".join(format_exception_only(e)))
+                        logger.error(f"Change in <blue>{pid!r}</blue> occurred exception, skipped:\n{trace}")
+                        continue
                     else:
-                        logger.error(f"Failed to reload <blue>{self.fail[change[1]][0]!r}</blue>")
+                        if ast.dump(nodes, include_attributes=False) == plugin._inspect.dump:
+                            logger.debug(f"Change in <y>{pid!r}</y> has no semantic difference, skipped.")
+                            self.fail.pop(file_path, None)
+                            continue
+                logger.info(f"Detected change in <blue>{pid!r}</blue>, reloading...")
+                if plugin._inspect and nodes:
+                    changes = classify(plugin._inspect.nodes, nodes)
+                    if changes is not None and swap_functions(plugin, nodes, changes):
+                        if changes:
+                            logger.info(
+                                f"Hot swapped functions in <blue>{pid!r}</blue>: "
+                                f"{', '.join(f'<m>{change.qualname}</m>' for change in changes)} "
+                                f"successfully."
+                            )
+                        else:
+                            logger.debug(f"Change in <y>{pid!r}</y> has no function-level diff, skipped.")
+                        self.fail.pop(file_path, None)
+                        continue
+                    logger.debug(f"Hot swap functions in <y>{pid!r}</y> failed, falling back to full reload.")
+                _conf = plugin.config.copy()
+                del plugin
+                if await self._reload(pid, _conf):
+                    logger.info(f"Reloaded <blue>{pid!r}</blue>")
+                    self.fail.pop(file_path, None)
+                else:
+                    logger.error(f"Failed to reload <blue>{pid!r}</blue>")
+                    self.fail[file_path] = (pid, _conf)
+            pending.clear()
+            for file_path in failed:
+                if file_path not in self.fail:
+                    continue
+                pid, _conf = self.fail[file_path]
+                if file_path not in self.fail:
+                    continue
+                logger.info(f"Detected change in {file_path!r} which failed to reload, retrying...")
+                if await self._reload(pid, _conf):
+                    logger.info(f"Reloaded <blue>{pid!r}</blue>")
+                    del self.fail[file_path]
+                else:
+                    logger.error(f"Failed to reload <blue>{pid!r}</blue>")
 
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
@@ -196,10 +328,9 @@ class Watcher(Service):
                             _conf = plg.config.copy()
 
                             async def _():
-                                await unload_plugin_async(pid)
-                                if plg := load_plugin(plugin_name, new_conf):
-                                    logger.info(f"Reloaded <blue>{plg.id!r}</blue>")
-                                    del plg
+                                if await self._reload(pid, new_conf):
+                                    logger.info(f"Reloaded <blue>{pid!r}</blue>")
+                                    self.fail.pop(plugin_file, None)
                                 else:
                                     logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
                                     self.fail[plugin_file] = (pid, _conf)

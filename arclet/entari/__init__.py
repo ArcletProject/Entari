@@ -55,6 +55,8 @@ from .core import Entari as Entari
 from .event import BaseEvent as BaseEvent
 from .event import attr as attr
 from .event import register_internal_event as register_internal_event
+from .event.api import SendRequest as SendRequest
+from .event.api import SendResponse as SendResponse
 from .event.base import MessageCreatedEvent as MessageCreatedEvent
 from .event.base import MessageEvent as MessageEvent
 from .event.base import Reply as Reply
@@ -63,8 +65,6 @@ from .event.lifespan import AccountUpdate as AccountUpdate
 from .event.lifespan import Cleanup as Cleanup
 from .event.lifespan import Ready as Ready
 from .event.lifespan import Startup as Startup
-from .event.send import SendRequest as SendRequest
-from .event.send import SendResponse as SendResponse
 from .filter import filter_ as filter_
 from .localdata import local_data as local_data
 from .message import MessageChain as MessageChain

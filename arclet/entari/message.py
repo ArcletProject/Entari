@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, MutableSequence, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
@@ -27,12 +27,8 @@ AsyncVisitor: TypeAlias = dict[str, AsyncTransformer[S]] | Visit[S, Awaitable[bo
 MessageContainer = Union[str, Element, Sequence["MessageContainer"], "MessageChain[Element]"]
 
 
-class MessageChain(list[TE]):
-    """消息序列
-
-    Args:
-        message: 消息内容
-    """
+class MessageChain(MutableSequence[TE]):
+    """消息链, 被用于承载整个消息内容的数据结构, 包含有一有序列表, 包含有继承了 Element 的各式类实例."""
 
     @overload
     def __init__(self): ...
@@ -62,7 +58,13 @@ class MessageChain(list[TE]):
         self: MessageChain[Element],
         message: Iterable[str | TE] | str | TE | None = None,
     ):
-        super().__init__()
+        """从传入的序列(可以是元组 tuple, 也可以是列表 list) 创建消息链.
+        Args:
+            message (Iterable[str | TE] | str | TE): 包含且仅包含消息元素和字符串的序列
+        Returns:
+            MessageChain: 以传入的序列作为所承载消息的消息链
+        """
+        self.content: list[TE] = []
         if message:
             if isinstance(message, (str, Element)):
                 self.__iadd__(message)
@@ -71,10 +73,18 @@ class MessageChain(list[TE]):
                     self.__iadd__(i)
 
     def __str__(self) -> str:
-        return "".join(str(elem) for elem in self)
+        """获取以字符串形式表示的消息链, 且趋于通常你见到的样子.
+        Returns:
+            str: 以字符串形式表示的消息链
+        """
+        return "".join(str(elem) for elem in self.content)
 
     def __repr__(self) -> str:
-        return "[" + ", ".join(repr(elem) for elem in self) + "]"
+        """获取以字符串形式表示的消息链的详细信息.
+        Returns:
+            str: 以字符串形式表示的消息链的详细信息
+        """
+        return "[" + ", ".join(repr(elem) for elem in self.content) + "]"
 
     @overload
     def __add__(self, other: str) -> MessageChain[TE | Text]: ...
@@ -86,17 +96,25 @@ class MessageChain(list[TE]):
     def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]: ...
 
     def __add__(self, other: str | TE | TE1 | Iterable[TE | TE1]) -> MessageChain:
-        result: MessageChain = self.fork()
+        """将另一个消息段或消息链添加到当前消息链.
+
+        Args:
+            other: 要添加的消息段或消息链
+
+        Returns:
+            添加后的消息链
+        """
+        result: MessageChain[Element] = self.fork()  # type: ignore
         if isinstance(other, str):
-            if result and isinstance(text := result[-1], Text):
-                result[-1] = Text(text.text + other)
+            if result.content and isinstance(text := result[-1], Text):
+                result.content[-1] = Text(text.text + other)
             else:
-                result.append(Text(other))
+                result.content.append(Text(other))
         elif isinstance(other, Element):
-            if result and isinstance(result[-1], Text) and isinstance(other, Text):
-                result[-1] = Text(result[-1].text + other.text)
+            if result.content and isinstance(text := result[-1], Text) and isinstance(other, Text):
+                result.content[-1] = Text(text.text + other.text)
             else:
-                result.append(other)
+                result.content.append(other)
         elif isinstance(other, Iterable):
             for elem in other:
                 result += elem
@@ -119,15 +137,15 @@ class MessageChain(list[TE]):
 
     def __iadd__(self, other: str | TE | Iterable[TE]) -> Self:
         if isinstance(other, str):
-            if self and isinstance(text := self[-1], Text):
-                list.__setitem__(self, -1, Text(text.text + other))
+            if self.content and isinstance(text := self[-1], Text):
+                self.content[-1] = Text(text.text + other)  # type: ignore
             else:
-                self.append(Text(other))  # type: ignore
+                self.content.append(Text(other))  # type: ignore
         elif isinstance(other, Element):
-            if self and (isinstance(text := self[-1], Text) and isinstance(other, Text)):
-                list.__setitem__(self, -1, Text(text.text + other.text))
+            if self.content and (isinstance(text := self[-1], Text) and isinstance(other, Text)):
+                self.content[-1] = Text(text.text + other.text)  # type: ignore
             else:
-                self.append(other)
+                self.content.append(other)
         elif other:
             for elem in other:
                 self.__iadd__(elem)
@@ -136,7 +154,7 @@ class MessageChain(list[TE]):
         return self
 
     @overload
-    def __getitem__(self, args: type[TE1]) -> MessageChain[TE1]:
+    def __getitem__(self, args: type[TE1], /) -> MessageChain[TE1]:
         """获取仅包含指定消息段类型的消息
 
         Args:
@@ -147,7 +165,7 @@ class MessageChain(list[TE]):
         """
 
     @overload
-    def __getitem__(self, args: tuple[type[TE1], int]) -> TE1:
+    def __getitem__(self, args: tuple[type[TE1], int], /) -> TE1:
         """索引指定类型的消息段
 
         Args:
@@ -158,7 +176,7 @@ class MessageChain(list[TE]):
         """
 
     @overload
-    def __getitem__(self, args: tuple[type[TE1], slice]) -> MessageChain[TE1]:
+    def __getitem__(self, args: tuple[type[TE1], slice], /) -> MessageChain[TE1]:
         """切片指定类型的消息段
 
         Args:
@@ -169,7 +187,7 @@ class MessageChain(list[TE]):
         """
 
     @overload
-    def __getitem__(self, args: int) -> TE:
+    def __getitem__(self, args: int, /) -> TE:
         """索引消息段
 
         Args:
@@ -180,7 +198,7 @@ class MessageChain(list[TE]):
         """
 
     @overload
-    def __getitem__(self, args: slice) -> Self:
+    def __getitem__(self, args: slice, /) -> Self:
         """切片消息段
 
         Args:
@@ -196,35 +214,72 @@ class MessageChain(list[TE]):
     ) -> TE | TE1 | MessageChain[TE1] | Self:
         arg1, arg2 = args if isinstance(args, tuple) else (args, None)
         if isinstance(arg1, int) and arg2 is None:
-            return super().__getitem__(arg1)
+            return self.content[arg1]
         if isinstance(arg1, slice) and arg2 is None:
-            return MessageChain(super().__getitem__(arg1))  # type: ignore
+            return MessageChain(self.content[arg1])  # type: ignore
         if TYPE_CHECKING:
             assert not isinstance(arg1, slice | int)
         if issubclass(arg1, Element) and arg2 is None:
-            return MessageChain(elem for elem in self if isinstance(elem, arg1))  # type: ignore
+            return MessageChain(elem for elem in self.content if isinstance(elem, arg1))  # type: ignore
         if issubclass(arg1, Element) and isinstance(arg2, int):
-            return [elem for elem in self if isinstance(elem, arg1)][arg2]
+            return [elem for elem in self.content if isinstance(elem, arg1)][arg2]
         if issubclass(arg1, Element) and isinstance(arg2, slice):
-            return MessageChain([elem for elem in self if isinstance(elem, arg1)][arg2])  # type: ignore
+            return MessageChain([elem for elem in self.content if isinstance(elem, arg1)][arg2])  # type: ignore
         raise ValueError("Incorrect arguments to slice")  # pragma: no cover
 
-    def __contains__(self, value: str | Element | type[Element]) -> bool:
-        """检查消息段是否存在
+    def __setitem__(self, index: int, value: TE | str, /) -> None:
+        if isinstance(value, str):
+            value = Text(value)  # type: ignore
+        self.content[index] = value  # type: ignore
+
+    def __delitem__(self, index: int, /) -> None:
+        del self.content[index]
+
+    def __contains__(self, item: str | Element | type[Element] | Self | Sequence[str | Element]) -> bool:
+        """判断消息链中是否含有特定的内容.
 
         Args:
-            value: 消息段或消息段类型
+            item (str | Element | type[Element] | Self | Sequence[str | Element]): 需判断内容.
         Returns:
             消息内是否存在给定消息段或给定类型的消息段
         """
-        if isinstance(value, type):
-            return not not next((elem for elem in self if isinstance(elem, value)), None)
-        if isinstance(value, str):
-            value = Text(value)
-        return super().__contains__(value)
+        if isinstance(item, type):
+            return not not next((elem for elem in self.content if isinstance(elem, item)), None)
+        if isinstance(item, Element):
+            return item in self.merge().content
+        if isinstance(item, (MessageChain, Sequence)):
+            return not not self.index_sub(item)
 
-    def has(self, value: str | Element | type[Element]) -> bool:
-        return value in self
+        raise ValueError(f"{item} is not an acceptable argument!")
+
+    def merge(self, *, copy: bool = True) -> Self:
+        """合并相邻的 Text 项, 选择返回一个新的消息链实例
+
+        Returns:
+            MessageChain: 得到的新的消息链实例, 里面不应存在有任何的相邻的 Text 元素.
+        """
+
+        result = []
+
+        texts = []
+        for i in self.content:
+            if not isinstance(i, Text):
+                if texts:
+                    result.append(Text("".join(texts)))
+                    texts.clear()  # 清空缓存
+                result.append(i)
+            else:
+                texts.append(i.text)
+        if texts:
+            result.append(Text("".join(texts)))
+            texts.clear()  # 清空缓存
+        if copy:
+            return self.__class__(result)
+        self.content.clear()
+        self.content.extend(result)
+        return self
+
+    has = __contains__
 
     def index(self, value: str | Element | type[Element], *args: SupportsIndex) -> int:
         """索引消息段
@@ -243,114 +298,177 @@ class MessageChain(list[TE]):
             first_elemment = next((elem for elem in self if isinstance(elem, value)), None)
             if first_elemment is None:
                 raise ValueError(f"Element with type {value!r} is not in message")
-            return super().index(first_elemment, *args)
+            return self.content.index(first_elemment, *args)  # type: ignore
         if isinstance(value, str):
             value = Text(value)
-        return super().index(value, *args)  # type: ignore
+        return self.content.index(value, *args)  # type: ignore
 
-    def get(self, type_: type[TE], count: int | None = None) -> MessageChain[TE]:
-        """获取指定类型的消息段
+    def index_sub(self, sub: MessageChain | Sequence[str | Element]) -> list[int]:
+        """判断消息链是否含有子链. 使用 KMP 算法.
 
         Args:
-            type_: 消息段类型
-            count: 获取个数
+            sub (MessageChain | Sequence[str | Element]): 要判断的子链.
 
         Returns:
-            构建的新消息
+            List[int]: 所有找到的下标.
+        """
+
+        def unzip(seq: Sequence[str | Element]) -> list[str | Element]:
+            res: list[str | Element] = []
+            for e in seq:
+                if isinstance(e, Text):
+                    res.extend(e.text)
+                elif isinstance(e, str):
+                    res.extend(e)
+                else:
+                    res.append(e)
+            return res
+
+        pattern: list[str | Element] = unzip(sub.content) if isinstance(sub, MessageChain) else unzip(sub)
+
+        match_target: list[str | Element] = unzip(self.content)
+
+        if len(match_target) < len(pattern):
+            return []
+
+        fallback: list[int] = [0 for _ in pattern]
+        current_fb: int = 0  # current fallback index
+        for i in range(1, len(pattern)):
+            while current_fb and pattern[i] != pattern[current_fb]:
+                current_fb = fallback[current_fb - 1]
+            if pattern[i] == pattern[current_fb]:
+                current_fb += 1
+            fallback[i] = current_fb
+
+        match_index: list[int] = []
+        ptr = 0
+        for i, e in enumerate(match_target):
+            while ptr and e != pattern[ptr]:
+                ptr = fallback[ptr - 1]
+            if e == pattern[ptr]:
+                ptr += 1
+            if ptr == len(pattern):
+                match_index.append(i - ptr + 1)
+                ptr = fallback[ptr - 1]
+        return match_index
+
+    def get(self, element_class: type[TE1], count: int | None = None) -> MessageChain[TE1]:
+        """
+        获取消息链中所有特定类型的消息元素
+
+        Args:
+            element_class (type[E]): 指定的消息元素的类型, 例如 "Text", "At", "Image" 等.
+            count (int, optional): 至多获取的元素个数
+
+        Returns:
+            MessageChain[E]: 获取到的符合要求的所有消息元素; 另: 可能是空列表([]).
         """
         if count is None:
-            return self[type_]
+            return self[element_class]
 
-        iterator, filtered = (elem for elem in self if isinstance(elem, type_)), MessageChain()
-        for _ in range(count):
-            elem = next(iterator, None)
-            if elem is None:
-                break
-            filtered.append(elem)
-        return filtered  # type: ignore
+        return MessageChain(elem for elem in self.content if isinstance(elem, element_class))[:count]  # type: ignore
 
-    def count(self, value: type[Element] | str | Element) -> int:
-        """计算指定消息段的个数
+    def get_one(self, element_class: type[TE1], index: int) -> TE1:
+        """获取消息链中第 index + 1 个特定类型的消息元素
+        Args:
+            element_class (type[Element]): 指定的消息元素的类型, 例如 "Text", "At", "Image" 等.
+            index (int): 索引, 从 0 开始数
+        Returns:
+            T: 消息链第 index + 1 个特定类型的消息元素
+        """
+        return self.get(element_class)[index]
+
+    def get_first(self, element_class: type[TE1]) -> TE1:
+        """获取消息链中第 1 个特定类型的消息元素
+        Args:
+            element_class (type[Element]): 指定的消息元素的类型, 例如 "Text", "At", "Image" 等.
+        Returns:
+            T: 消息链第 1 个特定类型的消息元素
+        """
+        return self.get(element_class)[0]
+
+    def join(self, *chains: Self | Iterable[Self]) -> Self:
+        """将多个消息链连接起来, 并在其中插入自身.
 
         Args:
-            value: 消息段或消息段类型
+            *chains (Iterable[MessageChain]): 要连接的消息链.
 
         Returns:
-            个数
+            MessageChain: 连接后的消息链, 已对文本进行合并.
+        """
+        result: list[TE] = []
+        list_chains: list[MessageChain] = []
+        for chain in chains:
+            if isinstance(chain, MessageChain):
+                list_chains.append(chain)
+            else:
+                list_chains.extend(chain)
+
+        for chain in list_chains:
+            if chain is not list_chains[0]:
+                result.extend(deepcopy(self.content))
+            result.extend(deepcopy(chain.content))
+        return self.__class__(result).merge()
+
+    def count(self, value: type[Element] | str | Element) -> int:
+        """计算指定消息元素的个数
+
+        Args:
+            value (str | Element | type[Element]): 消息元素或消息元素类型
+
+        Returns:
+            int: 消息元素的个数
         """
         if isinstance(value, str):
             value = Text(value)
         return (
             len(self[value])  # type: ignore
             if isinstance(value, type)
-            else super().count(value)  # type: ignore
+            else self.content.count(value)  # type: ignore
         )
 
     def only(self, value: type[Element] | str | Element) -> bool:
-        """检查消息中是否仅包含指定消息段
+        """检查消息中是否仅包含指定消息元素
 
         Args:
-            value: 指定消息段或消息段类型
+            value: 指定消息元素或消息元素类型
 
         Returns:
-            是否仅包含指定消息段
+            bool: 是否仅包含指定消息元素
         """
         if isinstance(value, type):
-            return all(isinstance(elem, value) for elem in self)
+            return all(isinstance(elem, value) for elem in self.content)
         if isinstance(value, str):
             value = Text(value)
-        return all(elem == value for elem in self)
+        return all(elem == value for elem in self.content)
 
-    def join(self, iterable: Iterable[TE1 | MessageChain[TE1]]) -> MessageChain[TE | TE1]:
-        """将多个消息连接并将自身作为分割
-
-        Args:
-            iterable: 要连接的消息
-
-        Returns:
-            连接后的消息
-        """
-        ret = MessageChain()
-        for index, msg in enumerate(iterable):
-            if index != 0:
-                ret.extend(self)
-            if isinstance(msg, Element):
-                ret.append(msg)
-            else:
-                ret.extend(msg.copy())
-        return ret  # type: ignore
-
-    def copy(self) -> MessageChain[TE]:
+    def copy(self) -> Self:
         """深拷贝消息"""
         return deepcopy(self)
 
-    def fork(self) -> MessageChain[TE]:
+    def fork(self) -> Self:
         """浅拷贝消息"""
         new = self.__class__()
-        list.extend(new, self)
+        new.content = self.content[:]
         return new
 
-    def include(self, *types: type[Element]) -> MessageChain:
-        """过滤消息
-
+    def exclude(self, *types: type[Element]) -> Self:
+        """将除了在给出的消息元素类型中符合的消息元素重新包装为一个新的消息链
         Args:
-            types: 包含的消息段类型
-
+            *types (type[Element]): 将排除在外的消息元素类型
         Returns:
-            新构造的消息
+            MessageChain: 返回的消息链中不包含参数中给出的消息元素类型
         """
-        return MessageChain(elem for elem in self if elem.__class__ in types)
+        return self.__class__([i for i in self.content if not isinstance(i, types)])
 
-    def exclude(self, *types: type[Element]) -> MessageChain:
-        """过滤消息
-
+    def include(self, *types: type[Element]) -> Self:
+        """将只在给出的消息元素类型中符合的消息元素重新包装为一个新的消息链
         Args:
-            types: 不包含的消息段类型
-
+            *types (type[Element]): 将只包含在内的消息元素类型
         Returns:
-            新构造的消息
+            MessageChain: 返回的消息链中只包含参数中给出的消息元素类型
         """
-        return MessageChain(elem for elem in self if elem.__class__ not in types)
+        return self.__class__([i for i in self.content if isinstance(i, types)])
 
     def extract_plain_text(self) -> str:
         """提取消息内纯文本消息"""
@@ -363,7 +481,13 @@ class MessageChain(list[TE]):
         Args:
             predicate: 过滤函数
         """
-        return MessageChain(elem for elem in self if predicate(elem))
+        return MessageChain(elem for elem in self.content if predicate(elem))
+
+    def __iter__(self) -> Iterator[Element]:
+        yield from self.content
+
+    def __len__(self) -> int:
+        return len(self.content)
 
     @overload
     def map(self, func: Callable[[TE], TE1]) -> MessageChain[TE1]: ...
@@ -374,7 +498,7 @@ class MessageChain(list[TE]):
     def map(self, func: Callable[[TE], TE1] | Callable[[TE], T]) -> MessageChain[TE1] | list[T]:
         result1 = []
         result2 = []
-        for elem in self:
+        for elem in self.content:
             result = func(elem)
             if isinstance(result, Element):
                 result1.append(result)
@@ -418,7 +542,7 @@ class MessageChain(list[TE]):
             转换后的消息
         """
         output = MessageChain()
-        for elem in self:
+        for elem in self.content:
             result = self._visit_sync(elem, rules, session)
             if result is True:
                 children = MessageChain(elem.children)
@@ -428,7 +552,7 @@ class MessageChain(list[TE]):
                 if isinstance(result, str | Element):
                     output += result
                 else:
-                    output.extend(result)
+                    output.content.extend(result)
         return output
 
     async def transform_async(self, rules: AsyncVisitor[S], session: S = None) -> MessageChain:
@@ -442,7 +566,7 @@ class MessageChain(list[TE]):
             转换后的消息
         """
         output = MessageChain()
-        for elem in self:
+        for elem in self.content:
             result = await self._visit_async(elem, rules, session)
             if result is True:
                 children = MessageChain(elem.children)
@@ -467,7 +591,7 @@ class MessageChain(list[TE]):
 
         result: list[Self] = []
         tmp = []
-        for seg in self:
+        for seg in self.content:
             if isinstance(seg, Text):
                 split_result = seg.text.split(pattern)
                 for index, split_text in enumerate(split_result):
@@ -498,7 +622,7 @@ class MessageChain(list[TE]):
             UniMessage: 修改后的消息链, 若未替换则原样返回.
         """
         result_list: list[TE] = []
-        for seg in self:
+        for seg in self.content:
             if isinstance(seg, Text):
                 result_list.append(seg.__class__(seg.text.replace(old, new)))
             else:
@@ -515,9 +639,9 @@ class MessageChain(list[TE]):
             bool: 是否以给出的字符串开头
         """
 
-        if not self or not isinstance(self[0], Text):
+        if not self.content or not isinstance(self.content[0], Text):
             return False
-        return list.__getitem__(self, 0).text.startswith(string)
+        return self.content[0].text.startswith(string)
 
     def endswith(self, string: str) -> bool:
         """判断消息链是否以给出的字符串结尾
@@ -529,102 +653,245 @@ class MessageChain(list[TE]):
             bool: 是否以给出的字符串结尾
         """
 
-        if not self or not isinstance(self[-1], Text):
+        if not self.content or not isinstance(self.content[-1], Text):
             return False
-        return list.__getitem__(self, -1).text.endswith(string)
+        return self.content[-1].text.endswith(string)
 
-    def removeprefix(self, prefix: str) -> Self:
+    def append(self, element: Element | str) -> None:
+        """
+        向消息链最后追加单个元素
+
+        Args:
+            element (Element): 要添加的元素
+
+        Returns:
+            None
+        """
+        if isinstance(element, str):
+            element = Text(element)
+        self.content.append(element)  # type: ignore
+
+    def insert(self, index: int, value: Element | str, /) -> None:
+        if isinstance(value, str):
+            value = Text(value)
+        self.content.insert(index, value)  # type: ignore
+
+    def extend(
+        self,
+        values: Iterable[Self | Element | list[Element | str]],
+    ) -> None:
+        """
+        向消息链最后添加元素/元素列表/消息链
+
+        Args:
+            *values (MessageChain | Element | list[Element | str]): 要添加的元素/元素容器.
+
+        Returns:
+            MessageChain: copy = True 时返回副本, 否则返回自己的引用.
+        """
+        result = []
+        for i in values:
+            if isinstance(i, Element):
+                result.append(i)
+            elif isinstance(i, str):
+                result.append(Text(i))
+            elif isinstance(i, MessageChain):
+                result.extend(i.content)
+            else:
+                for e in i:
+                    if isinstance(e, str):
+                        result.append(Text(e))
+                    else:
+                        result.append(e)
+        self.content.extend(result)
+
+    def empty(self) -> bool:
+        """
+        判断消息链是否为空，包括判断是否仅包含空字符串。
+
+        Returns:
+            bool: 判断结果。
+        """
+
+        return not bool(self.content and str(self))
+
+    def pop(self, index: int = -1, /) -> TE:
+        """移除并返回指定位置的元素，默认移除最后一个元素。
+
+        Args:
+            index (int, optional): 要移除的元素的索引，默认为 -1（最后一个元素）。
+
+        Returns:
+            TE: 被移除的元素。
+        """
+        return self.content.pop(index)  # type: ignore
+
+    def removeprefix(self, prefix: str, *, copy: bool = True) -> Self:
         """移除消息链前缀.
 
         Args:
             prefix (str): 要移除的前缀.
+            copy (bool, optional): 是否在副本上修改, 默认为 True.
 
         Returns:
-            UniMessage: 修改后的消息链.
+            MessageChain: 修改后的消息链, 若未移除则原样返回.
         """
-        copy = list.copy(self)
-        if not copy:
-            return self.__class__(copy)
-        seg = copy[0]
-        if not isinstance(seg, Text):
-            return self.__class__(copy)
-        if seg.text.startswith(prefix):
-            seg = seg.__class__(seg.text[len(prefix) :])
-            if not seg.text:
-                copy.pop(0)
-            else:
-                copy[0] = seg
-        return self.__class__(copy)
+        elements = deepcopy(self.content) if copy else self.content
+        if not elements:
+            return self.copy() if copy else self
+        elem = elements[0]
+        if not isinstance(elem, Text):
+            return self.copy() if copy else self
+        if elem.text.startswith(prefix):
+            elem.text = elem.text[len(prefix) :]
+            if not elem.text:
+                elements.pop(0)
+        if copy:
+            return self.__class__(elements)
+        self.content.clear()
+        self.content.extend(elements)
+        return self
 
-    def removesuffix(self, suffix: str) -> Self:
+    def removesuffix(self, suffix: str, *, copy: bool = True) -> Self:
         """移除消息链后缀.
 
         Args:
             suffix (str): 要移除的后缀.
+            copy (bool, optional): 是否在副本上修改, 默认为 True.
 
         Returns:
-            UniMessage: 修改后的消息链.
+            MessageChain: 修改后的消息链, 若未移除则原样返回.
         """
-        copy = list.copy(self)
-        if not copy:
-            return self.__class__(copy)
-        seg = copy[-1]
-        if not isinstance(seg, Text):
-            return self.__class__(copy)
-        if seg.text.endswith(suffix):
-            seg = seg.__class__(seg.text[: -len(suffix)])
-            if not seg.text:
-                copy.pop(-1)
-            else:
-                copy[-1] = seg
-        return self.__class__(copy)
+        elements = deepcopy(self.content) if copy else self.content
+        if not elements:
+            return self.copy() if copy else self
+        elem = elements[-1]
+        if not isinstance(elem, Text):
+            return self.copy() if copy else self
+        if elem.text.endswith(suffix):
+            elem.text = elem.text[: -len(suffix)]
+            if not elem.text:
+                elements.pop(-1)
+        if copy:
+            return self.__class__(elements)
+        self.content.clear()
+        self.content.extend(elements)
+        return self
 
-    def strip(self, *segments: str | Element | type[Element]) -> Self:
-        return self.lstrip(*segments).rstrip(*segments)
+    def strip(self, *elements: str | type[Element] | Element, copy: bool = True) -> Self:
+        return self.lstrip(*elements, copy=copy).rstrip(*elements, copy=copy)
 
-    def lstrip(self, *segments: str | Element | type[Element]) -> Self:
-        types = [i for i in segments if not isinstance(i, str)] or []
-        chars = "".join([i for i in segments if isinstance(i, str)]) or None
-        copy = list.copy(self)
-        if not copy:
-            return self.__class__(copy)
-        while copy:
-            seg = copy[0]
-            if seg in types or seg.__class__ in types:
-                copy.pop(0)
-            elif isinstance(seg, Text):
-                seg = seg.__class__(seg.text.lstrip(chars))
-                if not seg.text:
-                    copy.pop(0)
+    def lstrip(self, *elements: str | type[Element] | Element, copy: bool = True) -> Self:
+        types = [i for i in elements if not isinstance(i, str)] or []
+        chars = "".join([i for i in elements if isinstance(i, str)]) or None
+        content = deepcopy(self.content) if copy else self.content
+        if not content:
+            return self.copy() if copy else self
+        while content:
+            elem = content[0]
+            if elem in types or elem.__class__ in types:
+                content.pop(0)
+            elif isinstance(elem, Text):
+                text = elem.text.lstrip(chars)
+                if not text:
+                    content.pop(0)
                     continue
-                else:
-                    copy[0] = seg
+                elem.text = text
                 break
             else:
                 break
-        return self.__class__(copy)
+        if copy:
+            return self.__class__(content)
+        self.content.clear()
+        self.content.extend(content)
+        return self
 
-    def rstrip(self, *segments: str | Element | type[Element]) -> Self:
-        types = [i for i in segments if not isinstance(i, str)] or []
-        chars = "".join([i for i in segments if isinstance(i, str)]) or None
-        copy = list.copy(self)
-        if not copy:
-            return self.__class__(copy)
-        while copy:
-            seg = copy[-1]
-            if seg in types or seg.__class__ in types:
-                copy.pop(-1)
-            elif isinstance(seg, Text):
-                seg = seg.__class__(seg.text.rstrip(chars))
-                if not seg.text:
-                    copy.pop(-1)
+    def rstrip(self, *elements: str | type[Element] | Element, copy: bool = True) -> Self:
+        types = [i for i in elements if not isinstance(i, str)] or []
+        chars = "".join([i for i in elements if isinstance(i, str)]) or None
+        content = deepcopy(self.content) if copy else self.content
+        if not content:
+            return self.copy() if copy else self
+        while content:
+            elem = content[-1]
+            if elem in types or elem.__class__ in types:
+                content.pop(-1)
+            elif isinstance(elem, Text):
+                text = elem.text.rstrip(chars)
+                if not text:
+                    content.pop(-1)
                     continue
-                else:
-                    copy[-1] = seg
+                elem.text = text
                 break
             else:
                 break
-        return self.__class__(copy)
+        if copy:
+            return self.__class__(content)
+        self.content.clear()
+        self.content.extend(content)
+        return self
+
+    def replace_chain(
+        self,
+        old: MessageChain | list[Element],
+        new: MessageChain | list[Element],
+    ) -> Self:
+        """替换消息链中的一部分. (在副本上操作)
+
+        Args:
+            old (MessageChain): 要替换的消息链.
+            new (MessageChain): 替换后的消息链.
+
+        Returns:
+            MessageChain: 修改后的消息链, 若未替换则原样返回.
+        """
+        if not isinstance(old, MessageChain):
+            old = MessageChain(old)
+        if not isinstance(new, MessageChain):
+            new = MessageChain(new)
+        index_list: list[int] = self.index_sub(old)
+
+        def unzip(chain: MessageChain) -> list[str | Element]:
+            unzipped: list[str | Element] = []
+            for e in chain.content:
+                if isinstance(e, Text):
+                    unzipped.extend(e.text)
+                else:
+                    unzipped.append(e)
+            return unzipped
+
+        unzipped_new: list[str | Element] = unzip(new)
+        unzipped_old: list[str | Element] = unzip(old)
+        unzipped_self: list[str | Element] = unzip(self)
+        unzipped_result: list[str | Element] = []
+        last_end: int = 0
+        for start in index_list:
+            unzipped_result.extend(unzipped_self[last_end:start])
+            last_end = start + len(unzipped_old)
+            unzipped_result.extend(unzipped_new)
+        unzipped_result.extend(unzipped_self[last_end:])
+
+        # Merge result
+        result_list: list[TE] = []
+        char_stk: list[str] = []
+        for v in unzipped_result:
+            if isinstance(v, str):
+                char_stk.append(v)
+            else:
+                result_list.append(Text("".join(char_stk)))  # type: ignore
+                char_stk = []
+                result_list.append(v)  # type: ignore
+        if char_stk:
+            result_list.append(Text("".join(char_stk)))  # type: ignore
+        return self.__class__(result_list)
+
+    def __bool__(self):
+        return bool(self.content and str(self))
+
+    def __eq__(self, value: object, /):
+        if not isinstance(value, MessageChain):
+            return False
+        return value.content == self.content
 
     def display(self):
         texts = []

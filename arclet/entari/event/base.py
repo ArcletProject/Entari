@@ -52,7 +52,7 @@ def _is_notice_me(message: MessageChain, account: Account):
 
 
 def _remove_notice_me(message: MessageChain, account: Account):
-    message = message.copy()
+    message = message.fork()
     message.pop(0)
     if _is_notice_me(message, account):
         message.pop(0)
@@ -321,7 +321,7 @@ class MessageEvent(SatoriEvent):
         super().__init__(account, origin)
         self.content = MessageChain(self.message.message)
         if self.content.has(Quote):
-            self.quote = self.content.get(Quote, 1)[0]
+            self.quote = self.content.get_first(Quote)
             self.content = self.content.exclude(Quote)
 
     async def gather(self, context: Contexts):

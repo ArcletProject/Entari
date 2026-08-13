@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from typing_extensions import TypeVar, deprecated
 
@@ -28,7 +29,7 @@ T = TypeVar("T", default=Any)
 
 
 async def _after_execute(ctx: Contexts, session: Session | None = None):
-    result = ctx[RESULT]
+    result: str | MessageChain | _ExitException | None = ctx[RESULT]
     event = ctx[EVENT]
     if result is not None:
         if isinstance(result, _ExitException):
@@ -55,7 +56,7 @@ class _ExecuteDispatcher(PluginDispatcher[str | MessageChain]):
 class AlconnaPluginDispatcher(PluginDispatcher[T]):
     def __init__(self, plugin: Plugin, command: Alconna, need_reply_me: bool = False, need_notice_me: bool = False, use_config_prefix: bool = True, block: bool = True, skip_for_unmatch: bool = True):  # noqa: E501
         plugin._extra.setdefault("commands", []).append((command.prefixes, command.command))
-        self.cache = LRU(10)
+        self.cache: "LRU[str, asyncio.Future]" = LRU(10)  # noqa: UP037
         self.supplier = AlconnaSuppiler(command, self.cache, block, skip_for_unmatch)
         super().__init__(plugin, MessageCreatedEvent, command.path)
         plugin.collect(
@@ -68,7 +69,15 @@ class AlconnaPluginDispatcher(PluginDispatcher[T]):
 
         @plugin.collect
         def dispose():
-            command_manager.delete(self.supplier.cmd)
+            _cmd = self.supplier.cmd
+            # if returned, it means the subscriber is already staged reload.
+            try:
+                record = command_manager._resolve(_cmd._hash)
+            except KeyError:
+                pass
+            else:
+                if id(_cmd) == id(record):
+                    command_manager.delete(_cmd)
             del self.supplier.cmd
             del self.supplier
 
