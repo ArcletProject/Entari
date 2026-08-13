@@ -574,8 +574,6 @@ def swap_functions(plugin: Plugin, new_nodes: ast.Module, changes: list[Function
         old_fn.__defaults__ = new_function.__defaults__
         old_fn.__kwdefaults__ = new_function.__kwdefaults__
         old_fn.__annotations__ = new_function.__annotations__
-        if old_fn.__qualname__ != "_":
-            plugin.module.__dict__[old_fn.__qualname__] = new_function
         if change.signature_changed:
             for slot in plugin._scope.subscribers:
                 sub = slot.subscriber
