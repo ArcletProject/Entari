@@ -574,15 +574,17 @@ def swap_functions(plugin: Plugin, new_nodes: ast.Module, changes: list[Function
         old_fn.__defaults__ = new_function.__defaults__
         old_fn.__kwdefaults__ = new_function.__kwdefaults__
         old_fn.__annotations__ = new_function.__annotations__
-        if change.signature_changed:
-            for slot in plugin._scope.subscribers:
-                sub = slot.subscriber
-                if sub.callable_target is old_fn:
-                    sub.callable_target = new_function
-                    try:
-                        sub._recompile()
-                    except Exception as e:
-                        log.plugin.error(f"failed to recompile subscriber of <blue>{change.qualname!r}</blue>: {e!r}")
+        for slot in plugin._scope.subscribers:
+            if slot.subscriber.callable_target is not old_fn:
+                continue
+            sub = slot.subscriber
+            sub.cancel_running()
+            if change.signature_changed:
+                sub.callable_target = new_function
+                try:
+                    sub._recompile()
+                except Exception as e:
+                    log.plugin.error(f"failed to recompile subscriber of <blue>{change.qualname!r}</blue>: {e!r}")
     for change in changes:
         if change.append:
             try:

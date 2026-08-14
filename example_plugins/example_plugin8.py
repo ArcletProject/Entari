@@ -1,31 +1,27 @@
 from arclet.entari.filter.message import startswith, regexmatch, regex_origin
-from arclet.entari import MessageCreatedEvent, MessageChain, Session, listen, Image, Text
+from arclet.entari import MessageCreatedEvent, MessageChain, Session, listen, Image, Text, User
 
 
-@listen(MessageCreatedEvent)
-@startswith("!hello")
-async def hello_listener1(sess: Session, message: MessageChain):
-    await sess.send("Hello! This is a response from the hello_listener.")
+@listen(MessageCreatedEvent).if_(startswith("!hello"))
+async def hello_listener1(sess: Session, message: MessageChain, user: User):
+    await sess.send(f"Hello! This is a response from the hello_listener. {user}")
     await sess.send(message)
 
 
-@listen(MessageCreatedEvent)
-@startswith(Image, include=True)
+@listen(MessageCreatedEvent).if_(startswith(Image, include=True))
 async def image_listener(sess: Session, message: MessageChain):
     await sess.send("Hello! This is a response from the image_listener.")
     await sess.send(message)
 
 
-@listen(MessageCreatedEvent)
-@startswith("!world", bind="world")
+@listen(MessageCreatedEvent).if_(startswith("!world", bind="world"))
 async def hello_listener2(sess: Session, message: MessageChain, world: MessageChain):
     await sess.send("Hello! This is a response from the hello_listener2.")
     await sess.send(message)
     await sess.send(world)
 
 
-@listen(MessageCreatedEvent)
-@regexmatch(r"test (\d+)", flags=2)
+@listen(MessageCreatedEvent).if_(regexmatch(r"test (\d+)", flags=2))
 async def regex_listener(
     sess: Session,
     message: MessageChain,

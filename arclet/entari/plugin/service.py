@@ -120,7 +120,7 @@ class PluginManagerService(Service):
     def topo_dependents(self, dependents: set[str]) -> list[str]:
         """依赖方按 references 图拓扑排序：上游（被依赖者）优先于下游（依赖者）
 
-        依赖者 C（`from B import x`）若在 B 之前级联，会绑定旧 B，随后 B 重载时, C 已在 recursive_guard 中被跳过 → 静默。
+        依赖者 C 若在 B 之前级联，会绑定旧 B，随后 B 重载时, C 已在 recursive_guard 中被跳过 → 静默。
         拓扑序保证 B 先重载。
         """
         ordered: list[str] = []

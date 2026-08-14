@@ -493,7 +493,6 @@ class Plugin:
             tasks.add(t)
         self._services.clear()
         sys.modules.pop(self.module.__name__, None)
-        tasks.update(self.restore())
         delattr(self.module, "__plugin__")
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
@@ -551,7 +550,7 @@ class Plugin:
                 ):
                     continue
                 tasks.update(plugin_service.plugins[ret].disable())
-        self._scope.dispose()
+        tasks.update(self._scope.dispose())
         self._scope.propagators.clear()
         if self.id in plugin_service.plugins:
             del plugin_service.plugins[self.id]
