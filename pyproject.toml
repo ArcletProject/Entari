@@ -32,6 +32,25 @@ classifiers = [
     "Framework :: AsyncIO",
     "Operating System :: OS Independent",
 ]
+keywords = [
+    "asyncio",
+    "framework",
+    "instant-messaging",
+    "satori",
+    "entari",
+    "plugin-system",
+    "hmr",
+    "hot",
+    "module",
+    "replacement",
+    "reload",
+    "watch",
+    "development",
+    "hot-reload",
+    "hot-module-replacement",
+    "high-performance",
+    "event-driven",
+]
 
 [project.urls]
 homepage = "https://arclet.top"
