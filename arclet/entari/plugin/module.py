@@ -653,24 +653,33 @@ def import_plugin(id_, package=None, config: dict | None = None, staged: bool = 
     if not spec:
         return
     mod = module_from_spec(spec)
-    if spec.loader:
-        if isinstance(spec.loader, PluginLoader):
-            spec.loader.exec_module(mod, config=config)
-            protected_modules = set()
-            module_name = mod.__name__
-            if module_name:
-                prefix = []
-                for part in module_name.split("."):
-                    prefix.append(part)
-                    protected_modules.add(".".join(prefix))
-            sys.modules.pop(module_name, None)
-            for _imported in _IMPORTING:
-                if _imported in protected_modules or _imported in plugin_service.plugins:
-                    continue
-                sys.modules.pop(_imported, None)
-            _IMPORTING.clear()
+    spec._initializing = True  # type: ignore
+    try:
+        if spec.loader is None:
+            if spec.submodule_search_locations is None:
+                raise ImportError("missing loader", name=spec.name)
+            # A namespace package so do nothing.
         else:
-            spec.loader.exec_module(mod)
+            if isinstance(spec.loader, PluginLoader):
+                spec.loader.exec_module(mod, config=config)
+                protected_modules = set()
+                module_name = mod.__name__
+                if module_name:
+                    prefix = []
+                    for part in module_name.split("."):
+                        prefix.append(part)
+                        protected_modules.add(".".join(prefix))
+                sys.modules.pop(module_name, None)
+                for _imported in _IMPORTING:
+                    if _imported in protected_modules or _imported in plugin_service.plugins:
+                        continue
+                    sys.modules.pop(_imported, None)
+                _IMPORTING.clear()
+            else:
+                spec.loader.exec_module(mod)
+                sys.modules[mod.__name__] = mod
+    finally:
+        spec._initializing = False  # type: ignore
     return mod
 
 
