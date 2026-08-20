@@ -34,22 +34,13 @@ class MessageChain(MutableSequence[TE]):
     def __init__(self): ...
 
     @overload
-    def __init__(self: MessageChain[Text], message: str): ...
+    def __init__(self, message: TE | Iterable[TE] | Sequence[TE]): ...
 
     @overload
-    def __init__(self, message: TE): ...
+    def __init__(self: MessageChain[TE1], message: TE1 | Iterable[TE1] | Sequence[TE1]): ...
 
     @overload
-    def __init__(self: MessageChain[TE1], message: TE1): ...
-
-    @overload
-    def __init__(self, message: Iterable[TE]): ...
-
-    @overload
-    def __init__(self: MessageChain[TE1], message: Iterable[TE1]): ...
-
-    @overload
-    def __init__(self: MessageChain[Text], message: Iterable[str]): ...
+    def __init__(self: MessageChain[Text], message: str | Sequence[str]): ...
 
     @overload
     def __init__(self: MessageChain[Text | TE1], message: Iterable[str | TE1]): ...
@@ -90,10 +81,10 @@ class MessageChain(MutableSequence[TE]):
     def __add__(self, other: str) -> MessageChain[TE | Text]: ...
 
     @overload
-    def __add__(self, other: TE | Iterable[TE]) -> MessageChain[TE]: ...
+    def __add__(self, other: TE | Iterable[TE] | Sequence[TE]) -> MessageChain[TE]: ...
 
     @overload
-    def __add__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE | TE1]: ...
+    def __add__(self, other: TE1 | Iterable[TE1] | Sequence[TE1]) -> MessageChain[TE | TE1]: ...
 
     def __add__(self, other: str | TE | TE1 | Iterable[TE | TE1]) -> MessageChain:
         """将另一个消息段或消息链添加到当前消息链.
@@ -126,10 +117,10 @@ class MessageChain(MutableSequence[TE]):
     def __radd__(self, other: str) -> MessageChain[Text | TE]: ...
 
     @overload
-    def __radd__(self, other: TE | Iterable[TE]) -> MessageChain[TE]: ...
+    def __radd__(self, other: TE | Iterable[TE] | Sequence[TE]) -> MessageChain[TE]: ...
 
     @overload
-    def __radd__(self, other: TE1 | Iterable[TE1]) -> MessageChain[TE1 | TE]: ...
+    def __radd__(self, other: TE1 | Iterable[TE1] | Sequence[TE1]) -> MessageChain[TE1 | TE]: ...
 
     def __radd__(self, other: str | TE1 | Iterable[TE1]) -> MessageChain:
         result = MessageChain(other)
@@ -483,7 +474,7 @@ class MessageChain(MutableSequence[TE]):
         """
         return MessageChain(elem for elem in self.content if predicate(elem))
 
-    def __iter__(self) -> Iterator[Element]:
+    def __iter__(self) -> Iterator[TE]:
         yield from self.content
 
     def __len__(self) -> int:
@@ -607,11 +598,7 @@ class MessageChain(MutableSequence[TE]):
             tmp = []
         return result
 
-    def replace(
-        self,
-        old: str,
-        new: str,
-    ) -> Self:
+    def replace(self, old: str, new: str) -> Self:
         """替换消息中有关的文本
 
         Args:
@@ -639,9 +626,9 @@ class MessageChain(MutableSequence[TE]):
             bool: 是否以给出的字符串开头
         """
 
-        if not self.content or not isinstance(self.content[0], Text):
+        if not self.content or not isinstance(text := self.content[0], Text):
             return False
-        return self.content[0].text.startswith(string)
+        return text.text.startswith(string)
 
     def endswith(self, string: str) -> bool:
         """判断消息链是否以给出的字符串结尾
@@ -653,11 +640,11 @@ class MessageChain(MutableSequence[TE]):
             bool: 是否以给出的字符串结尾
         """
 
-        if not self.content or not isinstance(self.content[-1], Text):
+        if not self.content or not isinstance(text := self.content[-1], Text):
             return False
-        return self.content[-1].text.endswith(string)
+        return text.text.endswith(string)
 
-    def append(self, element: Element | str) -> None:
+    def append(self, element: TE | str) -> None:
         """
         向消息链最后追加单个元素
 
@@ -667,19 +654,14 @@ class MessageChain(MutableSequence[TE]):
         Returns:
             None
         """
-        if isinstance(element, str):
-            element = Text(element)
-        self.content.append(element)  # type: ignore
+        self.content.append(Text(element) if isinstance(element, str) else element)  # type: ignore
 
     def insert(self, index: int, value: Element | str, /) -> None:
         if isinstance(value, str):
             value = Text(value)
         self.content.insert(index, value)  # type: ignore
 
-    def extend(
-        self,
-        values: Iterable[Self | Element | list[Element | str]],
-    ) -> None:
+    def extend(self, values: Iterable[Self | TE | Sequence[TE | str]]) -> None:
         """
         向消息链最后添加元素/元素列表/消息链
 
@@ -831,11 +813,7 @@ class MessageChain(MutableSequence[TE]):
         self.content.extend(content)
         return self
 
-    def replace_chain(
-        self,
-        old: MessageChain | list[Element],
-        new: MessageChain | list[Element],
-    ) -> Self:
+    def replace_chain(self, old: Sequence[Element], new: Sequence[Element]) -> Self:
         """替换消息链中的一部分. (在副本上操作)
 
         Args:
