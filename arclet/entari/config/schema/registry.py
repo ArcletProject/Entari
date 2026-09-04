@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+_SENTINEL = object()
+
+Fragment = dict[str, Any] | type | Callable[[Any], Any]
+
+
+@dataclass(frozen=True)
+class _FragmentRecord:
+    """已注册的 schema 片段。
+
+    Attributes:
+        path: 规范化后的路径段（空元组 = 整个配置 schema）
+        fragment: dict / config 模型类型 / callable
+        replace: True 时目标节点整体替换（跳过深合并）
+        origin: 注册来源插件 id；None = 无插件上下文（仅 dispose 清除会用它）
+    """
+
+    path: tuple[str, ...]
+    """规范化后的路径段（空元组 = 整个配置 schema）"""
+    fragment: Fragment
+    """dict / config 模型类型 / callable"""
+    replace: bool
+    """True 时目标节点整体替换（跳过深合并）"""
+    origin: str | None
+    """注册来源插件 id；None = 无插件上下文（仅 dispose 清除会用它）"""
+
+
+_schema_fragments: dict[str, list[_FragmentRecord]] = {}
+
+
+def _parse_path(path: str | tuple[str, ...]) -> tuple[str, ...]:
+    """把注册 的 path 参数规范化为非空字符串段元组。
+
+    字符串按 `.` 拆段；前导点/连续点/尾随点（空段）一律抛 ValueError
+
+    dotted 子插件键以单元素元组 `(".a.b",)` 传入
+    """
+    if isinstance(path, str):
+        if not path:
+            return ()
+        if path.startswith("."):
+            raise ValueError(
+                "dotted sub-plugin config keys must be passed as a single-element tuple, "
+                f"e.g. schema_fragment(({path!r},), ...); a string path must not start with '.'"
+            )
+        parts = tuple(path.split("."))
+        if any(not part for part in parts):
+            raise ValueError(f"invalid schema fragment path {path!r}: empty segment")
+        return parts
+    parts = tuple(path)
+    if any(not isinstance(part, str) or not part for part in parts):
+        raise ValueError(f"invalid schema fragment path {path!r}: segments must be non-empty strings")
+    return parts
+
+
+def schema_fragment(
+    path: str | tuple[str, ...] = "",
+    fragment: dict | type | Callable[[Any], Any] | None = None,
+    *,
+    config_key: str | None = None,
+    replace: bool = False,
+) -> None:
+    """注册一个配置 schema 片段（spec §4.1）。
+
+    Args:
+        path (str | tuple[str, ...]): 点分字符串或段元组；空字符串意味着作用于整个配置 schema。
+            以 `.` 开头的 dotted 子插件键必须用单元素元组，如 `(".a.b",)`。
+        fragment: dict（深合并）；config 模型类型（应用时才按最终 ref_root 生成）；
+            或 callable（接收目标节点当前值，返回 dict 深合并 / 非 dict 整体替换）。
+        config_key (str, optional): 目标插件的配置键。为空时取 ``Plugin.current()._config_key``，
+            无插件上下文且未传则抛 LookupError。
+        replace (bool, optional): 目标节点是否整体替换为片段，不做深合并。默认 False。
+    Raises:
+        TypeError: fragment 类型不合法
+        LookupError: 无插件上下文且未传 config_key
+    """
+    from arclet.entari.plugin import get_plugin  # 延迟导入避免 config<->plugin 环
+
+    if fragment is None:
+        raise TypeError("schema_fragment requires a `fragment` (dict / config model type / callable)")
+    if not isinstance(fragment, dict) and not isinstance(fragment, type) and not callable(fragment):
+        raise TypeError(f"unsupported fragment type: {type(fragment).__name__}")
+    parts = _parse_path(path)
+    origin: str | None = None
+    try:
+        plugin = get_plugin(1)
+    except ValueError:
+        plugin = None
+    if config_key is None:
+        if plugin is None:
+            raise LookupError("no plugin context found; pass `config_key` explicitly")
+        config_key = plugin._config_key
+        origin = plugin.id
+    else:
+        if plugin is not None:
+            origin = plugin.id
+    records = _schema_fragments.setdefault(config_key, [])
+    for record in records:
+        if (
+            record.origin == origin
+            and record.path == parts
+            and record.fragment == fragment
+            and record.replace == replace
+        ):
+            return
+    records.append(_FragmentRecord(parts, fragment, replace, origin))
+
+
+def purge_schema_fragments(plugin_id: str) -> None:
+    """清除某插件注册的全部 schema 片段"""
+    for key in [k for k, v in _schema_fragments.items() if any(r.origin == plugin_id for r in v)]:
+        remained = [r for r in _schema_fragments[key] if r.origin != plugin_id]
+        if remained:
+            _schema_fragments[key] = remained
+        else:
+            del _schema_fragments[key]
+
+
+def has_schema_fragments(config_key: str) -> bool:
+    return bool(_schema_fragments.get(config_key))

@@ -39,7 +39,7 @@ import typing_extensions as t_e
 
 from tarina.generic import Unions, is_typed_dict
 
-from .util import store_field_description
+from ..util import store_field_description
 
 _MISSING = dataclasses.MISSING
 
