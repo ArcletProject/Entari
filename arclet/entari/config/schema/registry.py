@@ -4,21 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-_SENTINEL = object()
-
-Fragment = dict[str, Any] | type | Callable[[Any], Any]
+from .rebase import Fragment, update_schema
 
 
 @dataclass(frozen=True)
 class _FragmentRecord:
-    """已注册的 schema 片段。
-
-    Attributes:
-        path: 规范化后的路径段（空元组 = 整个配置 schema）
-        fragment: dict / config 模型类型 / callable
-        replace: True 时目标节点整体替换（跳过深合并）
-        origin: 注册来源插件 id；None = 无插件上下文（仅 dispose 清除会用它）
-    """
+    """已注册的 schema 片段"""
 
     path: tuple[str, ...]
     """规范化后的路径段（空元组 = 整个配置 schema）"""
@@ -44,10 +35,7 @@ def _parse_path(path: str | tuple[str, ...]) -> tuple[str, ...]:
         if not path:
             return ()
         if path.startswith("."):
-            raise ValueError(
-                "dotted sub-plugin config keys must be passed as a single-element tuple, "
-                f"e.g. schema_fragment(({path!r},), ...); a string path must not start with '.'"
-            )
+            raise ValueError("sub-plugin config keys must be passed as a single-element tuple")
         parts = tuple(path.split("."))
         if any(not part for part in parts):
             raise ValueError(f"invalid schema fragment path {path!r}: empty segment")
@@ -123,3 +111,21 @@ def purge_schema_fragments(plugin_id: str) -> None:
 
 def has_schema_fragments(config_key: str) -> bool:
     return bool(_schema_fragments.get(config_key))
+
+
+def apply_schema_fragments(schema: dict, config_key: str, ref_root: str = "/") -> dict:
+    """按注册顺序把 config_key 的片段应用到 schema（原地合并）并返回 schema。
+
+    单轮应用内对等价片段去重：跨 origin 的重复只生效一次。
+    """
+    records = _schema_fragments.get(config_key)
+    if not records:
+        return schema
+    applied: list[tuple[tuple[str, ...], bool, Fragment]] = []
+    for record in records:
+        mark = (record.path, record.replace, record.fragment)
+        if any(mark == old for old in applied):
+            continue
+        applied.append(mark)
+        update_schema(schema, config_key, ref_root, record.path, record.fragment, record.replace)
+    return schema
