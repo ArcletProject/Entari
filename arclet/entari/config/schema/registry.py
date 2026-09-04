@@ -29,7 +29,7 @@ def _parse_path(path: str | tuple[str, ...]) -> tuple[str, ...]:
 
     字符串按 `.` 拆段；前导点/连续点/尾随点（空段）一律抛 ValueError
 
-    dotted 子插件键以单元素元组 `(".a.b",)` 传入
+    子插件键以单元素元组 `(".a.b",)` 传入
     """
     if isinstance(path, str):
         if not path:
@@ -46,53 +46,38 @@ def _parse_path(path: str | tuple[str, ...]) -> tuple[str, ...]:
     return parts
 
 
-def schema_fragment(
+def add_schema_fragment(
+    config_key: str,
     path: str | tuple[str, ...] = "",
     fragment: dict | type | Callable[[Any], Any] | None = None,
-    *,
-    config_key: str | None = None,
     replace: bool = False,
+    origin: str | None = None,
 ) -> None:
-    """注册一个配置 schema 片段（spec §4.1）。
+    """注册一个配置 schema 片段。
 
     Args:
+        config_key (str): 目标插件的配置键。
         path (str | tuple[str, ...]): 点分字符串或段元组；空字符串意味着作用于整个配置 schema。
-            以 `.` 开头的 dotted 子插件键必须用单元素元组，如 `(".a.b",)`。
+            以 `.` 开头的子插件键必须用单元素元组，如 `(".a.b",)`。
         fragment: dict（深合并）；config 模型类型（应用时才按最终 ref_root 生成）；
             或 callable（接收目标节点当前值，返回 dict 深合并 / 非 dict 整体替换）。
-        config_key (str, optional): 目标插件的配置键。为空时取 ``Plugin.current()._config_key``，
-            无插件上下文且未传则抛 LookupError。
         replace (bool, optional): 目标节点是否整体替换为片段，不做深合并。默认 False。
+        origin (str, optional): 注册来源插件 id；空表示无插件上下文（仅 purge 清除会用它）。默认 None。
     Raises:
         TypeError: fragment 类型不合法
-        LookupError: 无插件上下文且未传 config_key
     """
-    from arclet.entari.plugin import get_plugin  # 延迟导入避免 config<->plugin 环
 
     if fragment is None:
         raise TypeError("schema_fragment requires a `fragment` (dict / config model type / callable)")
     if not isinstance(fragment, dict) and not isinstance(fragment, type) and not callable(fragment):
         raise TypeError(f"unsupported fragment type: {type(fragment).__name__}")
     parts = _parse_path(path)
-    origin: str | None = None
-    try:
-        plugin = get_plugin(1)
-    except ValueError:
-        plugin = None
-    if config_key is None:
-        if plugin is None:
-            raise LookupError("no plugin context found; pass `config_key` explicitly")
-        config_key = plugin._config_key
-        origin = plugin.id
-    else:
-        if plugin is not None:
-            origin = plugin.id
     records = _schema_fragments.setdefault(config_key, [])
     for record in records:
         if (
             record.origin == origin
             and record.path == parts
-            and record.fragment == fragment
+            and record.fragment is fragment
             and record.replace == replace
         ):
             return
