@@ -3,9 +3,9 @@ import inspect
 import itertools
 import os
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload, Callable
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on
 from arclet.letoderea.effect import AsyncDisposable, Disposable
@@ -268,7 +268,12 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
 get_config = plugin_config
 
 
-def register_schema(path: str | tuple[str, ...] = "", fragment: dict | type | Callable[[dict], dict] | None = None, *, replace: bool = False) -> None:
+def register_schema(
+    path: str | tuple[str, ...] = "",
+    fragment: dict | type | Callable[[dict], dict] | None = None,
+    *,
+    replace: bool = False,
+) -> None:
     plugin = get_plugin(1)
     plugin.register_schema(path, fragment, replace=replace)
 

@@ -112,5 +112,10 @@ def apply_schema_fragments(schema: dict, config_key: str, ref_root: str = "/") -
         if any(mark == old for old in applied):
             continue
         applied.append(mark)
-        update_schema(schema, config_key, ref_root, record.path, record.fragment, record.replace)
+        try:
+            update_schema(schema, config_key, ref_root, record.path, record.fragment, record.replace)
+        except (RuntimeError, ValueError) as e:
+            from ...logger import log
+
+            log.plugin.warning(str(e))
     return schema

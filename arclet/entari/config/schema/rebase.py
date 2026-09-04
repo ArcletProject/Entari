@@ -1,5 +1,4 @@
 import copy
-
 from collections.abc import Callable
 from typing import Any, TypeAlias
 
@@ -28,9 +27,7 @@ def _pointer_path(parts: tuple[str, ...]) -> str:
     return "/" + "/".join(segments) if segments else ""
 
 
-def _resolve_target(
-    schema: dict, parts: tuple[str, ...]
-) -> tuple[dict | None, str | None, dict | None]:
+def _resolve_target(schema: dict, parts: tuple[str, ...]) -> tuple[dict | None, str | None, dict | None]:
     """沿 parts 在 schema 内导航到目标节点，返回 (holder, key, target)
     - target: 已存在的 dict 目标节点（可原地深合并）；
     - target 为 None 且 holder/key 非空：目标缺失或为非 dict，调用方应整体写入 holder[key]；
@@ -51,7 +48,7 @@ def _resolve_target(
                 raise ValueError(f"schema fragment path crosses non-dict node {part!r}, skipped")
             props = node.setdefault("properties", {})
             if not isinstance(props, dict):
-                raise ValueError(f"schema fragment path crosses non-dict 'properties' node, skipped")
+                raise ValueError("schema fragment path crosses non-dict 'properties' node, skipped")
             holder, key = props, part
             value = props.get(part, _SENTINEL)
         else:
@@ -121,7 +118,9 @@ def _collect_defs_and_rebase(
     return hoisted
 
 
-def update_schema(schema: dict, config_key: str, ref_root: str, parts: tuple[str, ...], payload: Fragment, replace: bool = False) -> None:
+def update_schema(
+    schema: dict, config_key: str, ref_root: str, parts: tuple[str, ...], payload: Fragment, replace: bool = False
+) -> None:
     final_ref_root = f"{ref_root}{_pointer_path(parts)}/" if parts else ref_root
     if isinstance(payload, type):
         # 模型片段：以最终 ref_root 生成，再走统一的 defs 处理

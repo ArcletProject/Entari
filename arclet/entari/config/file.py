@@ -15,6 +15,8 @@ from tarina.tools import nest_dict_update, safe_eval
 
 from .action import Proxy, config_model_dump, config_model_schema, config_model_validate
 from .model import BasicConfig
+from .schema import apply_schema_fragments
+from .schema.plugin import PLUGIN_META_PROPERTIES_EXTRA, plugin_config_schema
 from .util import GetattrDict
 
 try:
@@ -336,58 +338,41 @@ class EntariConfig:
     def generate_schema(self, plugins: list["Plugin"]):
         plugins_properties = {}
         # fmt: off
-        plugin_meta_properties = {"$disable": {"type": "string", "description": "Expression for whether disable this plugin"}, "$priority": {"type": "integer", "description": "Plugin loading priority, lower value means higher priority (default: 16)"}, "$filter": {"type": "string", "description": "Plugin filter expression, which will be evaluated in the context of the plugin"}}  # noqa: E501
         # Build a mapping from plugin config key to plugin object for $files schema generation
         plugin_map: dict[str, "Plugin"] = {}  # noqa: UP037
         for plug in plugins:
             plugin_map[plug._config_key] = plug
-            if plug.metadata is not None:
-                if plug.metadata.config:
-                    schema = config_model_schema(plug.metadata.config, ref_root=f"/properties/plugins/properties/{plug._config_key}/")  # noqa: E501
-                    schema["properties"].update(plugin_meta_properties)
-                    plugins_properties[plug._config_key] = schema
-                else:
-                    plugins_properties[plug._config_key] = {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
-            else:
-                plugins_properties[plug._config_key] = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
+            plugins_properties[plug._config_key] = plugin_config_schema(plug, ref_root=f"/properties/plugins/properties/{plug._config_key}")  # noqa: E501
         schemas = {
             "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prefix": {"description": "List of prefix config", "items": {"properties": {"key": {"description": "Prefix key", "title": "Key", "type": "string"}, "plugins": {"anyOf": [{"type": "string"}, {"items": {"type": "string", "description": "Plugin name"}, "type": "array", "uniqueItems": True}], "description": "List of plugins under the prefix, or select an item of $files to apply plugins", "title": "Plugins"}}, "required": ["key"], "title": "Prefix Config", "type": "object"}, "type": "array"}, "$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
         }
         with open(f"{self.path.stem}.schema.json", "w", encoding="utf-8") as f:
             json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": schemas, "additionalProperties": False, "required": ["basic"]}, f, indent=2, ensure_ascii=False)  # noqa: E501
 
+        # fmt: on
         # Generate schema for each file in $files
         for file in self.plugin_extra_files:
             path = Path(file)
             if path.is_file() and not path.name.endswith(".schema.json"):
-                self._generate_extra_file_schema(path, plugin_map, plugin_meta_properties)
+                self._generate_extra_file_schema(path, plugin_map)
             elif path.is_dir():
                 for _path in path.iterdir():
                     if _path.is_file() and not _path.name.endswith(".schema.json"):
-                        self._generate_extra_file_schema(_path, plugin_map, plugin_meta_properties)
-        # fmt: on
+                        self._generate_extra_file_schema(_path, plugin_map)
         plugin_map.clear()
 
-    def _generate_extra_file_schema(self, path: Path, plugin_map: dict[str, "Plugin"], plugin_meta_properties: dict):
+    def _generate_extra_file_schema(self, path: Path, plugin_map: dict[str, "Plugin"]):
         """Generate schema for an extra config file from $files."""
-        # fmt: off
         plugin_key = path.stem
         schema_file = path.with_suffix(".schema.json")
-        plugin_meta_properties = {**plugin_meta_properties, "$optional": {"type": "boolean", "description": "Whether this plugin is optional"}}  # noqa: E501
-
+        # fmt: off
         # Check if we have a matching plugin with config
         if plugin_key in plugin_map:
-            plug = plugin_map[plugin_key]
-            if plug.metadata is not None and plug.metadata.config:
-                plugin_schema = config_model_schema(plug.metadata.config, ref_root="/")
-                plugin_schema["properties"].update(plugin_meta_properties)
-            elif plug.metadata is not None:
-                plugin_schema = {"type": "object", "description": f"{plug.metadata.description or plug.metadata.name}; no configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
-            else:
-                plugin_schema = {"type": "object", "description": "No configuration required", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
+            plugin_schema = plugin_config_schema(plugin_map[plugin_key], use_extra_meta=True)
         else:
             # Plugin not found, generate a generic schema
-            plugin_schema = {"type": "object", "description": f"Configuration for {plugin_key}", "additionalProperties": True, "properties": plugin_meta_properties}  # noqa: E501
+            plugin_schema = {"type": "object", "description": f"Configuration for {plugin_key}", "additionalProperties": True, "properties":  {k: dict(v) for k, v in PLUGIN_META_PROPERTIES_EXTRA.items()}}  # noqa: E501
+            apply_schema_fragments(plugin_schema, plugin_key, ref_root="/")
 
         with open(schema_file, "w", encoding="utf-8") as f:
             json.dump({"$schema": "https://json-schema.org/draft/2020-12/schema", **plugin_schema}, f, indent=2, ensure_ascii=False)  # noqa: E501

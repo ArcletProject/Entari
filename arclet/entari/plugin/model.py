@@ -8,7 +8,6 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from itertools import chain
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generic, TypeVar, cast
@@ -39,8 +38,7 @@ from launart import Launart, Service
 from tarina import ContextModel
 from tarina.tools import TCallable, run_sync
 
-from ..config import config_model_schema
-from ..config.schema import purge_schema_fragments, add_schema_fragment, apply_schema_fragments, has_schema_fragments
+from ..config.schema import add_schema_fragment, plugin_config_schema, purge_schema_fragments
 from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
@@ -329,21 +327,14 @@ class Plugin:
         """注册作用于本插件配置的 schema 片段"""
         add_schema_fragment(self._config_key, path, fragment, replace, self.id)
 
-    def config_schema(self, config_key: str | None = None) -> dict[str, Any]:
+    def config_schema(self, config_key: str | None = None, ref_root: str = "/") -> dict[str, Any]:
         """获取插件配置模型的 JSON Schema
 
         Args:
             config_key (str, optional): 本插件的配置键。
+            ref_root (str, optional): JSON Schema $ref 的根路径，默认为 "/"。
         """
-        metadata = self._metadata
-        if metadata is None or metadata.config is None:
-            if not config_key or not has_schema_fragments(config_key):
-                return {}
-            return apply_schema_fragments({"type": "object", "additionalProperties": True}, config_key, ref_root="/")
-        schema = config_model_schema(metadata.config)
-        if config_key:
-            return apply_schema_fragments(schema, config_key, ref_root="/")
-        return schema
+        return plugin_config_schema(self, config_key, ref_root=ref_root)  # type: ignore
 
     def exec_apply(self):
         if not self._apply:
