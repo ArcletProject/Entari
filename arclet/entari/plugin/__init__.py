@@ -5,6 +5,7 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from arclet.letoderea import Subscriber, on
@@ -26,7 +27,6 @@ from .loader import unload_plugin as unload_plugin
 from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import PluginRole as PluginRole
-from .model import RootlessPlugin as RootlessPlugin
 from .model import keeping as keeping
 from .module import package as package
 from .module import requires as requires
@@ -404,3 +404,13 @@ def component(name: str):
         return func
 
     return wrapper
+
+
+def isolate(label: str):
+    """创建一个隔离的插件上下文, 用于在当前插件中创建一个子插件"""
+    _plugin = get_plugin(1)
+    return _plugin.isolate(label)
+
+
+ROOT = plugin_service.root = Plugin("$", ModuleType("$"), config={"$path": "$"})
+ROOT.module.__file__ = "__main__"

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from arclet.letoderea import es
 from launart import Launart, Service
@@ -14,7 +13,7 @@ from ..event.plugin import PluginUnloaded
 from ..logger import log
 
 if TYPE_CHECKING:
-    from .model import KeepingVariable, Plugin, RootlessPlugin
+    from .model import KeepingVariable, Plugin
 
 
 class ServiceWaiters:
@@ -59,9 +58,10 @@ class PluginManagerService(Service):
     """卸载插件集合，存储所有已卸载的插件ID"""
     _subplugined: dict[str, str]
     """子插件字典，键为子插件ID，值为父插件ID"""
-    _apply: dict[str, tuple[Callable[[dict[str, Any]], RootlessPlugin], bool]]
     _staged: dict[str, Plugin]
     """插件暂存"""
+    root: Plugin
+    """根插件对象，作为基础插件的父插件"""
 
     def __init__(self):
         super().__init__()
@@ -72,7 +72,6 @@ class PluginManagerService(Service):
         self.references = {}
         self._unloaded = set()
         self._subplugined = {}
-        self._apply = {}
         self.bindings = {}
         self.fingerprints = {}
         self._staged = {}

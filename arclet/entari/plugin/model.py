@@ -31,7 +31,7 @@ from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.effect import AsyncDisposable, Disposable
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers, filter_publisher
-from arclet.letoderea.scope import RegisterWrapper
+from arclet.letoderea.scope import RegisterWrapper, scope_ctx
 from arclet.letoderea.utils import DisposableList, add_task
 from creart import it
 from launart import Launart, Service
@@ -278,10 +278,12 @@ class Plugin:
             value.config.__doc__ = value.description or value.name
 
     def __post_init__(self):
+        if not hasattr(self.module, "__plugin__"):
+            setattr(self.module, "__plugin__", self)
         uid_index = self.id.rfind("@")
         self.path = self.id[:uid_index] if uid_index != -1 else self.id
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
-        if self.id in plugin_service.plugins and not self.id.startswith("."):
+        if self.id in plugin_service.plugins and not self.id.startswith("$"):
             # 原子重载暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
             self._scope = _make_scope(self).of(f"{self.id}@staging")
             self._scope.disable()
@@ -341,9 +343,14 @@ class Plugin:
             return
         log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
         token = current_plugin.set(self)
+        if not self.is_static:
+            token1 = scope_ctx.set(self._scope)
         try:
             self._apply(self)
-            log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
+            if self.id in plugin_service._subplugined:
+                log.plugin.trace(f"sub-plugin <r>{self.id!r}</r> fully applied")
+            else:
+                log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
             publish(PluginLoadedSuccess(self.id))
         except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
@@ -357,6 +364,8 @@ class Plugin:
             raise
         finally:
             current_plugin.reset(token)
+            if not self.is_static or "token1" in locals():
+                scope_ctx.reset(token1)  # type: ignore
 
     @property
     def is_available(self) -> bool:
@@ -497,7 +506,7 @@ class Plugin:
         if self._is_disposed:
             return
         purge_schema_fragments(self.id)
-        if not self.id.startswith(".") and self.id not in plugin_service._subplugined:
+        if not self.id.startswith("$") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         _was_staged = self.id in plugin_service._staged
         self._is_disposed = True
@@ -634,43 +643,23 @@ class Plugin:
             if kept.module_attr:
                 self.module.__dict__[kept.module_attr] = kept.obj
 
+    def isolate(self, label: str):
+        """创建一个隔离的子插件，子插件的生命周期与父插件绑定"""
+        sub_id = f"{self.id}.{label}"
+        if sub_id in plugin_service.plugins:
+            raise ValueError(f"sub-plugin {sub_id} already exists")
+        subplug = Plugin(sub_id, ModuleType(sub_id), config=self.config.copy())
+        setattr(subplug.module, "__plugin__", subplug)
+        self.subplugins.append(sub_id)
+        plugin_service._subplugined[sub_id] = self.id
 
-class RootlessPlugin(Plugin):
-    # fmt: off
-    @classmethod
-    def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None, *, default: bool = False) -> Any:  # noqa: E501
-    # fmt: on
-        if not id.startswith("."):
-            id = f".{id}"
+        def wrapper(func: Callable[[Plugin], Any], /):
+            setattr(func, "__plugin__", subplug)
+            setattr(subplug.module, "__file__", func.__code__.co_filename)
+            subplug._apply = func
+            return subplug
 
-        def dispose():
-            if id in plugin_service.plugins:
-                plugin_service.plugins[id].dispose()
-            else:
-                plugin_service._apply.pop(id, None)
-
-        def wrapper(func: Callable[[RootlessPlugin], Any]):
-            plugin_service._apply[id] = (lambda config: cls(id, func, config), default)  # type: ignore
-            return dispose
-
-        if func:
-            return wrapper(func)
         return wrapper
-
-    def __init__(self, id: str, func: Callable[[RootlessPlugin], Any], config: dict):
-        super().__init__(id, ModuleType(id), config=config)
-        setattr(self.module, "__plugin__", self)
-        setattr(self.module, "__file__", func.__code__.co_filename)
-        self.func = func
-        setattr(self.func, "__plugin__", self)
-        token = current_plugin.set(self)
-        try:
-            func(self)
-        finally:
-            current_plugin.reset(token)
-
-    def validate(self, func):
-        pass
 
 
 class KeepingVariable(Generic[T]):

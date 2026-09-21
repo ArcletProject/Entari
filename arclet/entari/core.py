@@ -49,12 +49,12 @@ from .const import (
 from .event.api import SendResponse
 from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
-from .event.lifespan import AccountUpdate
+from .event.lifespan import AccountUpdate, Ready
 from .localdata import local_data
 from .logger import apply_log_save, enable_rich_except, log
 from .message import MessageChain
-from .plugin import get_plugins, load_plugin, plugin_config, requires
-from .plugin.model import PluginMetadata, PluginRole, RootlessPlugin
+from .plugin import ROOT, Plugin, get_plugins, load_plugin, plugin_config, requires
+from .plugin.model import PluginMetadata, PluginRole
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
 
@@ -254,8 +254,8 @@ class RecordConfig(BasicConfModel):
     """是否在日志中使用简短的消息内容"""
 
 
-@RootlessPlugin.apply("record_message", default=True)
-def record(plg: RootlessPlugin):
+@ROOT.isolate("record_message")
+def record(plg: Plugin):
     plg.metadata = PluginMetadata(
         "记录消息",
         PluginRole.UTILITY,
@@ -302,10 +302,6 @@ def record(plg: RootlessPlugin):
 
 class Entari(App):
     id = "entari.service"
-
-    @property
-    def main_plugin(self):
-        return RootlessPlugin.apply("main", default=True)
 
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None):
@@ -455,9 +451,7 @@ class Entari(App):
             load_plugin(plug, prelude=True)
         plugins = EntariConfig.instance.plugin_names
         requires(*plugins)
-        for apply, slot in plugin_service._apply.items():
-            if slot[1] and apply not in EntariConfig.instance.plugin:
-                plugins.append(apply)
+
         for plug in plugins:
             load_plugin(plug)
 
@@ -465,6 +459,9 @@ class Entari(App):
             if entry.name not in plugins and entry.module not in plugin_service.plugins:
                 load_plugin(entry.module)
 
+        le.on(Ready, self._generate_schema, priority=0)
+
+    def _generate_schema(self):
         if self.gen_schema and EntariConfig.instance.path.exists():
             EntariConfig.instance.generate_schema(get_plugins())
 

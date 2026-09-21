@@ -318,21 +318,24 @@ class PluginLoader(SourceFileLoader):
 
         if config is None or (not is_sub and not {k: v for k, v in config.items() if k not in ("$path", "$static")}):
             key = module.__name__
-            if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
-                key = f"::{key[23:]}"
-            config = EntariConfig.instance.plugin.get(key)
-            if config is not None:
-                config["$path"] = key
-            else:
-                for k, names in EntariConfig.instance._plugin_names.items():
-                    if key in names:
-                        config = EntariConfig.instance.plugin.get(k, {})
-                        config["$path"] = k
-                        break
+            if hasattr(EntariConfig, "instance"):
+                if key.startswith("arclet.entari.builtins.") and f"::{key[23:]}" in EntariConfig.instance.plugin:
+                    key = f"::{key[23:]}"
+                config = EntariConfig.instance.plugin.get(key)
+                if config is not None:
+                    config["$path"] = key
                 else:
-                    config = {"$path": key}
-            if key in EntariConfig.instance.prelude_plugin:
-                config["$static"] = True  # type: ignore
+                    for k, names in EntariConfig.instance._plugin_names.items():
+                        if key in names:
+                            config = EntariConfig.instance.plugin.get(k, {})
+                            config["$path"] = k
+                            break
+                    else:
+                        config = {"$path": key}
+                if key in EntariConfig.instance.prelude_plugin:
+                    config["$static"] = True  # type: ignore
+            else:
+                config = {"$path": key}
         # create plugin before executing
         plugin = Plugin(self.plugin_id, module, config=config)
         # for `dataclasses` module

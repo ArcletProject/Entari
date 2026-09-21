@@ -259,13 +259,12 @@ def load_plugin(
     if recursive_guard is None:
         recursive_guard = set()
     path = path.replace("::", "arclet.entari.builtins.")
+    if path.startswith(".") and f"${path}" in plugin_service.root.subplugins:
+        rootless = plugin_service.plugins[f"${path}"]
+        rootless.config = config
+        return rootless
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
-    if path in plugin_service._apply:
-        if path in plugin_service.plugins:
-            return plugin_service.plugins[path]
-        log.plugin.trace(f"loaded rootless plugin <y>{path!r}</y>")
-        return plugin_service._apply[path][0](config)
     if not staged and (plug := find_plugin(path)):
         plugin_service._direct_plugins.add(plug.path)
         return plug

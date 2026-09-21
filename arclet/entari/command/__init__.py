@@ -23,7 +23,7 @@ from ..event.command import CommandExecute, CommandParse
 from ..event.config import ConfigReload
 from ..logger import DEBUG_NO, log
 from ..message import MessageChain
-from ..plugin import PluginRole, RootlessPlugin, get_plugin, metadata, plugin_config
+from ..plugin import ROOT, PluginRole, get_plugin, metadata, plugin_config
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -268,7 +268,7 @@ class CommandsConfig(BasicConfModel):
     )
 
 
-@RootlessPlugin.apply("commands", default=True)
+@ROOT.isolate("commands")
 def command_plugin(_):
     metadata(
         "Commands Plugin",

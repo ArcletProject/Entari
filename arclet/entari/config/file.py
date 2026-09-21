@@ -341,8 +341,15 @@ class EntariConfig:
         # Build a mapping from plugin config key to plugin object for $files schema generation
         plugin_map: dict[str, "Plugin"] = {}  # noqa: UP037
         for plug in plugins:
-            plugin_map[plug._config_key] = plug
-            plugins_properties[plug._config_key] = plugin_config_schema(plug, ref_root=f"/properties/plugins/properties/{plug._config_key}")  # noqa: E501
+            if plug.id == "$":
+                schema = plugin_config_schema(plug, ref_root="/properties/plugins")
+                for key, property_ in schema["properties"].items():
+                    if key.startswith("$"):
+                        continue
+                    plugins_properties[key] = property_
+            else:
+                plugin_map[plug._config_key] = plug
+                plugins_properties[plug._config_key] = plugin_config_schema(plug, ref_root=f"/properties/plugins/properties/{plug._config_key}")  # noqa: E501
         schemas = {
             "basic": config_model_schema(BasicConfig, ref_root="/properties/basic/"), "plugins": {"type": "object", "description": "Plugin configurations", "properties": {"$prefix": {"description": "List of prefix config", "items": {"properties": {"key": {"description": "Prefix key", "title": "Key", "type": "string"}, "plugins": {"anyOf": [{"type": "string"}, {"items": {"type": "string", "description": "Plugin name"}, "type": "array", "uniqueItems": True}], "description": "List of plugins under the prefix, or select an item of $files to apply plugins", "title": "Plugins"}}, "required": ["key"], "title": "Prefix Config", "type": "object"}, "type": "array"}, "$prelude": {"type": "array", "items": {"type": "string", "description": "Plugin name"}, "description": "List of prelude plugins to load", "default": [], "uniqueItems": True}, "$files": {"type": "array", "items": {"type": "string", "description": "File path"}, "description": "List of configuration files to load", "default": [], "uniqueItems": True}, **plugins_properties}}, "adapters": {"type": "array", "description": "Adapter configurations", "items": {"type": "object", "description": "Adapter configuration", "properties": {"$path": {"type": "string", "description": "Adapter Module Path"}}, "required": ["$path"], "additionalProperties": True}}  # noqa: E501
         }

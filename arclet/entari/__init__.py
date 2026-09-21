@@ -68,6 +68,7 @@ from .event.lifespan import Startup as Startup
 from .filter import filter_ as filter_
 from .localdata import local_data as local_data
 from .message import MessageChain as MessageChain
+from .plugin import ROOT as ROOT
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
 from .plugin import add_service as add_service
@@ -75,6 +76,7 @@ from .plugin import collect_disposes as collect_disposes
 from .plugin import declare_static as declare_static
 from .plugin import disable_plugin as disable_plugin
 from .plugin import enable_plugin as enable_plugin
+from .plugin import isolate as isolate
 from .plugin import keeping as keeping
 from .plugin import listen as listen
 from .plugin import load_plugin as load_plugin
