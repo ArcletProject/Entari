@@ -10,7 +10,7 @@ from nonestorage import user_cache_dir, user_data_dir
 
 from .config import BasicConfModel, config_model_validate, model_field
 from .event.config import ConfigReload
-from .plugin import ROOT, PluginRole, metadata, plugin_config
+from .plugin import PluginRole, metadata, niche, plugin_config
 
 P = ParamSpec("P")
 
@@ -108,7 +108,7 @@ class Config(BasicConfModel):
     base_dir: str | None = model_field(default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，")
 
 
-@ROOT.isolate("localdata")
+@niche("localdata")
 def localdata_apply(plg):
     metadata(
         "Data store interface with local directories",

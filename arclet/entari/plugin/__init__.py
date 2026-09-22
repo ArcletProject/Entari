@@ -406,10 +406,13 @@ def component(name: str):
     return wrapper
 
 
-def isolate(label: str):
+def niche(label: str, config: dict[str, Any] | None = None):
     """创建一个隔离的插件上下文, 用于在当前插件中创建一个子插件"""
-    _plugin = get_plugin(1)
-    return _plugin.isolate(label)
+    try:
+        _plugin = get_plugin(1)
+    except LookupError:
+        _plugin = ROOT
+    return _plugin.niche(label, config)
 
 
 ROOT = plugin_service.root = Plugin("$", ModuleType("$"), config={"$path": "$"})

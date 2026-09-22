@@ -13,7 +13,7 @@ from launart.status import Phase
 from .config import BasicConfModel
 from .event.config import ConfigReload
 from .logger import log
-from .plugin import ROOT, PluginRole, get_plugin, metadata, plugin_config
+from .plugin import PluginRole, get_plugin, metadata, niche, plugin_config
 
 
 @make_event(name="entari.event/internal/schedule")
@@ -137,7 +137,7 @@ scheduler = service = Scheduler()
 schedule = scheduler.schedule
 
 
-@ROOT.isolate("scheduler")
+@niche("scheduler")
 def _(plg):
     metadata(
         "Simple Scheduler with interval / crontab task",

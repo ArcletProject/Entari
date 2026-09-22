@@ -53,7 +53,7 @@ from .event.lifespan import AccountUpdate, Ready
 from .localdata import local_data
 from .logger import apply_log_save, enable_rich_except, log
 from .message import MessageChain
-from .plugin import ROOT, Plugin, get_plugins, load_plugin, plugin_config, requires
+from .plugin import Plugin, get_plugins, load_plugin, niche, plugin_config, requires
 from .plugin.model import PluginMetadata, PluginRole
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
@@ -254,7 +254,7 @@ class RecordConfig(BasicConfModel):
     """是否在日志中使用简短的消息内容"""
 
 
-@ROOT.isolate("record_message")
+@niche("record_message")
 def record(plg: Plugin):
     plg.metadata = PluginMetadata(
         "记录消息",

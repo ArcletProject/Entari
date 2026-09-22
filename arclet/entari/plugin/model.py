@@ -292,7 +292,7 @@ class Plugin:
             self._scope = _make_scope(self).of(self.id)
             plugin_service.plugins[self.id] = self  # type: ignore
         self.effect = self._scope.effect
-        self._config_key = self.config.pop("$path", self.id)
+        self._config_key = self.config.pop("$path", self.id.lstrip("$"))
         if filter_expr := self.config.get("$filter", ""):
             self._scope.propagators.append(FilterPropagator(filter_expr))
         # if self._metadata and self._metadata.depend_services:
@@ -643,20 +643,20 @@ class Plugin:
             if kept.module_attr:
                 self.module.__dict__[kept.module_attr] = kept.obj
 
-    def isolate(self, label: str):
+    def niche(self, label: str, config: dict[str, Any] | None = None):
         """创建一个隔离的子插件，子插件的生命周期与父插件绑定"""
         sub_id = f"{self.id}.{label}"
         if sub_id in plugin_service.plugins:
             raise ValueError(f"sub-plugin {sub_id} already exists")
-        subplug = Plugin(sub_id, ModuleType(sub_id), config=self.config.copy())
-        setattr(subplug.module, "__plugin__", subplug)
-        self.subplugins.append(sub_id)
-        plugin_service._subplugined[sub_id] = self.id
 
         def wrapper(func: Callable[[Plugin], Any], /):
+            subplug = Plugin(sub_id, ModuleType(sub_id), config=self.config.copy() if config is None else config)
+            setattr(subplug.module, "__plugin__", subplug)
             setattr(func, "__plugin__", subplug)
             setattr(subplug.module, "__file__", func.__code__.co_filename)
             subplug._apply = func
+            self.subplugins.append(sub_id)
+            plugin_service._subplugined[sub_id] = self.id
             return subplug
 
         return wrapper

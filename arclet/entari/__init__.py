@@ -76,12 +76,12 @@ from .plugin import collect_disposes as collect_disposes
 from .plugin import declare_static as declare_static
 from .plugin import disable_plugin as disable_plugin
 from .plugin import enable_plugin as enable_plugin
-from .plugin import isolate as isolate
 from .plugin import keeping as keeping
 from .plugin import listen as listen
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .plugin import metadata as metadata
+from .plugin import niche as niche
 from .plugin import package as package
 from .plugin import plugin_config as plugin_config
 from .plugin import register_schema as register_schema
