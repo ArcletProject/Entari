@@ -614,18 +614,68 @@ class _PluginFinder(PathFinder):
         return
 
 
+def _load_module(spec: ModuleSpec, config: dict | None = None):
+    mod = module_from_spec(spec)
+    spec._initializing = True  # type: ignore
+    try:
+        sys.modules[spec.name] = mod
+        try:
+            if spec.loader is None:
+                if spec.submodule_search_locations is None:
+                    raise ImportError("missing loader", name=spec.name)
+                # A namespace package so do nothing.
+            else:
+                if isinstance(spec.loader, PluginLoader):
+                    spec.loader.exec_module(mod, config=config)
+                else:
+                    spec.loader.exec_module(mod)
+        except:
+            sys.modules.pop(spec.name, None)
+            raise
+        if isinstance(spec.loader, PluginLoader):
+            protected_modules = set()
+            module_name = mod.__name__
+            if module_name:
+                prefix = []
+                for part in module_name.split("."):
+                    prefix.append(part)
+                    protected_modules.add(".".join(prefix))
+            sys.modules.pop(module_name, None)
+            for _imported in _IMPORTING:
+                if _imported in protected_modules or _imported in plugin_service.plugins:
+                    continue
+                sys.modules.pop(_imported, None)
+            _IMPORTING.clear()
+        else:
+            # Move the module to the end of sys.modules.
+            # We don't ensure that the import-related module attributes get
+            # set in the sys.modules replacement case.  Such modules are on
+            # their own.
+            mod = sys.modules.pop(spec.name)
+            sys.modules[mod.__name__] = mod
+    finally:
+        spec._initializing = False  # type: ignore
+    return mod
+
+
 def import_plugin(id_, package=None, config: dict | None = None, staged: bool = False) -> ModuleType | None:
     uid_index = id_.rfind("@")
     name = id_ if uid_index == -1 else id_[:uid_index]
     fullname = resolve_name(name, package) if name.startswith(".") else name
     parent_name = fullname.rpartition(".")[0]
+    child = fullname.rpartition(".")[2]
+    parent_path: Sequence[str] | None = None
+    parent_spec: ModuleSpec | None = None
     if parent_name:
-        parent: ModuleType | None
+        parent: ModuleType
         parts = parent_name.split(".")
         _current = parts[0]
         if _current in plugin_service.plugins:
             parent = plugin_service.plugins[_current].module
             enter_plugin = True
+        elif _current in sys.modules:
+            parent = sys.modules[_current]
+            enter_plugin = hasattr(parent, "__plugin__")
         else:
             parent = __import__(_current, fromlist=["__path__"])
             enter_plugin = False
@@ -635,54 +685,44 @@ def import_plugin(id_, package=None, config: dict | None = None, staged: bool = 
             if _current in plugin_service.plugins:
                 parent = plugin_service.plugins[_current].module
                 enter_plugin = True
+            elif _current in sys.modules:
+                parent = sys.modules[_current]
+                enter_plugin = hasattr(parent, "__plugin__")
             elif _current in _ENSURE_IS_PLUGIN or enter_plugin:
-                if parent := import_plugin(_current):
+                tmp = import_plugin(_current)
+                if tmp is not None:
+                    parent = tmp
                     enter_plugin = True
+                    del tmp
                 else:
                     parent = __import__(_current, fromlist=["__path__"])
                     enter_plugin = False
             else:
                 parent = __import__(_current, fromlist=["__path__"])
             _current += "."
-        if parent is None:
+        try:
+            parent_path = parent.__path__
+        except AttributeError:
             raise ModuleNotFoundError(
-                f"parent module {parent_name!r} does not have __path__ attribute " f"while trying to find {fullname!r}",
+                f"parent module {parent_name!r} does not have __path__ attribute while trying to find {fullname!r}",
                 name=fullname,
             )
-        parent_path = parent.__path__
-    else:
-        parent_path = None
+        parent_spec = parent.__spec__
+    # _find_spec
     spec = _PluginFinder.find_spec(fullname, parent_path, origin_id_=id_, force=True, staged=staged)
     if not spec:
         return
-    mod = module_from_spec(spec)
-    spec._initializing = True  # type: ignore
+    if parent_spec:
+        # Temporarily add child we are currently importing to parent's
+        # _uninitialized_submodules for circular import tracking.
+        parent_spec._uninitialized_submodules.append(child)  # type: ignore
     try:
-        if spec.loader is None:
-            if spec.submodule_search_locations is None:
-                raise ImportError("missing loader", name=spec.name)
-            # A namespace package so do nothing.
-        else:
-            if isinstance(spec.loader, PluginLoader):
-                spec.loader.exec_module(mod, config=config)
-                protected_modules = set()
-                module_name = mod.__name__
-                if module_name:
-                    prefix = []
-                    for part in module_name.split("."):
-                        prefix.append(part)
-                        protected_modules.add(".".join(prefix))
-                sys.modules.pop(module_name, None)
-                for _imported in _IMPORTING:
-                    if _imported in protected_modules or _imported in plugin_service.plugins:
-                        continue
-                    sys.modules.pop(_imported, None)
-                _IMPORTING.clear()
-            else:
-                spec.loader.exec_module(mod)
-                sys.modules[mod.__name__] = mod
+        mod = _load_module(spec, config=config)
     finally:
-        spec._initializing = False  # type: ignore
+        if parent_spec:
+            parent_spec._uninitialized_submodules.pop()  # type: ignore
+    if parent_name:
+        setattr(parent, child, mod.__plugin__.proxy())
     return mod
 
 
