@@ -343,9 +343,8 @@ class Watcher(Service):
                     for plugin_name in new:
                         if plugin_name.startswith("$") or plugin_name.startswith("~"):
                             continue
-                        if not (plg := load_plugin(plugin_name)):
+                        if not load_plugin(plugin_name):
                             continue
-                        del plg
 
     async def launch(self, manager: Launart):
         async with self.stage("preparing"):

@@ -295,14 +295,16 @@ def load_plugins(dir_: str | os.PathLike | Path):
         prefix = max(prefixes, key=lambda p: len(p.parts))
     else:
         prefix = Path.cwd()
-    for p in path.iterdir():
-        if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
-            p = p.resolve().relative_to(prefix)
-            if len(p.parts) > 1:
-                plg = ".".join(p.parts[:-1:1]) + "." + p.stem
-            else:
-                plg = p.stem
-            load_plugin(plg)
+
+    def _(_path: Path):
+        _path = _path.resolve().relative_to(prefix)
+        if len(_path.parts) > 1:
+            plg = ".".join(_path.parts[:-1:1]) + "." + _path.stem
+        else:
+            plg = _path.stem
+        return load_plugin(plg)
+
+    return [_(p) for p in path.iterdir() if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}]
 
 
 def find_plugin_by_file(file: str) -> Plugin | None:

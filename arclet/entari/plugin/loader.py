@@ -2,6 +2,7 @@ import ast
 import asyncio
 import sys
 from typing import Any
+from weakref import ref
 
 from arclet.letoderea import publish
 
@@ -179,10 +180,10 @@ def _cascade_dep(dep_id: str, referent_set: set[str], recursive_guard: set[str])
     referent_set.discard(dep_id)
     log.plugin.debug(f"reloading <y>{dep_id!r}</y>")
     unload_plugin(dep_id)
-    if not (plug := load_plugin(dep_id)):
+    if not (result := load_plugin(dep_id)):
         referent_set.add(dep_id)
     else:
-        publish(Ready(), plug._scope)
+        publish(Ready(), result.plugin._scope)
         recursive_guard.add(dep_id)
 
 
@@ -212,10 +213,10 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
             continue
         dep = plugin_service.plugins.get(dep_id)
         if dep is None:
-            if not (plug := load_plugin(dep_id)):
+            if not (result := load_plugin(dep_id)):
                 referent_set.add(dep_id)
                 continue
-            publish(Ready(), plug._scope)
+            publish(Ready(), result.plugin._scope)
             recursive_guard.add(dep_id)
             continue
         if not surface_changed:
@@ -227,13 +228,36 @@ def _handle_dependents(plugin: Plugin, recursive_guard: set[str] | None = None):
             _rebind_dep(dep, path)
 
 
+class _LoadResult:
+    __slots__ = ("_plugin", "error", "_desc")
+
+    def __init__(self, plugin: Plugin | None, error: Exception | None = None):
+        self._plugin = ref(plugin) if plugin is not None else None
+        self._desc = repr(plugin) if plugin is not None else "None"
+        self.error = error
+
+    @property
+    def plugin(self) -> Plugin:
+        if self._plugin is None:
+            raise RuntimeError("plugin not loaded")
+        if plug := self._plugin():
+            return plug
+        raise RuntimeError("plugin has been garbage collected")
+
+    def __bool__(self):
+        return self._plugin is not None
+
+    def __repr__(self) -> str:
+        return f"<LoadResult plugin={self._desc} error={self.error!r}>"
+
+
 def load_plugin(
     path: str,
     config: dict | None = None,
     recursive_guard: set[str] | None = None,
     prelude: bool = False,
     staged: bool = False,
-) -> Plugin | None:
+) -> _LoadResult:
     """
     以导入路径方式加载模块
 
@@ -262,12 +286,12 @@ def load_plugin(
     if path.startswith(".") and f"${path}" in plugin_service.root.subplugins:
         rootless = plugin_service.plugins[f"${path}"]
         rootless.config = config
-        return rootless
+        return _LoadResult(rootless)
     while path in plugin_service._subplugined:
         path = plugin_service._subplugined[path]
     if not staged and (plug := find_plugin(path)):
         plugin_service._direct_plugins.add(plug.path)
-        return plug
+        return _LoadResult(plug)
     try:
         mod = import_plugin(path, config=config, staged=staged)
         if not mod:
@@ -281,17 +305,17 @@ def load_plugin(
         if not mod:
             log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
             publish(PluginLoadedFailed(path))
-            return
+            return _LoadResult(None, RuntimeError("plugin not found"))
         plugin_service._direct_plugins.add(mod.__name__)
         if not staged:
             _handle_dependents(mod.__plugin__, recursive_guard)
         return mod.__plugin__
-    except (ImportError, RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError):
-        return
+    except (ImportError, RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError) as e:
+        return _LoadResult(None, e)
     except Exception as e:
         log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue>: {e}", exc_info=e)
         publish(PluginLoadedFailed(path))
-        return
+        return _LoadResult(None, e)
 
 
 def find_plugin(name: str) -> Plugin | None:
@@ -372,11 +396,12 @@ async def reload_plugin(path: str, conf: dict | None = None) -> bool:
     for name in old_subplugins:
         sys.modules.pop(name, None)
     log.plugin.debug(f"staged loading <y>{path!r}</y>, old plugin keeps running until swap")
-    if not (new_plugin := load_plugin(path, _conf, staged=True)):
+    if not (result := load_plugin(path, _conf, staged=True)):
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return False
     if tasks := plugin.dispose(replacing=True):
         await asyncio.wait(tasks)
+    new_plugin = result.plugin
     promote_staged(new_plugin)
     # 恢复未随 staged exec 重新导入的子插件（load_plugins/config 方式加载的模块在
     # 暂存加载期间 load_plugin 上溯命中旧插件早退，且不记入新插件 subplugins）

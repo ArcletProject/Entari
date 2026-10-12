@@ -357,6 +357,16 @@ async def function_ctl_disable(
     session: Session,
     names: tuple[str, ...],
 ):
+    async def do(plg_id: str, func: str):
+        if session.event.channel:
+            ch_id = session.event.channel.id
+            if ch_id not in plugin_disables:
+                plugin_disables[ch_id] = {}
+            if plg_id not in plugin_disables[ch_id]:
+                plugin_disables[ch_id][plg_id] = {}
+            plugin_disables[ch_id][plg_id][func] = True
+            await session.send_message(f"已在当前频道禁用功能：{plg_id}:{func}")
+
     plg_ids = set(plugin_functions.keys())
     name_to_id = {plg.metadata.name: plg.id for plg in plugin.get_plugins() if plg.metadata and plg.id in plg_ids}
     for name in names:
@@ -366,21 +376,17 @@ async def function_ctl_disable(
                 await session.send_message(f"未找到插件：{target}")
                 continue
             plg_id = name_to_id.get(target, target)
+            if func_name not in plugin_functions.get(plg_id, {}):
+                await session.send_message(f"未找到功能：{func_name} 在插件 {target} 中")
+                continue
+            await do(plg_id, func_name)
         else:
             for plg_id, functions in plugin_functions.items():
                 if func_name in functions:
-                    break
+                    await do(plg_id, func_name)
             else:
                 await session.send_message(f"未找到功能：{func_name}")
                 continue
-        if session.event.channel:
-            ch_id = session.event.channel.id
-            if ch_id not in plugin_disables:
-                plugin_disables[ch_id] = {}
-            if plg_id not in plugin_disables[ch_id]:
-                plugin_disables[ch_id][plg_id] = {}
-            plugin_disables[ch_id][plg_id][func_name] = True
-            await session.send_message(f"已在当前频道禁用功能：{name}")
 
 
 @function_ctl_disp.assign("enable")
@@ -389,6 +395,13 @@ async def function_ctl_enable(
     session: Session,
     names: tuple[str, ...],
 ):
+    async def do(plg_id: str, func: str):
+        if session.event.channel:
+            ch_id = session.event.channel.id
+            if ch_id in plugin_disables and plg_id in plugin_disables[ch_id]:
+                plugin_disables[ch_id][plg_id][func] = False
+                await session.send_message(f"已在当前频道启用功能：{plg_id}:{func}")
+
     plg_ids = set(plugin_functions.keys())
     name_to_id = {plg.metadata.name: plg.id for plg in plugin.get_plugins() if plg.metadata and plg.id in plg_ids}
     for name in names:
@@ -398,18 +411,17 @@ async def function_ctl_enable(
                 await session.send_message(f"未找到插件：{target}")
                 continue
             plg_id = name_to_id.get(target, target)
+            if func_name not in plugin_functions.get(plg_id, {}):
+                await session.send_message(f"未找到功能：{func_name} 在插件 {target} 中")
+                continue
+            await do(plg_id, func_name)
         else:
             for plg_id, functions in plugin_functions.items():
                 if func_name in functions:
-                    break
+                    await do(plg_id, func_name)
             else:
                 await session.send_message(f"未找到功能：{func_name}")
                 continue
-        if session.event.channel:
-            ch_id = session.event.channel.id
-            if ch_id in plugin_disables and plg_id in plugin_disables[ch_id]:
-                plugin_disables[ch_id][plg_id][func_name] = False
-                await session.send_message(f"已在当前频道启用功能：{name}")
 
 
 @function_ctl_disp.assign("clear")
