@@ -128,7 +128,7 @@ class Watcher(Service):
             self._locks[plugin_id] = asyncio.Lock()
         return self._locks[plugin_id]
 
-    async def _reload(self, pid: str, cfg: dict) -> bool:
+    async def _reload(self, pid: str, cfg: dict):
         async with self._lock_for(pid):
             if pid in plugin_service._subplugined:
                 return await reload_subplugin(pid, cfg)
@@ -160,7 +160,8 @@ class Watcher(Service):
         reloaded: list[str] = []
         for dep_id in plugin_service.topo_dependents(set(dependents)):
             async with self._lock_for(dep_id):
-                if await reload_plugin(dep_id):
+                result = await reload_plugin(dep_id)
+                if result:
                     reloaded.append(dep_id)
                 else:
                     logger.error(f"Failed to reload plugin <blue>{dep_id!r}</blue> after upstream module reload")
@@ -224,11 +225,11 @@ class Watcher(Service):
                     logger.debug(f"Hot swap functions in <y>{pid!r}</y> failed, falling back to full reload.")
                 _conf = plugin.config.copy()
                 del plugin
-                if await self._reload(pid, _conf):
+                if res := await self._reload(pid, _conf):
                     logger.info(f"Reloaded <blue>{pid!r}</blue>")
                     self.fail.pop(file_path, None)
                 else:
-                    logger.error(f"Failed to reload <blue>{pid!r}</blue>")
+                    logger.error(f"Failed to reload <blue>{pid!r}</blue>: {res.error!r}")
                     self.fail[file_path] = (pid, _conf)
             pending.clear()
             for file_path in failed:
@@ -238,11 +239,11 @@ class Watcher(Service):
                 if file_path not in self.fail:
                     continue
                 logger.info(f"Detected change in {file_path!r} which failed to reload, retrying...")
-                if await self._reload(pid, _conf):
+                if res := await self._reload(pid, _conf):
                     logger.info(f"Reloaded <blue>{pid!r}</blue>")
                     del self.fail[file_path]
                 else:
-                    logger.error(f"Failed to reload <blue>{pid!r}</blue>")
+                    logger.error(f"Failed to reload <blue>{pid!r}</blue>: {res.error!r}")
 
     async def watch_config(self):
         file = EntariConfig.instance.path.resolve()
@@ -328,11 +329,11 @@ class Watcher(Service):
                             _conf = plg.config.copy()
 
                             async def _():
-                                if await self._reload(pid, new_conf):
+                                if result := await self._reload(pid, new_conf):
                                     logger.info(f"Reloaded <blue>{pid!r}</blue>")
                                     self.fail.pop(plugin_file, None)
                                 else:
-                                    logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>")
+                                    logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>: {result.error!r}")
                                     self.fail[plugin_file] = (pid, _conf)
 
                             await asyncio.shield(_())
