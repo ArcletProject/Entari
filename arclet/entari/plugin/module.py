@@ -23,7 +23,7 @@ from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
 from ..logger import log
 from .model import Plugin, PluginInspect, PluginMetadata, current_plugin
-from .service import plugin_service
+from .service import Binding, plugin_service
 
 _SUBMODULE_WAITLIST: dict[str, set[str]] = {}
 _ENSURE_IS_PLUGIN: set[str] = set()
@@ -93,7 +93,14 @@ def _record_binding(pid: str, name: str, target: str, attr: str | None):
     """记录名字级 import 绑定（name → (target, attr)），供重载侧查询与改写"""
     if not target:
         return
-    plugin_service.bindings.setdefault(pid, {})[name] = (target, attr)
+    # 同一条边（名字+目标+属性）重复记录时去重；同名的其他边取消 last 标记，本次记录为最后一次
+    entries = [
+        b._replace(last=False) if b.name == name else b
+        for b in plugin_service.bindings.get(pid, [])
+        if not (b.name == name and b.target == target and b.attr == attr)
+    ]
+    entries.append(Binding(name, target, attr, True))
+    plugin_service.bindings[pid] = entries
 
 
 # fmt: off
@@ -338,9 +345,17 @@ class PluginLoader(SourceFileLoader):
                 config = {"$path": key}
         # create plugin before executing
         plugin = Plugin(self.plugin_id, module, config=config)
+        # record the origin entry for recover if stage failed
+        prev_entry = sys.modules.get(module.__name__)
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
+        plugin._sys_entry = sys.modules[module.__name__]
         setattr(module, "__plugin__", plugin)
+
+        def _abort(plug: Plugin):
+            plug.dispose(replacing=self.staged)
+            if self.staged and prev_entry is not None:
+                sys.modules[module.__name__] = prev_entry
 
         # enter plugin context
         token = current_plugin.set(plugin)
@@ -378,7 +393,7 @@ class PluginLoader(SourceFileLoader):
                     log.plugin.exception(
                         f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e
                     )
-                plugin.dispose()
+                _abort(plugin)
                 publish(PluginLoadedFailed(self.plugin_id, e1))
                 if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                     raise e1 from None
@@ -386,7 +401,7 @@ class PluginLoader(SourceFileLoader):
                     raise ImportError(f"{e1!r} in {self.name!r}", name=self.name, path=self.path)
         except Exception as e:
             log.plugin.exception(f"failed to load plugin <blue>{self.plugin_id!r}</blue> caused by {e!r}", exc_info=e)
-            plugin.dispose()
+            _abort(plugin)
             publish(PluginLoadedFailed(self.plugin_id, e))
             if isinstance(e, (ImportError, StaticPluginDispatchError, ReusablePluginError)):
                 raise

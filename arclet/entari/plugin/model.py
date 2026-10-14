@@ -234,11 +234,8 @@ class Plugin:
     _config_key: str = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False, repr=False)
-
-    @property
-    def bindings(self) -> dict[str, tuple[str, str | None]]:
-        """本插件模块导入层绑定的 {名字: (目标模块, 属性)}；attr 为 None 表示模块绑定"""
-        return plugin_service.bindings.get(self.id, {})
+    _sys_entry: Any = field(default=None, init=False, repr=False)
+    """本插件在 sys.modules 中登记的条目（代理对象），用于卸载时仅移除自身登记"""
 
     @property
     def reusable(self) -> bool:
@@ -502,20 +499,26 @@ class Plugin:
         """
         if not is_cleanup and self.is_static:
             return  # static plugin can only be disposed in cleanup phase
-        plugin_service._unloaded.add(self.id)
+        _was_staged = self.id in plugin_service._staged
+        # staged plugin shares position with same-id live plugin
+        # do not changed the unloaded flag of live plugin
+        if not _was_staged:
+            plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return
         purge_schema_fragments(self.id)
         if not self.id.startswith("$") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
-        _was_staged = self.id in plugin_service._staged
         self._is_disposed = True
         tasks = set()
         if (t := self._clean_service()) is not None:
             t.add_done_callback(tasks.discard)
             tasks.add(t)
         self._services.clear()
-        sys.modules.pop(self.module.__name__, None)
+        # only remove if entry in sys.modules is self._sys_entry
+        _entry = sys.modules.get(self.module.__name__)
+        if self._sys_entry is None or _entry is self._sys_entry:
+            sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
@@ -575,7 +578,13 @@ class Plugin:
                 tasks.update(plugin_service.plugins[ret].disable())
         tasks.update(self._scope.dispose())
         self._scope.propagators.clear()
-        if self.id in plugin_service.plugins:
+        # clean bindings when cleanup; replacing or stage will clean by new module
+        if not replacing and not _was_staged:
+            plugin_service.bindings.pop(self.id, None)
+        # 暂存插件的 id 与存活插件相同，只能从 _staged 移除，不可删除 plugins 中的存活插件
+        if _was_staged:
+            plugin_service._staged.pop(self.id, None)
+        elif self.id in plugin_service.plugins:
             del plugin_service.plugins[self.id]
         else:
             plugin_service._staged.pop(self.id, None)

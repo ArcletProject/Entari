@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from arclet.letoderea import es
 from launart import Launart, Service
@@ -14,6 +14,16 @@ from ..logger import log
 
 if TYPE_CHECKING:
     from .model import KeepingVariable, Plugin
+
+
+class Binding(NamedTuple):
+    """一条名字级 import 绑定"""
+
+    name: str
+    target: str
+    attr: str | None
+    last: bool
+    """是否为该名字的最后一次绑定（即当前在模块中生效的绑定）"""
 
 
 class ServiceWaiters:
@@ -46,8 +56,8 @@ class PluginManagerService(Service):
     """插件引用字典，键为插件ID，值为引用该插件的其他插件ID集合"""
     references: dict[str, set[str]]
     """插件被引用字典，键为插件ID，值为该插件引用的其他插件ID集合"""
-    bindings: dict[str, dict[str, tuple[str, str | None]]]
-    """插件导入绑定字典，键为插件ID，值为该插件中导入的其他插件的绑定信息 {名字: (目标模块, 属性)}"""
+    bindings: dict[str, list[Binding]]
+    """插件导入绑定字典，键为插件ID，值为该插件全部导入边。同名多次绑定时均保留，仅 last=True 的为当前生效绑定"""
     fingerprints: dict[str, str]
     """插件指纹字典，键为插件ID，值为该插件的指纹字符串"""
     service_waiter: ServiceWaiters
@@ -85,6 +95,10 @@ class PluginManagerService(Service):
     def stages(self) -> set[Phase]:
         return {"preparing", "cleanup", "blocking"}
 
+    def last_bindings(self, pid: str) -> dict[str, tuple[str, str | None]]:
+        """插件当前生效的绑定视图 {名字: (目标模块, 属性)}（每个名字仅取最后一次绑定）"""
+        return {b.name: (b.target, b.attr) for b in self.bindings.get(pid, ()) if b.last}
+
     def dependents_of(self, path: str, ensure: bool = True) -> list[str]:
         """path（及其子树）的依赖方插件：直接导入者 + 经父包再导出链一层
 
@@ -100,15 +114,15 @@ class PluginManagerService(Service):
         """
         parent_pkg = path.rpartition(".")[0]
         result: list[str] = []
-        for plug_id, bindings in self.bindings.items():
+        for plug_id, edges in self.bindings.items():
             if plug_id == path or plug_id.startswith(path + "."):
                 continue
-            for name, (target, attr) in bindings.items():
+            for name, target, attr, _ in edges:
                 if target == path or target.startswith(path + "."):
                     result.append(plug_id)
                     break
                 if parent_pkg and attr is not None and target == parent_pkg and parent_pkg in self.bindings:
-                    parent_chain = self.bindings[parent_pkg]
+                    parent_chain = self.last_bindings(parent_pkg)
                     if parent_chain.get(attr or name, (None, None))[0] == path:
                         result.append(plug_id)
                         break

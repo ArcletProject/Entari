@@ -71,7 +71,11 @@ def _uses_module_level(plugin: Plugin, path: str) -> bool:
     """检测插件是否在模块层使用 path 的绑定名（基类/模块级装饰器/顶层实例化等）"""
     if not plugin._inspect:
         return True
-    bound = {name for name, (target, _) in plugin.bindings.items() if target == path or target.startswith(path + ".")}
+    bound = {
+        name
+        for name, (target, _) in plugin_service.last_bindings(plugin.id).items()
+        if target == path or target.startswith(path + ".")
+    }
     if not bound:
         return False
     return bool(collect_module_level_names(plugin._inspect.nodes) & bound)
@@ -90,7 +94,7 @@ def _rebind_imports(plugin: Plugin, path: str) -> bool:
     """
     module = plugin.module
     parent_pkg = path.rpartition(".")[0]
-    for name, (target, attr) in plugin.bindings.items():
+    for name, (target, attr) in plugin_service.last_bindings(plugin.id).items():
         if target == path or target.startswith(path + "."):
             if target not in plugin_service.plugins:
                 continue
@@ -111,7 +115,7 @@ def _rebind_imports(plugin: Plugin, path: str) -> bool:
             and parent_pkg in plugin_service.bindings
             and parent_pkg in plugin_service.plugins
         ):
-            parent_chain = plugin_service.bindings[parent_pkg]
+            parent_chain = plugin_service.last_bindings(parent_pkg)
             if parent_chain.get(attr or name, (None, None))[0] == path:
                 value = getattr(plugin_service.plugins[parent_pkg].module, attr or name, _MISSING)
                 if value is _MISSING:
@@ -179,7 +183,7 @@ def _cascade_dep(dep_id: str, referent_set: set[str], recursive_guard: set[str])
     """对依赖方执行全量级联（unload + load + Ready），失败时恢复 referent 边"""
     referent_set.discard(dep_id)
     log.plugin.debug(f"reloading <y>{dep_id!r}</y>")
-    unload_plugin(dep_id)
+    _unload_for_reload(dep_id)
     if not (result := load_plugin(dep_id)):
         referent_set.add(dep_id)
     else:
@@ -232,12 +236,10 @@ class _LoadResult:
     __slots__ = ("_plugin", "_error", "_desc")
 
     @overload
-    def __init__(self, *, plugin: Plugin):
-        ...
+    def __init__(self, *, plugin: Plugin): ...
 
     @overload
-    def __init__(self, *, error: Exception):
-        ...
+    def __init__(self, *, error: Exception): ...
 
     def __init__(self, plugin: Plugin | None = None, error: Exception | None = None):
         if plugin is None and error is None:
@@ -266,7 +268,7 @@ class _LoadResult:
         return self._plugin is not None
 
     def __repr__(self) -> str:
-        return f"<LoadResult plugin={self._desc} error={self.error!r}>"
+        return f"<LoadResult plugin={self._desc} error={self._error!r}>"
 
 
 def load_plugin(
@@ -356,6 +358,17 @@ def unload_plugin(plugin: str):
     if not (_plugin := find_plugin(plugin)):
         return False
     _plugin.dispose()
+    return True
+
+
+def _unload_for_reload(plugin_id: str) -> bool:
+    """级联重载中的卸载步骤：以 replacing=True 拆卸，与 reload_plugin 的语义一致
+
+    不清理 bindings 等会被随后 load 重新记录的状态，也不走永久卸载的引用/依赖收尾。
+    """
+    if not (_plugin := find_plugin(plugin_id)):
+        return False
+    _plugin.dispose(replacing=True)
     return True
 
 
@@ -458,7 +471,9 @@ async def reload_subplugin(path: str, conf: dict | None = None) -> _LoadResult:
     log.plugin.debug(f"staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap")
     if not (mod := import_plugin(path, config=_conf, staged=True)):
         log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")
-        return _LoadResult(error=RuntimeError(f"failed to load staged sub-plugin {path!r}, old sub-plugin keeps running"))
+        return _LoadResult(
+            error=RuntimeError(f"failed to load staged sub-plugin {path!r}, old sub-plugin keeps running")
+        )
     if tasks := plugin.dispose(replacing=True):
         await asyncio.wait(tasks)
     new_plugin = mod.__plugin__  # type: ignore

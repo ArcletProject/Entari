@@ -220,9 +220,8 @@ class Plugin:
     _scope: PluginScope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
+    _sys_entry: Any = field(default=None, init=False, repr=False)
 
-    @property
-    def bindings(self) -> dict[str, tuple[str, str | None]]: ...
     @property
     def reusable(self) -> bool: ...
     @property
