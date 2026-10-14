@@ -201,9 +201,15 @@ def _parse_value_tb(exc, value, tb):
     return value, tb
 
 
-def loguru_print_exception(exc: type[BaseException] | BaseException | None, /, value: BaseException | None | _Sentinel = _Sentinel.SENTINEL, tb: TracebackType | None | _Sentinel = _Sentinel.SENTINEL, *_, **__):
+_print_exception = traceback.print_exception
+
+
+def loguru_print_exception(exc: type[BaseException] | BaseException | None, /, value: BaseException | None | _Sentinel = _Sentinel.SENTINEL, tb: TracebackType | None | _Sentinel = _Sentinel.SENTINEL, *args, colorize: bool = True, **kwargs):
     value, tb = _parse_value_tb(exc, value, tb)
-    log.error.opt(exception=(type(value), value, tb)).error("Exception:")
+    if colorize:
+        log.error.opt(exception=(type(value), value, tb), colors=colorize).error("Exception:")
+    else:
+        _print_exception(exc, value, tb, *args, **kwargs)
 
 
 def loguru_print_trace(te: Trace):
