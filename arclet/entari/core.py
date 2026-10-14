@@ -50,7 +50,7 @@ from .event.api import SendResponse
 from .event.base import MessageCreatedEvent, event_parse
 from .event.config import ConfigReload
 from .event.lifespan import AccountUpdate, Ready
-from .localdata import local_data
+from .localdata import local_data, update_localdata
 from .logger import apply_log_save, enable_rich_except, log
 from .message import MessageChain
 from .plugin import Plugin, get_plugins, load_plugin, niche, plugin_config, requires
@@ -352,7 +352,8 @@ class Entari(App):
         log.short_level = EntariConfig.instance.basic.log.short_level
         if rich_error:
             enable_rich_except()
-        log.core.info(f"Entari <b><c>version {__version__}</c></b>")
+        if ".localdata" in EntariConfig.instance.plugin:
+            update_localdata(EntariConfig.instance.plugin[".localdata"])
         self._log_save_dispose = lambda: None
         if EntariConfig.instance.basic.log.save:
             if EntariConfig.instance.basic.log.save is True:
@@ -364,6 +365,7 @@ class Entari(App):
                     compression=EntariConfig.instance.basic.log.save.compression,
                     colorize=EntariConfig.instance.basic.log.save.colorize,
                 )
+        log.core.info(f"Entari <b><c>version {__version__}</c></b>")
         log.ignores.update(EntariConfig.instance.basic.log.ignores)
         log.core.debug(f"Log level set to <y><c>{log_level}</c></y>")
         log.core.debug(f"Config loaded from <m>{EntariConfig.instance.path}</m>: <w>{EntariConfig.instance.data}</w>")
