@@ -5,6 +5,7 @@ import inspect
 import logging
 import sys
 import traceback
+from enum import Enum
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, cast
@@ -183,15 +184,40 @@ def _hidden_upsteam(record: Record):
 logger.configure(patcher=_hidden_upsteam)
 
 
-def loguru_exc_callback(cls: type[BaseException], val: BaseException, tb: TracebackType | None, *_, **__):
-    """loguru 异常回调
+class _Sentinel(Enum):
+    SENTINEL = "SENTINEL"
 
-    Args:
-        cls (Type[Exception]): 异常类
-        val (Exception): 异常的实际值
-        tb (TracebackType): 回溯消息
-    """
-    log.error.opt(exception=(cls, val, tb)).error("Exception:")
+
+def _parse_value_tb(exc, value, tb):
+    if (value is _Sentinel.SENTINEL) != (tb is _Sentinel.SENTINEL):
+        raise ValueError("Both or neither of value and tb must be given")
+    if value is tb is _Sentinel.SENTINEL:
+        if exc is not None:
+            if isinstance(exc, BaseException):
+                return exc, exc.__traceback__
+            raise TypeError(f"Exception expected for value, {type(exc).__name__} found")
+        else:
+            return None, None
+    return value, tb
+
+
+_print_exception = traceback.print_exception
+
+
+def loguru_print_exception(
+    exc: type[BaseException] | BaseException | None,
+    /,
+    value: BaseException | None | _Sentinel = _Sentinel.SENTINEL,
+    tb: TracebackType | None | _Sentinel = _Sentinel.SENTINEL,
+    *args,
+    colorize: bool = True,
+    **kwargs,
+):
+    value, tb = _parse_value_tb(exc, value, tb)
+    if colorize:
+        log.error.opt(exception=(type(value), value, tb), colors=colorize).error("Exception:")
+    else:
+        _print_exception(exc, value, tb, *args, **kwargs)
 
 
 def loguru_print_trace(te: Trace):
@@ -216,9 +242,20 @@ def loguru_print_trace(te: Trace):
     log.error.opt(exception=(te.exc_type, te.exc_value, cast(TracebackType, FakeTraceback()))).error("Exception:")
 
 
-traceback.print_exception = loguru_exc_callback
+def loguru_excepthook(cls: type[BaseException], val: BaseException, tb: TracebackType | None):
+    """loguru 异常回调
+
+    Args:
+        cls (Type[Exception]): 异常类
+        val (Exception): 异常的实际值
+        tb (TracebackType): 回溯消息
+    """
+    log.error.opt(exception=(cls, val, tb)).error("Exception:")
+
+
+traceback.print_exception = loguru_print_exception
 ExceptionHandler.print_trace = loguru_print_trace
-sys.excepthook = loguru_exc_callback
+sys.excepthook = loguru_excepthook
 
 
 def apply_log_save(
