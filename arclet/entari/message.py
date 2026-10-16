@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable, Iterator, MutableSequence, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union, overload
-from typing_extensions import Self, SupportsIndex
+from typing import TYPE_CHECKING, Any, Self, TypeAlias, TypeVar, Union, overload
+from typing_extensions import SupportsIndex
 
 from satori import select as satori_select
 from satori.element import At, Custom, Element, Emoji, Link, Quote, Raw, Resource, Sharp, Style, Text, transform

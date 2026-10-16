@@ -2,7 +2,6 @@ from arclet.entari import metadata, command
 
 from ..tools.qux import calc
 
-
 metadata(__file__, description="A test plugin 5")
 
 

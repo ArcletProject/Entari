@@ -25,7 +25,7 @@ async def hello_listener2(sess: Session, message: MessageChain, world: MessageCh
 async def regex_listener(
     sess: Session,
     message: MessageChain,
-    match = regex_origin(),
+    match=regex_origin(),
     group1: str = regex_origin().group(1),
     dicts: dict = regex_origin().groupdict(),
 ):
