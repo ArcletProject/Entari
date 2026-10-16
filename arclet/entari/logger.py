@@ -188,7 +188,7 @@ class _Sentinel(Enum):
     SENTINEL = "SENTINEL"
 
 
-def _parse_value_tb(exc, value, tb):
+def _parse_value_tb(exc, value, tb) -> tuple[BaseException, TracebackType | None] | tuple[None, None]:
     if (value is _Sentinel.SENTINEL) != (tb is _Sentinel.SENTINEL):
         raise ValueError("Both or neither of value and tb must be given")
     if value is tb is _Sentinel.SENTINEL:
@@ -207,15 +207,18 @@ _print_exception = traceback.print_exception
 def loguru_print_exception(
     exc: type[BaseException] | BaseException | None,
     /,
-    value: BaseException | None | _Sentinel = _Sentinel.SENTINEL,
-    tb: TracebackType | None | _Sentinel = _Sentinel.SENTINEL,
+    value: BaseException | None = _Sentinel.SENTINEL,  # type: ignore
+    tb: TracebackType | None = _Sentinel.SENTINEL,  # type: ignore
     *args,
-    colorize: bool = True,
     **kwargs,
 ):
+    colorize = kwargs.pop("colorize", True)
     value, tb = _parse_value_tb(exc, value, tb)
     if colorize:
-        log.error.opt(exception=(type(value), value, tb), colors=colorize).error("Exception:")
+        exc_type = type(value) if value is not None else Exception
+        log.error.opt(exception=(exc_type, value, tb), colors=colorize).error("Exception:")
+    elif isinstance(exc, BaseException):
+        _print_exception(exc, **kwargs)
     else:
         _print_exception(exc, value, tb, *args, **kwargs)
 

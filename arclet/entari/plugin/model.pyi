@@ -4,17 +4,16 @@ from enum import Enum
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import ModuleType
-from typing import Any, AsyncGenerator, Awaitable, Generator, Generic, Literal, TypedDict, TypeVar, overload
+from typing import Any, AsyncGenerator, Awaitable, Generator, Generic, TypedDict, TypeVar, overload
 from typing_extensions import NotRequired, Self
 
 from arclet.letoderea import ExitState, Propagator, Provider, ProviderFactory, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut
-from arclet.letoderea.decorate import Check
 from arclet.letoderea.effect import Disposable, AsyncDisposable, SyncEffect, AsyncEffect
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
 from arclet.letoderea.scope import RegisterWrapper
-from arclet.letoderea.utils import DisposableList, Resultable, TCallable
+from arclet.letoderea.utils import DisposableList, Resultable
 from launart import Service
 from tarina import ContextModel
 
@@ -163,12 +162,6 @@ class Author(TypedDict):
     email: NotRequired[str]
     """作者邮箱"""
 
-class DependService(TypedDict):
-    id: str | type[Service]
-    """服务名称"""
-    stage: NotRequired[Literal["preparing", "prepared", "blocking"]]
-    """服务阶段"""
-
 class PluginRole(Enum):
     NORMAL = "normal"
     UTILITY = "utility"
@@ -188,15 +181,10 @@ class PluginMetadata:
     readme: str | None = ...
     classifier: list[str] = ...
     requirements: list[str] = ...
-    depend_services: list[type[Service] | str | DependService] = ...
     config: Any | None = ...
 
     def get_config_schema(self, config_key: str | None = None) -> dict[str, Any]: ...
 
-@overload
-def inject(*services: type[Service] | str | DependService) -> Callable[[TCallable], TCallable]: ...
-@overload
-def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> Check: ...
 @dataclass(slots=True)
 class PluginInspect:
     nodes: ast.Module

@@ -15,16 +15,12 @@ from typing_extensions import TypeIs
 from weakref import finalize, proxy
 
 from arclet.letoderea import (
-    SUBSCRIBER,
-    Contexts,
     ExitState,
     Propagator,
     Scope,
     Subscriber,
     define,
-    enter_if,
     on,
-    propagate,
     publish,
 )
 from arclet.letoderea.breakpoint import StepOut, step_out
@@ -36,7 +32,7 @@ from arclet.letoderea.utils import DisposableList, add_task
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
-from tarina.tools import TCallable, run_sync
+from tarina.tools import run_sync
 
 from ..config.schema import add_schema_fragment, plugin_config_schema, purge_schema_fragments
 from ..event.config import ConfigReload
@@ -169,46 +165,8 @@ class PluginMetadata:
     """插件分类"""
     requirements: list[str] = field(default_factory=list)
     """插件依赖"""
-    depend_services: list[type[Service] | str | dict] = field(default_factory=list)
-    """插件依赖的服务"""
     config: Any | None = None
     """插件配置模型"""
-
-
-def inject(*services: type[Service] | str | dict, _is_global: bool = False):
-
-    async def checker(launart: Launart, ctx: Contexts):
-        for service in services:
-            if isinstance(service, dict):
-                serv_id = service["id"] if isinstance(service["id"], str) else service["id"].id
-                stage = service.get("stage", "prepared")
-            else:
-                serv_id = service if isinstance(service, str) else service.id
-                stage = "prepared"
-            sub = f"{ctx[SUBSCRIBER].__repr__()[13:-1]}"
-            log.plugin.trace(f"<y>{sub}</y> waiting for service <w><u>{serv_id}</u></w> to be <g>{stage!r}</g>")
-            await plugin_service.service_waiter.wait_for(serv_id)
-            serv = launart.components[serv_id]
-            if not serv.status.prepared:
-                await serv.status.wait_for(stage)
-        return True
-
-    if _is_global:
-        return enter_if(checker)
-
-    def wrapper(func: TCallable) -> TCallable:
-        try:
-            plg = current_plugin.get()
-        except LookupError:
-            plg = func.__globals__.get("__plugin__", None)
-        if not plg or not isinstance(plg, Plugin):
-            raise LookupError("no plugin context found")
-        plg._extra.setdefault("local_injected_services", []).append(
-            (func.__qualname__, [s.id if isinstance(s, type) else s for s in services])
-        )
-        return propagate(enter_if(checker))(func)
-
-    return wrapper
 
 
 @dataclass(slots=True)
@@ -259,9 +217,6 @@ class Plugin:
     @metadata.setter
     def metadata(self, value: PluginMetadata):
         self._metadata = value
-        if value and value.depend_services:
-            self._scope.propagators.append(inject(*value.depend_services, _is_global=True))  # type: ignore
-            self._extra["injected_services"] = [s.id if isinstance(s, type) else s for s in value.depend_services]
         if value.readme and re.fullmatch(r"(?i:readme)\.(?i:md|markdown)", value.readme.strip()):
             readme_path = Path(self.module.__file__ or "").parent / value.readme.strip()
             try:
@@ -292,11 +247,6 @@ class Plugin:
         self._config_key = self.config.pop("$path", self.id.lstrip("$"))
         if filter_expr := self.config.get("$filter", ""):
             self._scope.propagators.append(FilterPropagator(filter_expr))
-        # if self._metadata and self._metadata.depend_services:
-        #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
-        #     self._extra["injected_services"] = [
-        #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
-        #     ]
         if "$disable" in self.config and isinstance(self.config["$disable"], str):
 
             async def _check_reload(event: ConfigReload):

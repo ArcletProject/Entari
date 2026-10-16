@@ -169,26 +169,6 @@ def get_plugin_commands(plug: Plugin | str | None = None) -> list[tuple[list[str
     return plg._extra.get("commands", [])
 
 
-def get_plugin_depend_services(plug: Plugin | str | None = None) -> list[str]:
-    """获取指定插件依赖的所有服务的 ID
-
-    Args:
-        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
-    """
-    if isinstance(plug, Plugin):
-        plg = plug
-    elif plug in plugin_service.plugins:
-        plg = plugin_service.plugins[plug]
-    else:
-        plg = get_plugin(1)
-    injected_services = plg._extra.get("injected_services", [])
-    local_injected_services = plg._extra.get("local_injected_services", [])
-    services = injected_services[:]
-    for slot in local_injected_services:
-        services.extend(slot[1])
-    return list(set(services))
-
-
 @overload
 def dispatch(event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
 @overload

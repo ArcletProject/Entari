@@ -5,14 +5,15 @@ import sys
 from collections.abc import Iterable, Sequence
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import get_args
+from typing import Any, Literal, get_args
 
 import arclet.letoderea as le
 from arclet.alconna import Alconna
 from arclet.alconna import config as alconna_config
-from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, global_providers
+from arclet.letoderea import EVENT, Contexts, Param, Provider, ProviderFactory, UnresolvedRequirement, global_providers
 from arclet.letoderea.context import shared_suppliers
 from arclet.letoderea.scope import Scope, configure
+from arclet.letoderea.subscriber import SUBSCRIBER, Depend, get_params
 from creart import it
 from graia.amnesia.builtins.aiohttp import AiohttpClientService
 from graia.amnesia.builtins.memcache import MemcacheService
@@ -537,27 +538,76 @@ class ServiceProviderFactory(ProviderFactory):
     priority = 10
 
     class _Provider(Provider[Service]):
-        def __init__(self, origin: type[Service]):
+        def __init__(self, origin: type[Service], serv_id: str | None = None, stage: str = "prepared"):
             super().__init__()
             self.origin = origin
+            self.serv_id = serv_id
+            self.stage = stage
 
         def validate(self, param: Param):
             anno = get_origin(param.annotation)
             return isinstance(anno, type) and issubclass(anno, self.origin)
 
         async def __call__(self, context: Contexts):
+            launart = it(Launart)
+            sub = f"{context[SUBSCRIBER].__repr__()[13:-1]}"
+            serv_id = self.serv_id or self.origin.id
             try:
-                return it(Launart).get_component(self.origin)
+                service = launart.get_component(self.origin)
             except ValueError:  # Service not loaded yet
-                return
+                await plugin_service.service_waiter.wait_for(serv_id)
+                service = launart.get_component(self.origin)
+            log.plugin.trace(f"<y>{sub}</y> waiting for service <w><u>{serv_id}</u></w> to <g>{self.stage!r}</g>")
+            await service.status.wait_for(self.stage)  # type: ignore
+            return service
 
     def validate(self, param: Param):
         anno = get_origin(param.annotation)
+        serv_id = None
+        stage = "prepared"
+        for m in param.meta:
+            if isinstance(m, OnStage):
+                serv_id = m.serv_id
+                stage = m.stage
+            elif isinstance(m, str):
+                if m in ("prepared", "blocking", "cleanup"):
+                    stage = m
+                else:
+                    serv_id = m
         if isinstance(anno, type) and issubclass(anno, Service):
-            return self._Provider(anno)
+            return self._Provider(anno, serv_id, stage)
         if is_optional(param.annotation, Service):
             args = get_args(param.annotation)
-            return self._Provider(args[0])
+            return self._Provider(args[0], serv_id, stage)
+
+
+class OnStage(Depend):
+
+    def __init__(self, serv_id: str | None = None, stage: Literal["preparing", "prepared", "blocking"] = "prepared"):
+        self.serv_id = serv_id
+        self.stage = stage
+        super().__init__(self.__call__, False)
+
+    async def __call__(self, context: Contexts):
+        params = get_params(context)
+        if "$depend_cache" not in context:
+            context["$depend_cache"] = {}
+        param = next((p for p in params if p.depend is self), None)
+        if param is None:
+            raise RuntimeError("Depend execute in a context without corresponding param.")
+        prov = next((pro for pro in param.providers if isinstance(pro, ServiceProviderFactory._Provider)), None)
+        if prov is None:
+            raise UnresolvedRequirement(param.name, param.annotation, param.default, param.providers)
+        prov.serv_id = self.serv_id or prov.serv_id
+        prov.stage = self.stage
+        return await prov(context)
+
+    def fork(self, provider):
+        return self
+
+
+def on_stage(stage: Literal["preparing", "prepared", "blocking"] = "prepared", id: str | None = None) -> Any:
+    return OnStage(id, stage)
 
 
 global_providers.extend([EntariProvider(), LaunartProvider(), ServiceProviderFactory()])  # type: ignore

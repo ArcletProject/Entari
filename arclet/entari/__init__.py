@@ -87,7 +87,6 @@ from .plugin import plugin_config as plugin_config
 from .plugin import register_schema as register_schema
 from .plugin import requires as requires
 from .plugin import unload_plugin as unload_plugin
-from .plugin.model import inject as inject
 from .session import Session as Session
 
 Param = param
