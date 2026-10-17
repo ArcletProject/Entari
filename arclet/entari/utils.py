@@ -1,7 +1,4 @@
 import re
-from typing import TypeVar
-
-T = TypeVar("T")
 
 
 def escape_tag(s: str) -> str:

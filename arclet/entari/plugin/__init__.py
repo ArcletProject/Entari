@@ -3,11 +3,12 @@ import inspect
 import itertools
 import os
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
-from arclet.letoderea import Subscriber, on, publish
+from arclet.letoderea import Subscriber, on
 from arclet.letoderea.effect import AsyncDisposable, Disposable
 from arclet.letoderea.utils import Resultable
 from tarina import init_spec
@@ -15,19 +16,18 @@ from tarina.tools import nest_obj_update
 
 from ..config import EntariConfig, config_model_keys, config_model_validate
 from ..event.config import ConfigReload
-from ..event.lifespan import Ready
-from ..event.plugin import PluginLoadedFailed
-from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
-from ..logger import log
+from ..exceptions import StaticPluginDispatchError
 from ..message import Fragment, MessageChain, Render
 from ..session import COMPONENTS, Session, component_transform
-from ..utils import escape_tag
+from .loader import find_plugin as find_plugin
+from .loader import load_plugin as load_plugin
+from .loader import reload_plugin as reload_plugin
+from .loader import reload_subplugin as reload_subplugin
+from .loader import unload_plugin as unload_plugin
 from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import PluginRole as PluginRole
-from .model import RootlessPlugin as RootlessPlugin
 from .model import keeping as keeping
-from .module import import_plugin
 from .module import package as package
 from .module import requires as requires
 from .service import plugin_service
@@ -169,26 +169,6 @@ def get_plugin_commands(plug: Plugin | str | None = None) -> list[tuple[list[str
     return plg._extra.get("commands", [])
 
 
-def get_plugin_depend_services(plug: Plugin | str | None = None) -> list[str]:
-    """获取指定插件依赖的所有服务的 ID
-
-    Args:
-        plug (Plugin | str | None, optional): 插件对象或插件名称. Defaults to None.
-    """
-    if isinstance(plug, Plugin):
-        plg = plug
-    elif plug in plugin_service.plugins:
-        plg = plugin_service.plugins[plug]
-    else:
-        plg = get_plugin(1)
-    injected_services = plg._extra.get("injected_services", [])
-    local_injected_services = plg._extra.get("local_injected_services", [])
-    services = injected_services[:]
-    for slot in local_injected_services:
-        services.extend(slot[1])
-    return list(set(services))
-
-
 @overload
 def dispatch(event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
 @overload
@@ -198,108 +178,6 @@ def dispatch(event: type[Any], name: str | None = None) -> PluginDispatcher[Any]
 def dispatch(event: type, name: str | None = None) -> PluginDispatcher:
     """对当前插件创建一个事件分发"""
     return get_plugin(1).dispatch(event, name=name)
-
-
-def load_plugin(
-    path: str, config: dict | None = None, recursive_guard: set[str] | None = None, prelude: bool = False
-) -> Plugin | None:
-    """
-    以导入路径方式加载模块
-
-    Args:
-        path (str): 模块路径
-        config (dict): 模块配置
-        recursive_guard (set[str]): 递归保护
-        prelude (bool): 是否为前置插件
-    """
-    if config is not None:
-        config["$path"] = path
-    else:
-        for k, names in EntariConfig.instance._plugin_names.items():
-            if path in names:
-                config = EntariConfig.instance.plugin.get(k, {})
-                config["$path"] = k
-                break
-        else:
-            config = {"$path": path}
-    if prelude:
-        config["$static"] = True
-    if recursive_guard is None:
-        recursive_guard = set()
-    path = path.replace("::", "arclet.entari.builtins.")
-    while path in plugin_service._subplugined:
-        path = plugin_service._subplugined[path]
-    if path in plugin_service._apply:
-        if path in plugin_service.plugins:
-            return plugin_service.plugins[path]
-        log.plugin.trace(f"loaded rootless plugin <y>{path!r}</y>")
-        return plugin_service._apply[path][0](config)
-    if plug := find_plugin(path):
-        plugin_service._direct_plugins.add(plug.path)
-        return plug
-    try:
-        mod = import_plugin(path, config=config)
-        if not mod:
-            mod = next(
-                (import_plugin(_path, config=config) for _path in EntariConfig.instance._plugin_names.get(path, [])),
-                None,
-            )
-        if not mod:
-            log.plugin.error(f"cannot found plugin <blue>{path!r}</blue>")
-            publish(PluginLoadedFailed(path))
-            return
-        plugin_service._direct_plugins.add(mod.__name__)
-        if mod.__name__ in plugin_service.referents and plugin_service.referents[mod.__name__]:
-            referents = plugin_service.referents[mod.__name__].copy()
-            # plugin_service.referents[mod.__name__].clear()
-            for referent in referents:
-                if referent in recursive_guard:
-                    continue
-                if referent.startswith(mod.__name__):
-                    continue
-                if referent in plugin_service._subplugined and mod.__name__.startswith(
-                    plugin_service._subplugined[referent]
-                ):
-                    continue
-                if referent in plugin_service.plugins:
-                    plugin_service.referents[mod.__name__].discard(referent)
-                    log.plugin.debug(f"reloading <y>{escape_tag(mod.__name__)}</y>'s referent <y>{referent!r}</y>")
-                    unload_plugin(referent)
-                if not (plug := load_plugin(referent)):
-                    plugin_service.referents[mod.__name__].add(referent)
-                else:
-                    publish(Ready(), plug._scope)
-                    recursive_guard.add(referent)
-
-        return mod.__plugin__
-    except (ImportError, RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError):
-        return
-    except Exception as e:
-        log.plugin.exception(f"failed to load plugin <blue>{path!r}</blue>: {e}", exc_info=e)
-        publish(PluginLoadedFailed(path))
-        return
-
-
-def load_plugins(dir_: str | os.PathLike | Path):
-    """加载指定目录下的所有插件"""
-    path = dir_ if isinstance(dir_, Path) else Path(dir_)
-    if not path.is_dir():
-        raise NotADirectoryError(f"{path} is not a directory")
-    path: Path = path.resolve()  # .relative_to(Path.cwd())
-    syspaths = [Path(p).resolve() for p in sys.path if p]
-    prefixes = [p for p in syspaths if path.is_relative_to(p)]
-    if prefixes:
-        prefix = max(prefixes, key=lambda p: len(p.parts))
-    else:
-        prefix = Path.cwd()
-    for p in path.iterdir():
-        if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}:
-            p = p.resolve().relative_to(prefix)
-            if len(p.parts) > 1:
-                plg = ".".join(p.parts[:-1:1]) + "." + p.stem
-            else:
-                plg = p.stem
-            load_plugin(plg)
 
 
 if TYPE_CHECKING:
@@ -370,6 +248,60 @@ def plugin_config(model_type: type[_C] | None = None, bind: bool = False):
 get_config = plugin_config
 
 
+def register_schema(
+    path: str | tuple[str, ...] = "",
+    fragment: dict | type | Callable[[dict], dict] | None = None,
+    *,
+    replace: bool = False,
+) -> None:
+    plugin = get_plugin(1)
+    plugin.register_schema(path, fragment, replace=replace)
+
+
+def get_plugin_schema() -> dict:
+    plugin = get_plugin(1)
+    return plugin.config_schema()
+
+
+def load_plugins(dir_: str | os.PathLike | Path):
+    """加载指定目录下的所有插件"""
+    path = dir_ if isinstance(dir_, Path) else Path(dir_)
+    if not path.is_dir():
+        raise NotADirectoryError(f"{path} is not a directory")
+    path: Path = path.resolve()  # .relative_to(Path.cwd())
+    syspaths = [Path(p).resolve() for p in sys.path if p]
+    prefixes = [p for p in syspaths if path.is_relative_to(p)]
+    if prefixes:
+        prefix = max(prefixes, key=lambda p: len(p.parts))
+    else:
+        prefix = Path.cwd()
+
+    def _(_path: Path):
+        _path = _path.resolve().relative_to(prefix)
+        if len(_path.parts) > 1:
+            plg = ".".join(_path.parts[:-1:1]) + "." + _path.stem
+        else:
+            plg = _path.stem
+        return load_plugin(plg)
+
+    return [_(p) for p in path.iterdir() if p.suffix in (".py", "") and p.stem not in {"__init__", "__pycache__"}]
+
+
+def find_plugin_by_file(file: str) -> Plugin | None:
+    path = Path(file).resolve()
+    for plugin in plugin_service.plugins.values():
+        if plugin.module.__file__ == str(path):
+            return plugin
+        if plugin.module.__file__ and Path(plugin.module.__file__).parent == path:
+            return plugin
+        path1 = Path(path)
+        while path1.parent != path1:
+            if str(path1) == plugin.module.__file__:
+                return plugin
+            path1 = path1.parent
+    return None
+
+
 def declare_static():
     """声明当前插件为静态插件"""
     _plugin = get_plugin(1)
@@ -398,43 +330,6 @@ def collect_disposes(*disposes: Disposable | AsyncDisposable):
 def restore():
     """回收该插件收集的所有副作用"""
     return get_plugin(1).restore()
-
-
-def find_plugin(name: str) -> Plugin | None:
-    """根据插件名称查找插件"""
-    if name in plugin_service.plugins:
-        return plugin_service.plugins[name]
-    if name in EntariConfig.instance.plugin_prefixes:
-        for prefix in EntariConfig.instance.plugin_prefixes[name]:
-            if f"{prefix}{name}" in plugin_service.plugins:
-                return plugin_service.plugins[f"{prefix}{name}"]
-    if not name.count(".") and f"entari_plugin_{name}" in plugin_service.plugins:
-        return plugin_service.plugins[f"entari_plugin_{name}"]
-
-
-def find_plugin_by_file(file: str) -> Plugin | None:
-    path = Path(file).resolve()
-    for plugin in plugin_service.plugins.values():
-        if plugin.module.__file__ == str(path):
-            return plugin
-        if plugin.module.__file__ and Path(plugin.module.__file__).parent == path:
-            return plugin
-        path1 = Path(path)
-        while path1.parent != path1:
-            if str(path1) == plugin.module.__file__:
-                return plugin
-            path1 = path1.parent
-    return None
-
-
-def unload_plugin(plugin: str):
-    plugin = plugin.replace("::", "arclet.entari.builtins.")
-    while plugin in plugin_service._subplugined:
-        plugin = plugin_service._subplugined[plugin]
-    if not (_plugin := find_plugin(plugin)):
-        return False
-    _plugin.dispose()
-    return True
 
 
 async def unload_plugin_async(plugin: str):
@@ -491,3 +386,16 @@ def component(name: str):
         return func
 
     return wrapper
+
+
+def niche(label: str, config: dict[str, Any] | None = None):
+    """创建一个隔离的插件上下文, 用于在当前插件中创建一个子插件"""
+    try:
+        _plugin = get_plugin(1)
+    except LookupError:
+        _plugin = ROOT
+    return _plugin.niche(label, config)
+
+
+ROOT = plugin_service.root = Plugin("$", ModuleType("$"), config={"$path": "$"})
+ROOT.module.__file__ = "__main__"

@@ -77,6 +77,23 @@
           "default": false,
           "description": "是否利用元数据进行插件导入检测（可能会增加启动时间）",
           "title": "Check Metadata"
+        },
+        "str_as_message": {
+          "type": "boolean",
+          "default": true,
+          "description": "发送字符串时是否自动转换为消息链",
+          "title": "Str As Message"
+        },
+        "superusers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "超级用户配置，键为平台名称，值为该平台的超级用户 ID 列表",
+          "title": "Superusers"
         }
       },
       "additionalProperties": false,
@@ -102,7 +119,14 @@
               "title": "Host"
             },
             "port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 5140,
               "description": "服务器端口",
               "title": "Port"
@@ -156,7 +180,14 @@
               "title": "Host"
             },
             "port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 8080,
               "description": "本机 Webhook 服务器端口",
               "title": "Port"
@@ -185,9 +216,16 @@
               "title": "Server Host"
             },
             "server_port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 5140,
-              "description": "发送请求的目标服务器端口",
+              "description": "发送请求的目标服务器端port",
               "title": "Server Port"
             },
             "server_path": {
@@ -306,14 +344,21 @@
                 "type": "string"
               },
               "plugins": {
-                "description": "List of plugins under the prefix",
-                "items": {
-                  "type": "string",
-                  "description": "Plugin name"
-                },
-                "title": "Plugins",
-                "type": "array",
-                "uniqueItems": true
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string",
+                      "description": "Plugin name"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                ],
+                "description": "List of plugins under the prefix, or select an item of $files to apply plugins",
+                "title": "Plugins"
               }
             },
             "required": [
@@ -425,6 +470,12 @@
               "description": "是否记录发送的消息",
               "title": "Record Send"
             },
+            "short_message": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否在日志中使用简短的消息内容",
+              "title": "Short Message"
+            },
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
@@ -443,9 +494,13 @@
         },
         ".scheduler": {
           "type": "object",
-          "description": "Simple Scheduler with interval / crontab task; no configuration required",
-          "additionalProperties": true,
+          "title": "_SchedulerConf",
           "properties": {
+            "debug": {
+              "type": "boolean",
+              "default": true,
+              "title": "Debug"
+            },
             "$disable": {
               "type": "string",
               "description": "Expression for whether disable this plugin"
@@ -458,7 +513,9 @@
               "type": "string",
               "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
             }
-          }
+          },
+          "additionalProperties": false,
+          "description": "Simple Scheduler with interval / crontab task"
         },
         "reusable@1": {
           "type": "object",

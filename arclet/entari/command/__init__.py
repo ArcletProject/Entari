@@ -23,7 +23,7 @@ from ..event.command import CommandExecute, CommandParse
 from ..event.config import ConfigReload
 from ..logger import DEBUG_NO, log
 from ..message import MessageChain
-from ..plugin import PluginRole, RootlessPlugin, get_plugin, metadata, plugin_config
+from ..plugin import PluginRole, get_plugin, metadata, niche, plugin_config
 from ..session import Session
 from .argv import MessageArgv  # noqa: F401
 from .model import CommandResult, Match, Query
@@ -166,7 +166,15 @@ class EntariCommands:
                 self.subscribers[target.id] = target
 
                 def _remove(_):
-                    command_manager.delete(get_cmd(_))
+                    _cmd = get_cmd(_)
+                    # if returned, it means the subscriber is already staged reload.
+                    try:
+                        record = command_manager._resolve(_cmd._hash)
+                    except KeyError:
+                        pass
+                    else:
+                        if id(_cmd) == id(record):
+                            command_manager.delete(_cmd)
                     self.trie[key].remove(target.id)  # type: ignore
                     if not self.trie[key]:
                         self.trie.pop(key, None)  # type: ignore
@@ -203,7 +211,15 @@ class EntariCommands:
                 self.trie.setdefault(_key, []).append(target.id)
 
             def _remove(_):
-                command_manager.delete(get_cmd(_))
+                _cmd = get_cmd(_)
+                # if returned, it means the subscriber is already staged reload.
+                try:
+                    record = command_manager._resolve(_cmd._hash)
+                except KeyError:
+                    pass
+                else:
+                    if id(_cmd) == id(record):
+                        command_manager.delete(_cmd)
                 self.subscribers.pop(target.id, None)
                 for _key in keys:
                     self.trie[_key].remove(target.id)  # type: ignore
@@ -252,7 +268,7 @@ class CommandsConfig(BasicConfModel):
     )
 
 
-@RootlessPlugin.apply("commands", default=True)
+@niche("commands")
 def command_plugin(_):
     metadata(
         "Commands Plugin",

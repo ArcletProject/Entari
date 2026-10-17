@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import inspect
 import re
@@ -14,30 +15,26 @@ from typing_extensions import TypeIs
 from weakref import finalize, proxy
 
 from arclet.letoderea import (
-    SUBSCRIBER,
-    Contexts,
     ExitState,
     Propagator,
     Scope,
     Subscriber,
     define,
-    enter_if,
     on,
-    propagate,
     publish,
 )
 from arclet.letoderea.breakpoint import StepOut, step_out
 from arclet.letoderea.effect import AsyncDisposable, Disposable
 from arclet.letoderea.provider import Provider, ProviderFactory, TProviders
 from arclet.letoderea.publisher import Publisher, _publishers, filter_publisher
-from arclet.letoderea.scope import RegisterWrapper
+from arclet.letoderea.scope import RegisterWrapper, scope_ctx
 from arclet.letoderea.utils import DisposableList, add_task
 from creart import it
 from launart import Launart, Service
 from tarina import ContextModel
-from tarina.tools import TCallable, run_sync
+from tarina.tools import run_sync
 
-from ..config import config_model_schema
+from ..config.schema import add_schema_fragment, plugin_config_schema, purge_schema_fragments
 from ..event.config import ConfigReload
 from ..event.plugin import PluginLoadedFailed, PluginLoadedSuccess, PluginUnloaded
 from ..exceptions import RegisterNotInPluginError, ReusablePluginError, StaticPluginDispatchError
@@ -168,52 +165,14 @@ class PluginMetadata:
     """插件分类"""
     requirements: list[str] = field(default_factory=list)
     """插件依赖"""
-    depend_services: list[type[Service] | str | dict] = field(default_factory=list)
-    """插件依赖的服务"""
     config: Any | None = None
     """插件配置模型"""
 
-    def get_config_schema(self) -> dict[str, Any]:
-        """获取插件配置模型的 JSON Schema"""
-        if self.config is None:
-            return {}
-        return config_model_schema(self.config)
 
-
-def inject(*services: type[Service] | str | dict, _is_global: bool = False):
-
-    async def checker(launart: Launart, ctx: Contexts):
-        for service in services:
-            if isinstance(service, dict):
-                serv_id = service["id"] if isinstance(service["id"], str) else service["id"].id
-                stage = service.get("stage", "prepared")
-            else:
-                serv_id = service if isinstance(service, str) else service.id
-                stage = "prepared"
-            sub = f"{ctx[SUBSCRIBER].__repr__()[13:-1]}"
-            log.plugin.trace(f"<y>{sub}</y> waiting for service <w><u>{serv_id}</u></w> to be <g>{stage!r}</g>")
-            await plugin_service.service_waiter.wait_for(serv_id)
-            serv = launart.components[serv_id]
-            if not serv.status.prepared:
-                await serv.status.wait_for(stage)
-        return True
-
-    if _is_global:
-        return enter_if(checker)
-
-    def wrapper(func: TCallable) -> TCallable:
-        try:
-            plg = current_plugin.get()
-        except LookupError:
-            plg = func.__globals__.get("__plugin__", None)
-        if not plg or not isinstance(plg, Plugin):
-            raise LookupError("no plugin context found")
-        plg._extra.setdefault("local_injected_services", []).append(
-            (func.__qualname__, [s.id if isinstance(s, type) else s for s in services])
-        )
-        return propagate(enter_if(checker))(func)
-
-    return wrapper
+@dataclass(slots=True)
+class PluginInspect:
+    nodes: ast.Module
+    dump: str
 
 
 @dataclass
@@ -226,13 +185,15 @@ class Plugin:
     is_static: bool = False
     path: str = field(init=False)
     uid: str | None = None
+    _inspect: PluginInspect | None = field(default=None, repr=False)
     _metadata: PluginMetadata | None = None
     _is_disposed: bool = False
     _services: dict[str, Service] = field(init=False, default_factory=dict)
     _config_key: str = field(init=False)
-    # _scope: Scope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
-    _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
+    _apply: Callable[[Plugin], Any] | None = field(default=None, init=False, repr=False)
+    _sys_entry: Any = field(default=None, init=False, repr=False)
+    """本插件在 sys.modules 中登记的条目（代理对象），用于卸载时仅移除自身登记"""
 
     @property
     def reusable(self) -> bool:
@@ -256,9 +217,6 @@ class Plugin:
     @metadata.setter
     def metadata(self, value: PluginMetadata):
         self._metadata = value
-        if value and value.depend_services:
-            self._scope.propagators.append(inject(*value.depend_services, _is_global=True))  # type: ignore
-            self._extra["injected_services"] = [s.id if isinstance(s, type) else s for s in value.depend_services]
         if value.readme and re.fullmatch(r"(?i:readme)\.(?i:md|markdown)", value.readme.strip()):
             readme_path = Path(self.module.__file__ or "").parent / value.readme.strip()
             try:
@@ -271,14 +229,75 @@ class Plugin:
         ):
             value.config.__doc__ = value.description or value.name
 
+    def __post_init__(self):
+        if not hasattr(self.module, "__plugin__"):
+            setattr(self.module, "__plugin__", self)
+        uid_index = self.id.rfind("@")
+        self.path = self.id[:uid_index] if uid_index != -1 else self.id
+        self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
+        if self.id in plugin_service.plugins and not self.id.startswith("$"):
+            # 原子重载暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
+            self._scope = _make_scope(self).of(f"{self.id}@staging")
+            self._scope.disable()
+            plugin_service._staged[self.id] = self  # type: ignore
+        else:
+            self._scope = _make_scope(self).of(self.id)
+            plugin_service.plugins[self.id] = self  # type: ignore
+        self.effect = self._scope.effect
+        self._config_key = self.config.pop("$path", self.id.lstrip("$"))
+        if filter_expr := self.config.get("$filter", ""):
+            self._scope.propagators.append(FilterPropagator(filter_expr))
+        if "$disable" in self.config and isinstance(self.config["$disable"], str):
+
+            async def _check_reload(event: ConfigReload):
+                if event.scope == "basic":
+                    self.check_disable()
+
+            sub = on(ConfigReload, _check_reload)
+            self.collect(sub.dispose)
+
+        self.is_static = self.config.pop("$static", False)
+        if self.id not in plugin_service._keep_values:
+            plugin_service._keep_values[self.id] = {}
+        if self.path not in plugin_service.referents:
+            plugin_service.referents[self.path] = set()
+        if self.path not in plugin_service.references:
+            plugin_service.references[self.path] = set()
+        plugin_service._unloaded.discard(self.id)
+        finalize(self, self.dispose, is_cleanup=True)
+
+    def register_schema(
+        self,
+        path: str | tuple[str, ...] = "",
+        fragment: dict | type | Callable[[dict], dict] | None = None,
+        *,
+        replace: bool = False,
+    ) -> None:
+        """注册作用于本插件配置的 schema 片段"""
+        add_schema_fragment(self._config_key, path, fragment, replace, self.id)
+
+    def config_schema(self, config_key: str | None = None, ref_root: str = "/") -> dict[str, Any]:
+        """获取插件配置模型的 JSON Schema
+
+        Args:
+            config_key (str, optional): 本插件的配置键。
+            ref_root (str, optional): JSON Schema $ref 的根路径，默认为 "/"。
+        """
+        return plugin_config_schema(self, config_key, ref_root=ref_root)  # type: ignore
+
     def exec_apply(self):
         if not self._apply:
             return
         log.plugin.trace(f"applying plugin <y>{self.id!r}</y>")
         token = current_plugin.set(self)
+        if not self.is_static:
+            token1 = scope_ctx.set(self._scope)
         try:
             self._apply(self)
-            log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
+            if self.id in plugin_service._subplugined:
+                log.plugin.trace(f"sub-plugin <r>{self.id!r}</r> fully applied")
+            else:
+                log.plugin.success(f"plugin <blue>{self.id!r}</blue> fully applied")
             publish(PluginLoadedSuccess(self.id))
         except (ImportError, RegisterNotInPluginError, StaticPluginDispatchError, ReusablePluginError) as e:
             log.plugin.error(f"failed to load plugin <blue>{self.id!r}</blue>: {e.args[0]}")
@@ -292,6 +311,8 @@ class Plugin:
             raise
         finally:
             current_plugin.reset(token)
+            if not self.is_static or "token1" in locals():
+                scope_ctx.reset(token1)  # type: ignore
 
     @property
     def is_available(self) -> bool:
@@ -345,9 +366,9 @@ class Plugin:
                 continue
             plugin_service.plugins[ret].disable()
         tasks = set()
-        t = self._clean_service()
-        t.add_done_callback(tasks.discard)
-        tasks.add(t)
+        if (t := self._clean_service()) is not None:
+            t.add_done_callback(tasks.discard)
+            tasks.add(t)
         self._scope.disable()
         if "$disable" not in self.config or isinstance(self.config["$disable"], bool):
             self.config["$disable"] = True
@@ -388,40 +409,6 @@ class Plugin:
         """回收所有副作用"""
         return self._scope._effect_manager.dispose()
 
-    def __post_init__(self):
-        uid_index = self.id.rfind("@")
-        self.path = self.id[:uid_index] if uid_index != -1 else self.id
-        self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
-        self._scope = _make_scope(self).of(self.id)
-        self.effect = self._scope.effect
-        plugin_service.plugins[self.id] = self  # type: ignore
-        self._config_key = self.config.pop("$path", self.id)
-        if filter_expr := self.config.get("$filter", ""):
-            self._scope.propagators.append(FilterPropagator(filter_expr))
-        # if self._metadata and self._metadata.depend_services:
-        #     self._scope.propagators.append(inject(*self._metadata.depend_services, _is_global=True))  # type: ignore
-        #     self._extra["injected_services"] = [
-        #         s.id if isinstance(s, type) else s for s in self._metadata.depend_services
-        #     ]
-        if "$disable" in self.config and isinstance(self.config["$disable"], str):
-
-            async def _check_reload(event: ConfigReload):
-                if event.scope == "basic":
-                    self.check_disable()
-
-            sub = on(ConfigReload, _check_reload)
-            self.collect(sub.dispose)
-
-        self.is_static = self.config.pop("$static", False)
-        if self.id not in plugin_service._keep_values:
-            plugin_service._keep_values[self.id] = {}
-        if self.path not in plugin_service.referents:
-            plugin_service.referents[self.path] = set()
-        if self.path not in plugin_service.references:
-            plugin_service.references[self.path] = set()
-        plugin_service._unloaded.discard(self.id)
-        finalize(self, self.dispose, is_cleanup=True)
-
     def _clean_service(self):
         manager = it(Launart)
 
@@ -432,41 +419,56 @@ class Plugin:
             yield service
 
         _services = [s for serv in self._services.values() for s in _gen(serv)]
+        if not _services:
+            return
+
+        async def _clean_one(service: Service):
+            if not manager.task_group:
+                return
+            plugin_service.service_waiter.clear(service.id)
+            if service.id not in manager.task_group.sideload_trackers:
+                return
+            try:
+                tracker = manager.task_group.sideload_trackers[service.id]
+                manager.remove_component(service)
+                await asyncio.wait([tracker, add_task(service.status.wait_for("finished"))])
+            except (ValueError, KeyError):
+                pass
 
         async def _clean(services: list[Service]):
             if not manager.task_group:
                 return
-            for serv in services:
-                plugin_service.service_waiter.clear(serv.id)
-                if serv.id not in manager.task_group.sideload_trackers:
-                    continue
-                try:
-                    tracker = manager.task_group.sideload_trackers[serv.id]
-                    manager.remove_component(serv)
-                    await asyncio.wait([tracker, add_task(serv.status.wait_for("finished"))])
-                except (ValueError, KeyError):
-                    pass
+            await asyncio.gather(*(_clean_one(serv) for serv in services))
 
         return add_task(_clean(_services))
 
-    def dispose(self, *, is_cleanup: bool = False):
+    def dispose(self, *, is_cleanup: bool = False, replacing: bool = False):
+        """拆卸插件
+
+        replacing=True 表示是重载插件下的卸载（reload_plugin/reload_subplugin）
+        """
         if not is_cleanup and self.is_static:
             return  # static plugin can only be disposed in cleanup phase
-        plugin_service._unloaded.add(self.id)
+        _was_staged = self.id in plugin_service._staged
+        # staged plugin shares position with same-id live plugin
+        # do not changed the unloaded flag of live plugin
+        if not _was_staged:
+            plugin_service._unloaded.add(self.id)
         if self._is_disposed:
             return
-        if not self.id.startswith(".") and self.id not in plugin_service._subplugined:
+        purge_schema_fragments(self.id)
+        if not self.id.startswith("$") and self.id not in plugin_service._subplugined:
             log.plugin.debug(f"disposing plugin <y>{self.id}</y>")
         self._is_disposed = True
         tasks = set()
-        t = self._clean_service()
-        t.add_done_callback(tasks.discard)
-        tasks.add(t)
+        if (t := self._clean_service()) is not None:
+            t.add_done_callback(tasks.discard)
+            tasks.add(t)
         self._services.clear()
-        if self.module.__spec__ and self.module.__spec__.cached:
-            Path(self.module.__spec__.cached).unlink(missing_ok=True)
-        sys.modules.pop(self.module.__name__, None)
-        tasks.update(self.restore())
+        # only remove if entry in sys.modules is self._sys_entry
+        _entry = sys.modules.get(self.module.__name__)
+        if self._sys_entry is None or _entry is self._sys_entry:
+            sys.modules.pop(self.module.__name__, None)
         delattr(self.module, "__plugin__")
         if self.subplugins:
             subplugs = [i.removeprefix(self.id)[1:] for i in self.subplugins]
@@ -474,17 +476,23 @@ class Plugin:
             log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
                 if subplug not in plugin_service.plugins:
-                    plugin_service._subplugined.pop(subplug, None)
+                    if subplug in plugin_service._staged:
+                        tasks.update(
+                            plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing)
+                        )
+                    else:
+                        plugin_service._subplugined.pop(subplug, None)
                     continue
                 try:
-                    tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup))
+                    tasks.update(plugin_service.plugins[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing))
                     plugin_service._subplugined.pop(subplug, None)
                 except Exception as e:
                     log.plugin.error(f"failed to dispose sub-plugin <r>{subplug}</r> caused by {e!r}")
                     plugin_service.plugins.pop(subplug, None)
             self.subplugins.clear()
-        if not is_cleanup:
+        if not is_cleanup and not _was_staged:
             publish(PluginUnloaded(self.id))
+        if not is_cleanup and not _was_staged and not replacing:
             for ref in plugin_service.references.pop(self.path):
                 if ref not in plugin_service.plugins:
                     continue
@@ -505,7 +513,10 @@ class Plugin:
                     except Exception as e:
                         log.plugin.error(f"failed to dispose referent plugin <r>{ref}</r> caused by {e!r}")
                         plugin_service.plugins.pop(ref, None)
-            for ret in plugin_service.referents[self.path].copy():
+            # bindings-only 依赖方在卸载时同样需要停用，否则 A 永久卸载后其持有僵尸绑定继续运行
+            _dependents = set(plugin_service.referents[self.path])
+            _dependents.update(plugin_service.dependents_of(self.path, ensure=True))
+            for ret in _dependents:
                 if ret not in plugin_service.plugins:
                     continue
                 if (
@@ -515,10 +526,20 @@ class Plugin:
                 ):
                     continue
                 tasks.update(plugin_service.plugins[ret].disable())
-        self._scope.dispose()
+        tasks.update(self._scope.dispose())
         self._scope.propagators.clear()
-        del plugin_service.plugins[self.id]
+        # clean bindings when cleanup; replacing or stage will clean by new module
+        if not replacing and not _was_staged:
+            plugin_service.bindings.pop(self.id, None)
+        # 暂存插件的 id 与存活插件相同，只能从 _staged 移除，不可删除 plugins 中的存活插件
+        if _was_staged:
+            plugin_service._staged.pop(self.id, None)
+        elif self.id in plugin_service.plugins:
+            del plugin_service.plugins[self.id]
+        else:
+            plugin_service._staged.pop(self.id, None)
         del self.module
+        del self._inspect
         return tasks
 
     def dispatch(self, event, name: str | None = None):
@@ -575,49 +596,36 @@ class Plugin:
             plugin_service.service_waiter.assign(serv.id)
         return serv
 
+    def restore_kept_state(self):
+        """重载后将保持的模块级可变对象重新绑定到模块 dict"""
+        for kept in plugin_service._keep_values.get(self.id, {}).values():
+            if kept.module_attr:
+                self.module.__dict__[kept.module_attr] = kept.obj
 
-class RootlessPlugin(Plugin):
-    # fmt: off
-    @classmethod
-    def apply(cls: type[RootlessPlugin], id: str, func: Callable[[RootlessPlugin], Any] | None = None, *, default: bool = False) -> Any:  # noqa: E501
-    # fmt: on
-        if not id.startswith("."):
-            id = f".{id}"
+    def niche(self, label: str, config: dict[str, Any] | None = None):
+        """创建一个隔离的子插件，子插件的生命周期与父插件绑定"""
+        sub_id = f"{self.id}.{label}"
+        if sub_id in plugin_service.plugins:
+            raise ValueError(f"sub-plugin {sub_id} already exists")
 
-        def dispose():
-            if id in plugin_service.plugins:
-                plugin_service.plugins[id].dispose()
-            else:
-                plugin_service._apply.pop(id, None)
+        def wrapper(func: Callable[[Plugin], Any], /):
+            subplug = Plugin(sub_id, ModuleType(sub_id), config=self.config.copy() if config is None else config)
+            setattr(subplug.module, "__plugin__", subplug)
+            setattr(func, "__plugin__", subplug)
+            setattr(subplug.module, "__file__", func.__code__.co_filename)
+            subplug._apply = func
+            self.subplugins.append(sub_id)
+            plugin_service._subplugined[sub_id] = self.id
+            return subplug
 
-        def wrapper(func: Callable[[RootlessPlugin], Any]):
-            plugin_service._apply[id] = (lambda config: cls(id, func, config), default)  # type: ignore
-            return dispose
-
-        if func:
-            return wrapper(func)
         return wrapper
-
-    def __init__(self, id: str, func: Callable[[RootlessPlugin], Any], config: dict):
-        super().__init__(id, ModuleType(id), config=config)
-        setattr(self.module, "__plugin__", self)
-        setattr(self.module, "__file__", func.__code__.co_filename)
-        self.func = func
-        setattr(self.func, "__plugin__", self)
-        token = current_plugin.set(self)
-        try:
-            func(self)
-        finally:
-            current_plugin.reset(token)
-
-    def validate(self, func):
-        pass
 
 
 class KeepingVariable(Generic[T]):
-    def __init__(self, obj: T, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None):
+    def __init__(self, obj: T, dispose=None, module_attr=None):
         self.obj = obj
         self._dispose = None
+        self.module_attr = module_attr
         if hasattr(self.obj, "dispose"):
             _dispose = self.obj.dispose.__func__  # type: ignore
             if _is_awaitable(_dispose):
@@ -641,7 +649,7 @@ class KeepingVariable(Generic[T]):
 
 
 # fmt: off
-def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T:  # noqa: E501
+def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None = None, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None, module_attr: str | None = None) -> T:  # noqa: E501
 # fmt: on
     if not (plug := current_plugin.get(None)):
         raise LookupError("no plugin context found")
@@ -650,5 +658,5 @@ def keeping(id_: str, obj: T | None = None, obj_factory: Callable[[], T] | None 
             raise ValueError("Either `obj` or `obj_factory` must be provided")
         _obj = obj_factory() if obj_factory else obj
         plug._extra.setdefault("kept_variables", []).append(id_)
-        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose)  # type: ignore
+        plugin_service._keep_values[plug.id][id_] = KeepingVariable(cast(T, _obj), dispose, module_attr)  # type: ignore
     return plugin_service._keep_values[plug.id][id_].obj  # type: ignore

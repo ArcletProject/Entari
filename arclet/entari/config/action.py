@@ -135,6 +135,7 @@ def config_model_keys(obj: Any) -> list[str]:
 
 def config_model_schema(base: type[C], ref_root: str = "/") -> dict[str, Any]:
     for b in base.__mro__[-2::-1]:
+        _ensure_actions(b)
         if b in _config_model_actions:
             return _config_model_actions[b].schema(base, ref_root)
     return {field_.name: field_.type for field_ in fields(base)}  # type: ignore

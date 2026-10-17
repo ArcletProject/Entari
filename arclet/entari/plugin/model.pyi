@@ -1,19 +1,19 @@
+import ast
 import asyncio
 from enum import Enum
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import ModuleType
-from typing import Any, AsyncGenerator, Awaitable, Generator, Generic, Literal, TypedDict, TypeVar, overload
+from typing import Any, AsyncGenerator, Awaitable, Generator, Generic, TypedDict, TypeVar, overload
 from typing_extensions import NotRequired, Self
 
 from arclet.letoderea import ExitState, Propagator, Provider, ProviderFactory, Scope, Subscriber
 from arclet.letoderea.breakpoint import StepOut
-from arclet.letoderea.decorate import Check
 from arclet.letoderea.effect import Disposable, AsyncDisposable, SyncEffect, AsyncEffect
 from arclet.letoderea.provider import TProviders
 from arclet.letoderea.publisher import Publisher
 from arclet.letoderea.scope import RegisterWrapper
-from arclet.letoderea.utils import DisposableList, Resultable, TCallable
+from arclet.letoderea.utils import DisposableList, Resultable
 from launart import Service
 from tarina import ContextModel
 
@@ -162,12 +162,6 @@ class Author(TypedDict):
     email: NotRequired[str]
     """作者邮箱"""
 
-class DependService(TypedDict):
-    id: str | type[Service]
-    """服务名称"""
-    stage: NotRequired[Literal["preparing", "prepared", "blocking"]]
-    """服务阶段"""
-
 class PluginRole(Enum):
     NORMAL = "normal"
     UTILITY = "utility"
@@ -187,15 +181,15 @@ class PluginMetadata:
     readme: str | None = ...
     classifier: list[str] = ...
     requirements: list[str] = ...
-    depend_services: list[type[Service] | str | DependService] = ...
     config: Any | None = ...
 
-    def get_config_schema(self) -> dict[str, Any]: ...
+    def get_config_schema(self, config_key: str | None = None) -> dict[str, Any]: ...
 
-@overload
-def inject(*services: type[Service] | str | DependService) -> Callable[[TCallable], TCallable]: ...
-@overload
-def inject(*services: type[Service] | str | DependService, _is_global: Literal[True]) -> Check: ...
+@dataclass(slots=True)
+class PluginInspect:
+    nodes: ast.Module
+    dump: str
+
 @dataclass
 class Plugin:
     id: str
@@ -206,6 +200,7 @@ class Plugin:
     is_static: bool = ...
     path: str = ...
     uid: str | None = ...
+    _inspect: PluginInspect | None = ...
     _metadata: PluginMetadata | None = ...
     _is_disposed: bool = ...
     _services: dict[str, Service] = field(init=False, default_factory=dict)
@@ -213,6 +208,7 @@ class Plugin:
     _scope: PluginScope = field(init=False)
     _extra: dict[str, Any] = field(default_factory=dict, init=False)  # extra metadata for inspection
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False)
+    _sys_entry: Any = field(default=None, init=False, repr=False)
 
     @property
     def reusable(self) -> bool: ...
@@ -224,6 +220,14 @@ class Plugin:
     def metadata(self) -> PluginMetadata | None: ...
     @metadata.setter
     def metadata(self, value: PluginMetadata): ...
+    def register_schema(
+        self,
+        path: str | tuple[str, ...] = "",
+        fragment: dict | type | Callable[[dict], dict] | None = None,
+        *,
+        replace: bool = False,
+    ) -> None: ...
+    def config_schema(self, config_key: str | None = None) -> dict[str, Any]: ...
     def exec_apply(self) -> None: ...
     @property
     def is_available(self) -> bool: ...
@@ -240,8 +244,8 @@ class Plugin:
     def effect(self, execute: Callable[[], AsyncEffect], label: str = "") -> AsyncDisposable[Awaitable[None]]: ...
     def collect(self, *disposes: Disposable | AsyncDisposable) -> Self: ...
     def restore(self) -> set[asyncio.Task]: ...
-    def _clean_service(self) -> asyncio.Task: ...
-    def dispose(self, *, is_cleanup: bool = False) -> set[asyncio.Task]: ...
+    def _clean_service(self) -> asyncio.Task | None: ...
+    def dispose(self, *, is_cleanup: bool = False, replacing: bool = False) -> set[asyncio.Task]: ...
     @overload
     def dispatch(self, event: type[Resultable[T]], name: str | None = None) -> PluginDispatcher[T]: ...
     @overload
@@ -346,30 +350,36 @@ class Plugin:
     def proxy(self) -> ModuleType: ...
     def subproxy(self, sub_id: str) -> ModuleType: ...
     def service(self, serv: TS | type[TS]) -> TS: ...
-
-class RootlessPlugin(Plugin):
-    @classmethod
-    @overload
-    def apply(
-        cls, id: str, *, default: bool = False
-    ) -> Callable[[Callable[[RootlessPlugin], Any]], Callable[[], None]]: ...
-    @classmethod
-    @overload
-    def apply(cls, id: str, func: Callable[[RootlessPlugin], Any], *, default: bool = False) -> Callable[[], None]: ...
-    def __init__(self, id: str, func: Callable[[RootlessPlugin], Any], config: dict): ...
+    def restore_kept_state(self) -> None: ...
+    def niche(
+        self, label: str, config: dict[str, Any] | None = None
+    ) -> Callable[[Callable[[Plugin], Any]], Plugin]: ...
 
 class KeepingVariable(Generic[T]):
     obj: T
     _dispose: Callable[[T], Awaitable[None]] | None
-    def __init__(self, obj: T, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None): ...
+    module_attr: str | None
+    def __init__(
+        self,
+        obj: T,
+        dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+        module_attr: str | None = None,
+    ): ...
     async def dispose(self): ...
 
 @overload
-def keeping(id_: str, obj: T, *, dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None) -> T: ...
+def keeping(
+    id_: str,
+    obj: T,
+    *,
+    dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+    module_attr: str | None = None,
+) -> T: ...
 @overload
 def keeping(
     id_: str,
     *,
     obj_factory: Callable[[], T],
     dispose: Callable[[T], None] | Callable[[T], Awaitable[None]] | None = None,
+    module_attr: str | None = None,
 ) -> T: ...

@@ -55,6 +55,8 @@ from .core import Entari as Entari
 from .event import BaseEvent as BaseEvent
 from .event import attr as attr
 from .event import register_internal_event as register_internal_event
+from .event.api import SendRequest as SendRequest
+from .event.api import SendResponse as SendResponse
 from .event.base import MessageCreatedEvent as MessageCreatedEvent
 from .event.base import MessageEvent as MessageEvent
 from .event.base import Reply as Reply
@@ -63,11 +65,10 @@ from .event.lifespan import AccountUpdate as AccountUpdate
 from .event.lifespan import Cleanup as Cleanup
 from .event.lifespan import Ready as Ready
 from .event.lifespan import Startup as Startup
-from .event.send import SendRequest as SendRequest
-from .event.send import SendResponse as SendResponse
 from .filter import filter_ as filter_
 from .localdata import local_data as local_data
 from .message import MessageChain as MessageChain
+from .plugin import ROOT as ROOT
 from .plugin import Plugin as Plugin
 from .plugin import PluginMetadata as PluginMetadata
 from .plugin import add_service as add_service
@@ -80,15 +81,16 @@ from .plugin import listen as listen
 from .plugin import load_plugin as load_plugin
 from .plugin import load_plugins as load_plugins
 from .plugin import metadata as metadata
+from .plugin import niche as niche
 from .plugin import package as package
 from .plugin import plugin_config as plugin_config
+from .plugin import register_schema as register_schema
 from .plugin import requires as requires
 from .plugin import unload_plugin as unload_plugin
-from .plugin.model import inject as inject
 from .session import Session as Session
 
 Param = param
 WS = WebsocketsInfo
 WH = WebhookInfo
 
-__version__ = "0.18.6"
+__version__ = "0.19.0rc3"
