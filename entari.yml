@@ -33,7 +33,7 @@ plugins:
   ::echo: {}
   .record_message: {}
   .scheduler: {}
-  ?example_plugin: {}
+  example_plugin: {}
   reusable@1:
     input: hello
     output: world!
