@@ -10,7 +10,7 @@ from nonestorage import user_cache_dir, user_data_dir
 
 from .config import BasicConfModel, config_model_validate, model_field
 from .event.config import ConfigReload
-from .plugin import PluginRole, RootlessPlugin, metadata, plugin_config
+from .plugin import PluginRole, metadata, niche, plugin_config
 
 P = ParamSpec("P")
 
@@ -108,8 +108,17 @@ class Config(BasicConfModel):
     base_dir: str | None = model_field(default=None, description="基础目录，默认为空，表示使用 `app_name` 作为目录名，")
 
 
-@RootlessPlugin.apply("localdata", default=True)
-def localdata_apply(plg: RootlessPlugin):
+def update_localdata(value: dict):
+    conf1 = config_model_validate(Config, value)
+    local_data.global_path = conf1.use_global
+    local_data.app_name = conf1.app_name.lower()
+    local_data._temp_dir.cleanup()
+    local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
+    local_data.base_dir = conf1.base_dir
+
+
+@niche("localdata")
+def localdata_apply(plg):
     metadata(
         "Data store interface with local directories",
         PluginRole.LIBRARY,
@@ -131,10 +140,5 @@ def localdata_apply(plg: RootlessPlugin):
             return
         if event.key != ".localdata":
             return
-        conf1 = config_model_validate(Config, event.value)
-        local_data.global_path = conf1.use_global
-        local_data.app_name = conf1.app_name.lower()
-        local_data._temp_dir.cleanup()
-        local_data._temp_dir = TemporaryDirectory(prefix=f"{local_data.app_name}_")
-        local_data.base_dir = conf1.base_dir
+        update_localdata(event.value)
         return True

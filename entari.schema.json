@@ -77,6 +77,23 @@
           "default": false,
           "description": "是否利用元数据进行插件导入检测（可能会增加启动时间）",
           "title": "Check Metadata"
+        },
+        "str_as_message": {
+          "type": "boolean",
+          "default": true,
+          "description": "发送字符串时是否自动转换为消息链",
+          "title": "Str As Message"
+        },
+        "superusers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "超级用户配置，键为平台名称，值为该平台的超级用户 ID 列表",
+          "title": "Superusers"
         }
       },
       "additionalProperties": false,
@@ -102,7 +119,14 @@
               "title": "Host"
             },
             "port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 5140,
               "description": "服务器端口",
               "title": "Port"
@@ -156,7 +180,14 @@
               "title": "Host"
             },
             "port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 8080,
               "description": "本机 Webhook 服务器端口",
               "title": "Port"
@@ -185,9 +216,16 @@
               "title": "Server Host"
             },
             "server_port": {
-              "type": "integer",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
               "default": 5140,
-              "description": "发送请求的目标服务器端口",
+              "description": "发送请求的目标服务器端port",
               "title": "Server Port"
             },
             "server_path": {
@@ -306,14 +344,21 @@
                 "type": "string"
               },
               "plugins": {
-                "description": "List of plugins under the prefix",
-                "items": {
-                  "type": "string",
-                  "description": "Plugin name"
-                },
-                "title": "Plugins",
-                "type": "array",
-                "uniqueItems": true
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string",
+                      "description": "Plugin name"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                ],
+                "description": "List of plugins under the prefix, or select an item of $files to apply plugins",
+                "title": "Plugins"
               }
             },
             "required": [
@@ -343,6 +388,155 @@
           "description": "List of configuration files to load",
           "default": [],
           "uniqueItems": true
+        },
+        ".commands": {
+          "type": "object",
+          "title": "CommandsConfig",
+          "properties": {
+            "block": {
+              "type": "boolean",
+              "default": true,
+              "description": "是否阻断消息传播",
+              "title": "Block"
+            },
+            "need_notice_me": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否需要通知我",
+              "title": "Need Notice Me"
+            },
+            "need_reply_me": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否需要回复我",
+              "title": "Need Reply Me"
+            },
+            "use_config_prefix": {
+              "type": "boolean",
+              "default": true,
+              "description": "是否使用配置前缀",
+              "title": "Use Config Prefix"
+            },
+            "ignore_prefix_filter": {
+              "type": "string",
+              "description": "前缀过滤条件，使用过滤器语法，默认为私聊消息不使用前缀",
+              "title": "Ignore Prefix Filter"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Commands Plugin"
+        },
+        ".scheduler": {
+          "type": "object",
+          "title": "_SchedulerConf",
+          "properties": {
+            "debug": {
+              "type": "boolean",
+              "default": true,
+              "title": "Debug"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Simple Scheduler with interval / crontab task"
+        },
+        ".localdata": {
+          "type": "object",
+          "title": "Config",
+          "properties": {
+            "use_global": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否使用全局数据目录",
+              "title": "Use Global"
+            },
+            "app_name": {
+              "type": "string",
+              "default": "entari",
+              "description": "应用名称",
+              "title": "App Name"
+            },
+            "base_dir": {
+              "type": "string",
+              "description": "基础目录，默认为空，表示使用 `app_name` 作为目录名，",
+              "title": "Base Dir"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Data store interface with local directories"
+        },
+        ".record_message": {
+          "type": "object",
+          "title": "RecordConfig",
+          "properties": {
+            "to_me_only": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否仅记录提及 Bot 自己的消息",
+              "title": "To Me Only"
+            },
+            "record_send": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否记录发送的消息",
+              "title": "Record Send"
+            },
+            "short_message": {
+              "type": "boolean",
+              "default": false,
+              "description": "是否在日志中使用简短的消息内容",
+              "title": "Short Message"
+            },
+            "$disable": {
+              "type": "string",
+              "description": "Expression for whether disable this plugin"
+            },
+            "$priority": {
+              "type": "integer",
+              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
+            }
+          },
+          "additionalProperties": false,
+          "description": "将收到[和发出]的消息打印在日志中"
         },
         "::auto_reload": {
           "type": "object",
@@ -409,41 +603,9 @@
             }
           }
         },
-        ".record_message": {
+        "example_plugin": {
           "type": "object",
-          "title": "RecordConfig",
-          "properties": {
-            "to_me_only": {
-              "type": "boolean",
-              "default": false,
-              "description": "是否仅记录提及 Bot 自己的消息",
-              "title": "To Me Only"
-            },
-            "record_send": {
-              "type": "boolean",
-              "default": false,
-              "description": "是否记录发送的消息",
-              "title": "Record Send"
-            },
-            "$disable": {
-              "type": "string",
-              "description": "Expression for whether disable this plugin"
-            },
-            "$priority": {
-              "type": "integer",
-              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
-            },
-            "$filter": {
-              "type": "string",
-              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
-            }
-          },
-          "additionalProperties": false,
-          "description": "将收到[和发出]的消息打印在日志中"
-        },
-        ".scheduler": {
-          "type": "object",
-          "description": "Simple Scheduler with interval / crontab task; no configuration required",
+          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
           "additionalProperties": true,
           "properties": {
             "$disable": {
@@ -543,25 +705,6 @@
             }
           }
         },
-        "example_plugin": {
-          "type": "object",
-          "description": "D:\\Projects\\Entari\\example_plugin.py; no configuration required",
-          "additionalProperties": true,
-          "properties": {
-            "$disable": {
-              "type": "string",
-              "description": "Expression for whether disable this plugin"
-            },
-            "$priority": {
-              "type": "integer",
-              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
-            },
-            "$filter": {
-              "type": "string",
-              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
-            }
-          }
-        },
         "example_plugin3": {
           "type": "object",
           "description": "No configuration required",
@@ -610,92 +753,6 @@
           },
           "additionalProperties": false,
           "description": "A test plugin 6"
-        },
-        ".commands": {
-          "type": "object",
-          "title": "CommandsConfig",
-          "properties": {
-            "block": {
-              "type": "boolean",
-              "default": true,
-              "description": "是否阻断消息传播",
-              "title": "Block"
-            },
-            "need_notice_me": {
-              "type": "boolean",
-              "default": false,
-              "description": "是否需要通知我",
-              "title": "Need Notice Me"
-            },
-            "need_reply_me": {
-              "type": "boolean",
-              "default": false,
-              "description": "是否需要回复我",
-              "title": "Need Reply Me"
-            },
-            "use_config_prefix": {
-              "type": "boolean",
-              "default": true,
-              "description": "是否使用配置前缀",
-              "title": "Use Config Prefix"
-            },
-            "ignore_prefix_filter": {
-              "type": "string",
-              "description": "前缀过滤条件，使用过滤器语法，默认为私聊消息不使用前缀",
-              "title": "Ignore Prefix Filter"
-            },
-            "$disable": {
-              "type": "string",
-              "description": "Expression for whether disable this plugin"
-            },
-            "$priority": {
-              "type": "integer",
-              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
-            },
-            "$filter": {
-              "type": "string",
-              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Commands Plugin"
-        },
-        ".localdata": {
-          "type": "object",
-          "title": "Config",
-          "properties": {
-            "use_global": {
-              "type": "boolean",
-              "default": false,
-              "description": "是否使用全局数据目录",
-              "title": "Use Global"
-            },
-            "app_name": {
-              "type": "string",
-              "default": "entari",
-              "description": "应用名称",
-              "title": "App Name"
-            },
-            "base_dir": {
-              "type": "string",
-              "description": "基础目录，默认为空，表示使用 `app_name` 作为目录名，",
-              "title": "Base Dir"
-            },
-            "$disable": {
-              "type": "string",
-              "description": "Expression for whether disable this plugin"
-            },
-            "$priority": {
-              "type": "integer",
-              "description": "Plugin loading priority, lower value means higher priority (default: 16)"
-            },
-            "$filter": {
-              "type": "string",
-              "description": "Plugin filter expression, which will be evaluated in the context of the plugin"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Data store interface with local directories"
         }
       }
     },

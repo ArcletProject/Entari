@@ -32,13 +32,14 @@ async def cleanup():
 
 @plug.dispatch(MessageCreatedEvent)
 @filter_.public
-async def _(session: Session):
+async def invoke_test(session: Session):
     if session.content == "test":
         resp = await session.send("This message will recall in 5s...", at_sender=True)
 
         @scheduler.invoke(5)
         async def _():
             await session.message_delete(resp[0].id)
+
 
 disp_message = plug.dispatch(MessageCreatedEvent)
 
@@ -49,13 +50,13 @@ async def filter_content(session: Session):
 
 
 @disp_message.on().if_(filter_content)
-async def _(session: Session):
+async def filter_content1(session: Session):
     return await session.send("Filter: public message, to me, and content is 'aaa'")
 
 
 @disp_message
-@filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) != "aaa")
-async def _(session: Session):
+@ filter_.public & filter_.to_me & filter_(lambda sess: str(sess.content) != "aaa")
+async def filter_content2(session: Session):
     return await session.send("Filter: public message, to me, but content is not 'aaa'")
 
 
@@ -83,6 +84,7 @@ async def show(session: Session):
     res = await command.execute("echo 123")
     await session.send_message(f"Execute `echo 123` Result: {res}")
     return f"Data: {kept_data}"
+
 
 TEST = 7
 
@@ -122,6 +124,7 @@ async def unloaded(event):
 async def output_hook(event: CommandOutput):
     content = event.content
     return f"{event.type.title()}:\n{content}"
+
 
 # @scheduler.cron("* * * * *")
 # async def broadcast(app: Entari):
