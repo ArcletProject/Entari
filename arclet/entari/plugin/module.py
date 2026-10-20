@@ -737,7 +737,10 @@ def import_plugin(id_, package=None, config: dict | None = None, staged: bool = 
         if parent_spec:
             parent_spec._uninitialized_submodules.pop()  # type: ignore
     if parent_name:
-        setattr(parent, child, mod.__plugin__.proxy())
+        if hasattr(mod, "__plugin__"):
+            setattr(parent, child, mod.__plugin__.proxy())
+        else:
+            setattr(parent, child, mod)
     return mod
 
 

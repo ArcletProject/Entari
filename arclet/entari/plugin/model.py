@@ -448,10 +448,13 @@ class Plugin:
         replacing=True 表示是重载插件下的卸载（reload_plugin/reload_subplugin）
         """
         if not is_cleanup and self.is_static:
-            return  # static plugin can only be disposed in cleanup phase
-        _was_staged = self.id in plugin_service._staged
-        # staged plugin shares position with same-id live plugin
-        # do not changed the unloaded flag of live plugin
+            # static plugin can only be disposed in cleanup phase
+            return
+        # staged plugin shares position with same-id live plugin, must check identity:
+        # during reload, the new plugin with same id is already in _staged,
+        # if check by id it will mistakenly treat the old plugin as staged
+        _was_staged = plugin_service._staged.get(self.id) is self
+        # do not change the unloaded flag of live plugin
         if not _was_staged:
             plugin_service._unloaded.add(self.id)
         if self._is_disposed:
