@@ -396,6 +396,10 @@ async def _discard_staged_state(plugin_id: str) -> None:
         for sid in list(plugin_service._staged_bindings):
             if sid == plugin_id or sid.startswith(f"{plugin_id}."):
                 plugin_service._staged_bindings.pop(sid, None)
+        # 异常可能发生在子插件登记之后、父插件记录 subplugins 之前，兜底清除孤立归属
+        for sid in list(plugin_service._subplugined):
+            if (sid == plugin_id or sid.startswith(f"{plugin_id}.")) and sid not in plugin_service.plugins:
+                plugin_service._subplugined.pop(sid, None)
 
 
 def _snapshot_sys_entries(plugin_id: str) -> dict[str, Any]:
@@ -416,7 +420,7 @@ def _restore_sys_entries(plugin_id: str, entries: dict[str, Any]) -> None:
 def promote_staged(plugin: Plugin):
     """将暂存插件及其子插件正式注册进 plugin_service，并恢复启用状态与父绑定
 
-    子插件按加载顺序已记入父插件 subplugins 列表；
+    子插件按设计全部平级挂载在顶层插件下，``_subplugined`` 一律指向顶层插件 id；
     父属性写回（插件导入链）使模块中的属性指向新模块对象。
     """
     for sid in [plugin.id, *plugin.subplugins]:
@@ -429,6 +433,8 @@ def promote_staged(plugin: Plugin):
                 plugin_service.bindings.pop(sid, None)
         if staged := plugin_service._staged.pop(sid, None):
             plugin_service.plugins[sid] = staged
+            # 提升后不再属于暂存事务，后续 niche 等动态创建应直接进入 plugins
+            staged.staged = False
             if sid != plugin.id:
                 plugin_service._subplugined[sid] = plugin.id
             staged.check_disable()
@@ -439,8 +445,11 @@ def promote_staged(plugin: Plugin):
         if sid not in plugin_service.plugins or sid not in plugin_service._subplugined:
             continue
         parent = plugin_service.plugins.get(plugin_service._subplugined[sid])
-        if parent is not None:
-            parent.module.__dict__[sid.rpartition(".")[-1]] = plugin_service.plugins[sid].module
+        if parent is None:
+            continue
+        if sid not in parent.subplugins:
+            parent.subplugins.append(sid)
+        parent.module.__dict__[sid.rpartition(".")[-1]] = plugin_service.plugins[sid].module
 
 
 def _collect_subtree(plugin: Plugin) -> list[str]:

@@ -71,7 +71,7 @@ class PluginManagerService(Service):
     _subplugined: dict[str, str]
     """子插件字典，键为子插件ID，值为父插件ID"""
     _staged: dict[str, Plugin]
-    """插件暂存"""
+    """暂存事务中新建的插件，键为插件ID；promote_staged 时整体切换到 plugins"""
     root: Plugin
     """根插件对象，作为基础插件的父插件"""
 

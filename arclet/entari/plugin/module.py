@@ -304,13 +304,11 @@ class PluginLoader(SourceFileLoader):
 
     def exec_module(self, module: ModuleType, config: dict[str, Any] | None = None) -> None:
         is_sub = False
-        plugin = (
+        plugin = plugin_service.plugins.get(self.parent_plugin_id) if self.parent_plugin_id else None
+        if self.staged and self.parent_plugin_id:
             # 暂存期间 plugins 中仍是旧顶插件，须优先取 _staged 中的新插件，
             # 否则新子插件的父链接指向旧插件
-            (plugin_service._staged.get(self.parent_plugin_id) or plugin_service.plugins.get(self.parent_plugin_id))
-            if self.parent_plugin_id
-            else None
-        )
+            plugin = plugin_service._staged.get(self.parent_plugin_id) or plugin
         if plugin:
             if self.plugin_id not in plugin.subplugins:
                 plugin.subplugins.append(self.plugin_id)
@@ -349,9 +347,7 @@ class PluginLoader(SourceFileLoader):
             else:
                 config = {"$path": key}
         # create plugin before executing
-        plugin = Plugin(self.plugin_id, module, config=config)
-        # record the origin entry for recover if stage failed
-        prev_entry = sys.modules.get(module.__name__)
+        plugin = Plugin(self.plugin_id, module, config=config, staged=self.staged)
         # for `dataclasses` module
         sys.modules[module.__name__] = plugin.proxy()  # type: ignore
         plugin._sys_entry = sys.modules[module.__name__]
@@ -359,8 +355,6 @@ class PluginLoader(SourceFileLoader):
 
         def _abort(plug: Plugin):
             plug.dispose(replacing=self.staged)
-            if self.staged and prev_entry is not None:
-                sys.modules[module.__name__] = prev_entry
 
         # enter plugin context
         token = current_plugin.set(plugin)
@@ -556,7 +550,7 @@ class _PluginFinder(PathFinder):
                     module_origin,
                     plugin_id,
                     parent_id,
-                    staged=staged or plug.id in plugin_service._staged,
+                    staged=staged or plugin_service._staged.get(plug.id) is plug,
                 )  # noqa: E501
         # in the following cases, the module is imported directly (probably from Entari App)
         # 1. the module is already a plugin.

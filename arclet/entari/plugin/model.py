@@ -194,6 +194,8 @@ class Plugin:
     _apply: Callable[[Plugin], Any] | None = field(default=None, init=False, repr=False)
     _sys_entry: Any = field(default=None, init=False, repr=False)
     """本插件在 sys.modules 中登记的条目（代理对象），用于卸载时仅移除自身登记"""
+    staged: bool = field(default=False, repr=False, kw_only=True)
+    """由加载器标记的暂存事务成员，不能从 current_plugin 推断"""
 
     @property
     def reusable(self) -> bool:
@@ -235,12 +237,13 @@ class Plugin:
         uid_index = self.id.rfind("@")
         self.path = self.id[:uid_index] if uid_index != -1 else self.id
         self.uid = self.id[uid_index + 1 :] if uid_index != -1 else None
-        if self.id in plugin_service.plugins and not self.id.startswith("$"):
-            # 原子重载暂存：id 冲突时注册进 _staged，scope 用唯一 id 并置 disabled
+        is_staged = self.staged or (self.id in plugin_service.plugins and not self.id.startswith("$"))
+        if is_staged:
+            # 原子重载暂存：暂存期间新建的插件全部先入 _staged，promote 时再整体切换
             self._scope = _make_scope(self).of(f"{self.id}@staging")
             self._scope.disable()
             plugin_service._staged[self.id] = self  # type: ignore
-            # 新旧插件共用 id，暂存期间新绑定必须与 bindings 中的旧记录隔离
+            # 暂存插件与同 id 的存活插件必须分开记录绑定，promote 时整体替换
             plugin_service._staged_bindings[self.id] = []
         else:
             self._scope = _make_scope(self).of(self.id)
@@ -456,8 +459,7 @@ class Plugin:
         # during reload, the new plugin with same id is already in _staged,
         # if check by id it will mistakenly treat the old plugin as staged
         _was_staged = plugin_service._staged.get(self.id) is self
-        # subplugins will be cleared below when staged tree is aborted,
-        # so record the ids that need to clean up temporary bindings first
+        # 暂存树中止时 subplugins 会在下面被清空，先记下本事务的子插件 id
         _staged_sids = [self.id, *self.subplugins] if _was_staged else []
         # do not change the unloaded flag of live plugin
         if not _was_staged:
@@ -483,10 +485,15 @@ class Plugin:
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
             log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
-                if _was_staged and subplug in plugin_service._staged:
-                    tasks.update(
-                        plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing)
-                    )
+                if _was_staged:
+                    # 暂存树中止：只拆本事务新建的子插件，同 id 的旧子插件仍在 plugins 中
+                    if staged := plugin_service._staged.get(subplug):
+                        tasks.update(
+                            staged.dispose(is_cleanup=is_cleanup, replacing=replacing)
+                        )
+                    # 只清理真正新建子插件的归属映射；旧子插件的映射必须保留
+                    if subplug not in plugin_service.plugins:
+                        plugin_service._subplugined.pop(subplug, None)
                     continue
                 if subplug not in plugin_service.plugins:
                     if subplug in plugin_service._staged:
@@ -549,6 +556,9 @@ class Plugin:
             # 暂存加载失败/中止时丢弃整棵新树的临时绑定
             for sid in _staged_sids:
                 plugin_service._staged_bindings.pop(sid, None)
+            # 仅移除本事务新建子插件的归属；同 id 的旧子插件仍在运行，映射必须保留
+            if self.id not in plugin_service.plugins:
+                plugin_service._subplugined.pop(self.id, None)
         elif self.id in plugin_service.plugins:
             del plugin_service.plugins[self.id]
         else:
@@ -618,19 +628,35 @@ class Plugin:
                 self.module.__dict__[kept.module_attr] = kept.obj
 
     def niche(self, label: str, config: dict[str, Any] | None = None):
-        """创建一个隔离的子插件，子插件的生命周期与父插件绑定"""
+        """创建一个隔离的子插件，子插件的生命周期与父插件绑定
+
+        子插件统一平级挂载在顶层插件下；在子插件上调用时回溯到顶层父插件。
+        """
         sub_id = f"{self.id}.{label}"
-        if sub_id in plugin_service.plugins:
+        if sub_id in plugin_service.plugins or sub_id in plugin_service._staged:
             raise ValueError(f"sub-plugin {sub_id} already exists")
 
+        parent = self
+        while parent.id in plugin_service._subplugined:
+            parent_id = plugin_service._subplugined[parent.id]
+            next_parent = plugin_service._staged.get(parent_id) or plugin_service.plugins.get(parent_id)
+            if next_parent is None or next_parent is parent:
+                break
+            parent = next_parent
+
         def wrapper(func: Callable[[Plugin], Any], /):
-            subplug = Plugin(sub_id, ModuleType(sub_id), config=self.config.copy() if config is None else config)
+            subplug = Plugin(
+                sub_id,
+                ModuleType(sub_id),
+                config=self.config.copy() if config is None else config,
+                staged=self.staged,
+            )
             setattr(subplug.module, "__plugin__", subplug)
             setattr(func, "__plugin__", subplug)
             setattr(subplug.module, "__file__", func.__code__.co_filename)
             subplug._apply = func
-            self.subplugins.append(sub_id)
-            plugin_service._subplugined[sub_id] = self.id
+            parent.subplugins.append(sub_id)
+            plugin_service._subplugined[sub_id] = parent.id
             return subplug
 
         return wrapper
