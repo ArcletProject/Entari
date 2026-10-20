@@ -364,12 +364,53 @@ def unload_plugin(plugin: str):
 def _unload_for_reload(plugin_id: str) -> bool:
     """级联重载中的卸载步骤：以 replacing=True 拆卸，与 reload_plugin 的语义一致
 
-    不清理 bindings 等会被随后 load 重新记录的状态，也不走永久卸载的引用/依赖收尾。
+    不执行永久卸载的引用/依赖收尾；bindings 随拆卸清理并由随后 load 重新记录。
     """
     if not (_plugin := find_plugin(plugin_id)):
         return False
     _plugin.dispose(replacing=True)
     return True
+
+
+async def _discard_staged_state(plugin_id: str) -> None:
+    """清理异常路径遗留的暂存登记与临时绑定。
+
+    exec_module 的 restore_kept_state 等步骤位于 _abort 之外，异常时暂存插件可能既不 promote 也不 dispose。
+    残留的 _staged_bindings 会让之后同 id 的绑定一直写入孤立表。
+    这里显式 dispose 暂存插件，让 finalizer 不会因登记已移除而误删同 id 的存活插件；随后再兜底清理绑定键。
+    """
+    try:
+        tasks = set()
+        for sid in list(plugin_service._staged):
+            if sid != plugin_id and not sid.startswith(f"{plugin_id}."):
+                continue
+            if (staged := plugin_service._staged.get(sid)) is None:
+                continue
+            try:
+                tasks.update(staged.dispose(replacing=True))
+            except Exception as e:
+                log.plugin.error(f"failed to discard staged plugin <r>{sid!r}</r>: {e!r}")
+        if tasks:
+            await asyncio.wait(tasks)
+    finally:
+        for sid in list(plugin_service._staged_bindings):
+            if sid == plugin_id or sid.startswith(f"{plugin_id}."):
+                plugin_service._staged_bindings.pop(sid, None)
+
+
+def _snapshot_sys_entries(plugin_id: str) -> dict[str, Any]:
+    """记录重载前插件前缀下的全部模块登记，失败时用于恢复旧树的 sys.modules 状态"""
+    prefix = f"{plugin_id}."
+    return {name: entry for name, entry in sys.modules.items() if name == plugin_id or name.startswith(prefix)}
+
+
+def _restore_sys_entries(plugin_id: str, entries: dict[str, Any]) -> None:
+    """恢复旧插件树的模块登记，并清除本次失败加载新建的同前缀条目"""
+    prefix = f"{plugin_id}."
+    for name in list(sys.modules):
+        if (name == plugin_id or name.startswith(prefix)) and name not in entries:
+            sys.modules.pop(name, None)
+    sys.modules.update(entries)
 
 
 def promote_staged(plugin: Plugin):
@@ -379,6 +420,13 @@ def promote_staged(plugin: Plugin):
     父属性写回（插件导入链）使模块中的属性指向新模块对象。
     """
     for sid in [plugin.id, *plugin.subplugins]:
+        # replace instead of merge: deleted imports in the new version should not remain in the binding index
+        if sid in plugin_service._staged_bindings:
+            staged_bindings = plugin_service._staged_bindings.pop(sid)
+            if staged_bindings:
+                plugin_service.bindings[sid] = staged_bindings
+            else:
+                plugin_service.bindings.pop(sid, None)
         if staged := plugin_service._staged.pop(sid, None):
             plugin_service.plugins[sid] = staged
             if sid != plugin.id:
@@ -424,10 +472,15 @@ async def reload_plugin(path: str, conf: dict | None = None) -> _LoadResult:
         return _LoadResult(error=RuntimeError(f"plugin {path!r} is static and cannot be reloaded"))
     _conf = conf if conf is not None else plugin.config.copy()
     old_subplugins = _collect_subtree(plugin)
+    old_sys_entries = _snapshot_sys_entries(path)
     for name in old_subplugins:
         sys.modules.pop(name, None)
     log.plugin.debug(f"staged loading <y>{path!r}</y>, old plugin keeps running until swap")
     if not (result := load_plugin(path, _conf, staged=True)):
+        await _discard_staged_state(path)
+        # stage load will overwrite/delete old sys.modules entries, must restore them on failure,
+        # otherwise the old plugin is still running but cannot be re-imported
+        _restore_sys_entries(path, old_sys_entries)
         log.plugin.error(f"failed to load staged plugin <blue>{path!r}</blue>, old plugin keeps running")
         return result
     if tasks := plugin.dispose(replacing=True):
@@ -468,8 +521,17 @@ async def reload_subplugin(path: str, conf: dict | None = None) -> _LoadResult:
         log.plugin.debug(f"parent <y>{parent_id!r}</y> uses <y>{path!r}</y> at module level, full tree reload")
         return await reload_plugin(parent_id, parent.config.copy())
     _conf = conf if conf is not None else plugin.config.copy()
+    old_sys_entries = _snapshot_sys_entries(path)
     log.plugin.debug(f"staged loading sub-plugin <y>{path!r}</y>, old sub-plugin keeps running until swap")
-    if not (mod := import_plugin(path, config=_conf, staged=True)):
+    try:
+        mod = import_plugin(path, config=_conf, staged=True)
+    except Exception as e:
+        await _discard_staged_state(path)
+        _restore_sys_entries(path, old_sys_entries)
+        return _LoadResult(error=e)
+    if not mod:
+        await _discard_staged_state(path)
+        _restore_sys_entries(path, old_sys_entries)
         log.plugin.error(f"failed to load staged sub-plugin <blue>{path!r}</blue>, old sub-plugin keeps running")
         return _LoadResult(
             error=RuntimeError(f"failed to load staged sub-plugin {path!r}, old sub-plugin keeps running")

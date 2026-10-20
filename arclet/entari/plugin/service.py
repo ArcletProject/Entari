@@ -58,6 +58,8 @@ class PluginManagerService(Service):
     """插件被引用字典，键为插件ID，值为该插件引用的其他插件ID集合"""
     bindings: dict[str, list[Binding]]
     """插件导入绑定字典，键为插件ID，值为该插件全部导入边。同名多次绑定时均保留，仅 last=True 的为当前生效绑定"""
+    _staged_bindings: dict[str, list[Binding]]
+    """暂存插件的导入绑定，键为插件ID；promote_staged 时整体替换 bindings 中同 id 的记录"""
     fingerprints: dict[str, str]
     """插件指纹字典，键为插件ID，值为该插件的指纹字符串"""
     service_waiter: ServiceWaiters
@@ -83,6 +85,7 @@ class PluginManagerService(Service):
         self._unloaded = set()
         self._subplugined = {}
         self.bindings = {}
+        self._staged_bindings = {}
         self.fingerprints = {}
         self._staged = {}
         self.service_waiter = ServiceWaiters()

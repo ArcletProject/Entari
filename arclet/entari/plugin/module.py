@@ -90,17 +90,22 @@ def _resolve_from_target(node: ast.ImportFrom, pname: str, is_init: bool) -> str
 
 
 def _record_binding(pid: str, name: str, target: str, attr: str | None):
-    """记录名字级 import 绑定（name → (target, attr)），供重载侧查询与改写"""
+    """记录名字级 import 绑定（name → (target, attr)），供重载侧查询与改写
+
+    暂存插件与同 id 的存活插件必须分开记录；promote 时再整体替换，避免旧版本独有的 import 残留
+
+    同一条边（名字+目标+属性）重复记录时去重；同名的其他边取消 last 标记，本次记录为最后一次
+    """
     if not target:
         return
-    # 同一条边（名字+目标+属性）重复记录时去重；同名的其他边取消 last 标记，本次记录为最后一次
+    table = plugin_service._staged_bindings if pid in plugin_service._staged_bindings else plugin_service.bindings
     entries = [
         b._replace(last=False) if b.name == name else b
-        for b in plugin_service.bindings.get(pid, [])
+        for b in table.get(pid, [])
         if not (b.name == name and b.target == target and b.attr == attr)
     ]
     entries.append(Binding(name, target, attr, True))
-    plugin_service.bindings[pid] = entries
+    table[pid] = entries
 
 
 # fmt: off

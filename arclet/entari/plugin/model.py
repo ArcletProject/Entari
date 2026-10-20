@@ -240,6 +240,8 @@ class Plugin:
             self._scope = _make_scope(self).of(f"{self.id}@staging")
             self._scope.disable()
             plugin_service._staged[self.id] = self  # type: ignore
+            # 新旧插件共用 id，暂存期间新绑定必须与 bindings 中的旧记录隔离
+            plugin_service._staged_bindings[self.id] = []
         else:
             self._scope = _make_scope(self).of(self.id)
             plugin_service.plugins[self.id] = self  # type: ignore
@@ -454,6 +456,9 @@ class Plugin:
         # during reload, the new plugin with same id is already in _staged,
         # if check by id it will mistakenly treat the old plugin as staged
         _was_staged = plugin_service._staged.get(self.id) is self
+        # subplugins will be cleared below when staged tree is aborted,
+        # so record the ids that need to clean up temporary bindings first
+        _staged_sids = [self.id, *self.subplugins] if _was_staged else []
         # do not change the unloaded flag of live plugin
         if not _was_staged:
             plugin_service._unloaded.add(self.id)
@@ -478,6 +483,11 @@ class Plugin:
             subplugs = (subplugs[:3] + ["..."]) if len(subplugs) > 3 else subplugs
             log.plugin.trace(f"disposing sub-plugin <r>{', '.join(subplugs)}</r> of <y>{self.id}</y>")
             for subplug in self.subplugins:
+                if _was_staged and subplug in plugin_service._staged:
+                    tasks.update(
+                        plugin_service._staged[subplug].dispose(is_cleanup=is_cleanup, replacing=replacing)
+                    )
+                    continue
                 if subplug not in plugin_service.plugins:
                     if subplug in plugin_service._staged:
                         tasks.update(
@@ -531,12 +541,14 @@ class Plugin:
                 tasks.update(plugin_service.plugins[ret].disable())
         tasks.update(self._scope.dispose())
         self._scope.propagators.clear()
-        # clean bindings when cleanup; replacing or stage will clean by new module
-        if not replacing and not _was_staged:
+        if not _was_staged:
             plugin_service.bindings.pop(self.id, None)
         # 暂存插件的 id 与存活插件相同，只能从 _staged 移除，不可删除 plugins 中的存活插件
         if _was_staged:
             plugin_service._staged.pop(self.id, None)
+            # 暂存加载失败/中止时丢弃整棵新树的临时绑定
+            for sid in _staged_sids:
+                plugin_service._staged_bindings.pop(sid, None)
         elif self.id in plugin_service.plugins:
             del plugin_service.plugins[self.id]
         else:
