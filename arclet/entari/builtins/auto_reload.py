@@ -264,11 +264,18 @@ class Watcher(Service):
                     or Path(change[1]).resolve().parent in extra
                 ):
                     continue
+                if Path(change[1]).suffixes == [".schema", ".json"]:
+                    continue
+
+                is_main_file = Path(change[1]).resolve() == file
                 old_basic = asdict(EntariConfig.instance.basic)  # noqa
                 old_plugin = EntariConfig.instance.plugin.copy()
                 if not EntariConfig.instance.reload():
                     continue
-                logger.info(f"Detected change in {change[1]!r}, reloading config...")
+                if is_main_file:
+                    logger.info(f"Detected change in {change[1]!r}, reloading config...")
+                else:
+                    logger.info(f"Detected change in extra config file {change[1]!r}, reloading config...")
                 new_basic = asdict(EntariConfig.instance.basic)  # noqa
                 for key in old_basic:
                     if key in new_basic and old_basic[key] != new_basic[key]:
@@ -304,10 +311,10 @@ class Watcher(Service):
                             if "$disable" in changes:
                                 plg.check_disable()
                                 changes.remove("$disable")
-                            if "$dry" in changes:
-                                changes.remove("$dry")
-                                if new_conf.get("$dry", False):
-                                    logger.debug(f"Plugin <y>{plg.id!r}</y> is dry, ignored.")
+                            if "$optional" in changes:
+                                changes.remove("$optional")
+                                if new_conf.get("$optional", False):
+                                    logger.debug(f"Plugin <y>{plg.id!r}</y> is optional, ignored.")
                                     continue
                             if not changes:
                                 continue

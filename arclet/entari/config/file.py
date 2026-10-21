@@ -4,6 +4,7 @@ import re
 import warnings
 from collections import defaultdict
 from collections.abc import Callable, MutableMapping
+from copy import deepcopy
 from dataclasses import dataclass, field
 from importlib import import_module
 from io import StringIO
@@ -68,6 +69,17 @@ def _interpolate(source: str, context: dict[str, Any], records: set[_EnvReplaced
     return re.sub(EXPR_CONTEXT_PAT, handle, source)
 
 
+def _resolve_record_key(node: Any, part: str | int) -> tuple[str | int, Any]:
+    try:
+        return part, node[part]
+    except KeyError:
+        for prefix in ("~", "?"):
+            alias = f"{prefix}{part}"
+            if alias in node:
+                return alias, node[alias]
+        raise
+
+
 @dataclass
 class EntariConfig:
     path: Path
@@ -77,6 +89,7 @@ class EntariConfig:
     prelude_plugin: list[str] = field(default_factory=list, init=False)
     plugin_extra_files: list[str] = field(default_factory=list, init=False)
     save_flag: bool = field(default=False)
+    register_instance: bool = field(default=True, repr=False)
     env_vars: dict[str, str] = field(default_factory=dict)
     _plugin_names: dict[str, list[str]] = field(default_factory=dict, init=False)
     _origin_data: dict[str, Any] = field(init=False)
@@ -85,7 +98,13 @@ class EntariConfig:
     instance: ClassVar["EntariConfig"]
     _inited: ClassVar[bool] = False
 
-    def loader(self, path: Path) -> dict[str, Any]:
+    def __post_init__(self):
+        if self.register_instance:
+            self.__class__.instance = self
+            self.__class__._inited = True
+        self.reload()
+
+    def loader(self, path: Path, register: bool = True) -> dict[str, Any]:
         if not path.exists():
             return {}
         end = path.suffix.split(".")[-1]
@@ -95,7 +114,9 @@ class EntariConfig:
             with path.open("r", encoding="utf-8") as f:
                 data = _loaders[end](f.read())
 
-            records = self._records.setdefault(path.as_posix(), set())
+            records: set[_EnvReplaced] = set()
+            if register:
+                self._records[path.as_posix()] = records
 
             def _transform(value, key, history):
                 if isinstance(value, str):
@@ -115,38 +136,54 @@ class EntariConfig:
     def dumper(self, path: Path, save_path: Path, data: dict, indent: int, apply_schema: bool):
         if not path.exists():
             return
-        origin = self.loader(path)
+        origin = self.loader(path, register=False)
         if "entari" in origin:
             origin["entari"] = data
         else:
             origin = data
+        origin = deepcopy(origin)
         end = save_path.suffix.split(".")[-1]
         schema_file = None
         if apply_schema:
             schema_file = f"{save_path.stem}.schema.json"
-        if end in _dumpers:
-            if path.as_posix() in self._records:
-                for record in self._records[path.as_posix()]:
-                    data = origin
-                    parts = [
-                        int(part[1:]) if part.startswith("$") and part[1:].isdigit() else part for part in record.parts
-                    ]
-                    for part in parts[:-1]:
-                        data = data[part]
-                    value = data[parts[-1]]
-                    if isinstance(value, str):
-                        data[parts[-1]] = value.replace(record.target, record.source)
 
+        if end in _dumpers:
+            for record in list(self._records.get(path.as_posix(), ())):
+                parts = [
+                    int(part[1:]) if part.startswith("$") and part[1:].isdigit() else part for part in record.parts
+                ]
+                try:
+                    node: dict = origin
+                    for part in parts[:-1]:
+                        _, node = _resolve_record_key(node, part)
+                    key, value = _resolve_record_key(node, parts[-1])
+                    if isinstance(value, str) and record.target and record.target in value:
+                        node[key] = value.replace(record.target, record.source)
+                except (KeyError, IndexError, TypeError):
+                    continue
             ans, applied = _dumpers[end](origin, indent, schema_file)
             with save_path.open("w", encoding="utf-8") as f:
                 f.write(ans)
+            self.refresh_records(save_path)
             return
         raise ValueError(f"Unsupported file format: {save_path.suffix}")
 
-    def __post_init__(self):
-        self.__class__.instance = self
-        self.__class__._inited = True
-        self.reload()
+    def refresh_records(self, path: Path):
+        if not path.exists():
+            return
+        # register=True 会重建该文件的记录；只更新 _records，不替换 _origin_data
+        self.loader(path)
+
+    def remap_records(self, path: Path, mapper: Callable[[tuple[str, ...]], tuple[str, ...] | None]):
+        if not path.exists():
+            return
+        records = self._records.get(path.as_posix(), set())
+        new_records: set[_EnvReplaced] = set()
+        for record in records:
+            new_parts = mapper(record.parts)
+            if new_parts is not None:
+                new_records.add(_EnvReplaced(new_parts, record.target, record.source))
+        self._records[path.as_posix()] = new_records
 
     @property
     def data(self) -> dict[str, Any]:
@@ -193,7 +230,7 @@ class EntariConfig:
                         continue
                     self.plugin[_path.stem] = self.loader(_path)
                     _plugins.append(_path.stem)
-            elif path.name.endswith(".schema.json"):
+            elif not path.name.endswith(".schema.json"):
                 self.plugin[path.stem] = self.loader(path)
                 _plugins.append(path.stem)
 
@@ -228,10 +265,11 @@ class EntariConfig:
                 ans[name].append(f"entari_plugin_{name}")
         self._plugin_names = dict(ans)
 
-    def reload(self):
+    def reload(self, force: bool = False) -> bool:
         if self.save_flag:
             self.save_flag = False
-            return False
+            if not force:
+                return False
         data = self.loader(self.path)
         if "entari" in data:
             data = data["entari"]
@@ -248,7 +286,9 @@ class EntariConfig:
         return value
 
     def dump(self, indent: int = 2, apply_schema: bool = False) -> dict[str, Any]:
-        basic = self._origin_data.get("basic", {})
+        data = deepcopy(self._origin_data)
+        basic = data.get("basic", {})
+        plugins = data.get("plugins", {})
         if "log" not in basic and ("log_level" in basic or "log_ignores" in basic):
             basic["log"] = {}
             if "log_level" in basic:
@@ -260,30 +300,30 @@ class EntariConfig:
             for file in self.plugin_extra_files:
                 path = Path(file)
                 if path.is_file() and not path.name.endswith(".schema.json"):
-                    self.dumper(path, path, self._clean(self.plugin.pop(path.stem)), indent, apply_schema)
+                    self.dumper(path, path, self._clean(plugins.pop(path.stem)), indent, apply_schema)
                 else:
                     for _path in path.iterdir():
                         if _path.is_file() and not _path.name.endswith(".schema.json"):
-                            self.dumper(_path, _path, self._clean(self.plugin.pop(_path.stem)), indent, apply_schema)
-        for key in list(self.plugin.keys()):
+                            self.dumper(_path, _path, self._clean(plugins.pop(_path.stem)), indent, apply_schema)
+        for key in list(plugins.keys()):
             if key.startswith("$"):
                 continue
-            value = self.plugin.pop(key)
+            value = plugins.pop(key)
             if "$disable" in value and isinstance(value["$disable"], bool):
                 key = f"~{key}" if value["$disable"] else key
                 value.pop("$disable", None)
             if "$optional" in value:
                 key = f"?{key}" if value["$optional"] else key
                 value.pop("$optional", None)
-            self.plugin[key] = self._clean(value)
-        return self._origin_data
+            plugins[key] = self._clean(value)
+        return data
 
     def save(self, path: str | os.PathLike[str] | None = None, indent: int = 2, apply_schema: bool = False):
         self.save_flag = True
         self.dumper(self.path, Path(path or self.path), self.dump(indent, apply_schema), indent, apply_schema)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[str] | None = None) -> "EntariConfig":
+    def load(cls, path: str | os.PathLike[str] | None = None, detach: bool = False) -> "EntariConfig":
         if dotenv:
             from .env import load_env_with_environment
 
@@ -310,10 +350,10 @@ class EntariConfig:
                 except ImportError as e:
                     warnings.warn(f"Failed to load config extension '{ext_mod}': {e}", ImportWarning)
         if not _path.exists():
-            return cls(_path, env_vars=env_vars)
+            return cls(_path, env_vars=env_vars, register_instance=not detach)
         if not _path.is_file():
             raise ValueError(f"{_path} is not a file")
-        return cls(_path, env_vars=env_vars)
+        return cls(_path, env_vars=env_vars, register_instance=not detach)
 
     def bind(self, key: str, plugin: dict, obj: T) -> T:
         """
