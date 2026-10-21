@@ -117,5 +117,5 @@ def apply_schema_fragments(schema: dict, config_key: str, ref_root: str = "/") -
         except (RuntimeError, ValueError) as e:
             from ...logger import log
 
-            log.plugin.warning(str(e))
+            log.config.warning(str(e))
     return schema

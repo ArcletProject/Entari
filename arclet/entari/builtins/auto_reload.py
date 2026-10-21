@@ -2,35 +2,31 @@ import ast
 import asyncio
 import importlib
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from traceback import format_exception_only
 from types import ModuleType
 
-from arclet.letoderea import post, publish
 from launart import Launart, Service, any_completed
 from launart.status import Phase
 from loguru import logger as loguru_logger
+
+from arclet.entari.config.model import FailEntry
 
 try:
     from watchfiles import PythonFilter, awatch
 except ModuleNotFoundError:
     raise ImportError("Please install `watchfiles` first. Install with `pip install arclet-entari[reload]`")
 
-from arclet.entari import add_service, load_plugin, metadata, plugin_config
+from arclet.entari import add_service, metadata, plugin_config
 from arclet.entari.config import BasicConfModel, EntariConfig, model_field
-from arclet.entari.event.config import ConfigReload
 from arclet.entari.logger import log
 from arclet.entari.plugin import (
     Plugin,
     PluginRole,
-    find_plugin,
     find_plugin_by_file,
     plugin_service,
-    reload_plugin,
-    reload_subplugin,
-    unload_plugin_async,
 )
+from arclet.entari.plugin.apply import applier
 from arclet.entari.plugin.swap import classify, swap_functions
 from arclet.entari.utils import escape_tag
 
@@ -119,20 +115,8 @@ class Watcher(Service):
 
     def __init__(self, config: Config):
         self.config = config
-        self.fail: dict[str, tuple[str, dict]] = {}
-        self._locks: dict[str, asyncio.Lock] = {}
+        self.fail = applier.fail
         super().__init__()
-
-    def _lock_for(self, plugin_id: str) -> asyncio.Lock:
-        if plugin_id not in self._locks:
-            self._locks[plugin_id] = asyncio.Lock()
-        return self._locks[plugin_id]
-
-    async def _reload(self, pid: str, cfg: dict):
-        async with self._lock_for(pid):
-            if pid in plugin_service._subplugined:
-                return await reload_subplugin(pid, cfg)
-            return await reload_plugin(pid, cfg)
 
     async def _reload_upstream(self, module_name: str) -> list[str]:
         """刷新非插件上游模块，并重载依赖它的插件
@@ -159,12 +143,11 @@ class Watcher(Service):
             return []
         reloaded: list[str] = []
         for dep_id in plugin_service.topo_dependents(set(dependents)):
-            async with self._lock_for(dep_id):
-                result = await reload_plugin(dep_id)
-                if result:
-                    reloaded.append(dep_id)
-                else:
-                    logger.error(f"Failed to reload plugin <blue>{dep_id!r}</blue> after upstream module reload")
+            result = await applier.reload(dep_id)
+            if result:
+                reloaded.append(dep_id)
+            else:
+                logger.error(f"Failed to reload plugin <blue>{dep_id!r}</blue> after upstream module reload")
         return reloaded
 
     async def watch(self):
@@ -225,29 +208,21 @@ class Watcher(Service):
                     logger.debug(f"Hot swap functions in <y>{pid!r}</y> failed, falling back to full reload.")
                 _conf = plugin.config.copy()
                 del plugin
-                if res := await self._reload(pid, _conf):
+                if res := await applier.reload(pid, _conf):
                     logger.info(f"Reloaded <blue>{pid!r}</blue>")
                     self.fail.pop(file_path, None)
                 else:
                     logger.error(f"Failed to reload <blue>{pid!r}</blue>: {res.error!r}")
-                    self.fail[file_path] = (pid, _conf)
+                    self.fail[file_path] = FailEntry(pid, _conf, file_path)
             pending.clear()
             for file_path in failed:
-                if file_path not in self.fail:
-                    continue
-                pid, _conf = self.fail[file_path]
-                if file_path not in self.fail:
-                    continue
-                logger.info(f"Detected change in {file_path!r} which failed to reload, retrying...")
-                if res := await self._reload(pid, _conf):
-                    logger.info(f"Reloaded <blue>{pid!r}</blue>")
-                    del self.fail[file_path]
-                else:
-                    logger.error(f"Failed to reload <blue>{pid!r}</blue>: {res.error!r}")
+                await applier.retry(file_path)
 
     async def watch_config(self):
-        file = EntariConfig.instance.path.resolve()
-        extra = [file.parent.joinpath(path) for path in EntariConfig.instance.plugin_extra_files]
+        cfg = EntariConfig.instance
+        file = cfg.path.resolve()
+        extra = [file.parent.joinpath(path) for path in cfg.plugin_extra_files]
+
         async for event in awatch(
             file.absolute(),
             *(dir_.absolute() for dir_ in extra),
@@ -255,104 +230,25 @@ class Watcher(Service):
             step=self.config.step,
             recursive=False,
         ):
-            for change in event:
-                if not self.config.watch_config:
-                    continue
-                if not (
+            if not self.config.watch_config:
+                continue
+            relevant = [
+                change
+                for change in event
+                if not change[1].endswith(".schema.json")
+                and (
                     (change[0].name == "modified" and Path(change[1]).resolve() == file)
                     or Path(change[1]).resolve() in extra
                     or Path(change[1]).resolve().parent in extra
-                ):
-                    continue
-                if Path(change[1]).suffixes == [".schema", ".json"]:
-                    continue
-
-                is_main_file = Path(change[1]).resolve() == file
-                old_basic = asdict(EntariConfig.instance.basic)  # noqa
-                old_plugin = EntariConfig.instance.plugin.copy()
-                if not EntariConfig.instance.reload():
-                    continue
-                if is_main_file:
-                    logger.info(f"Detected change in {change[1]!r}, reloading config...")
-                else:
-                    logger.info(f"Detected change in extra config file {change[1]!r}, reloading config...")
-                new_basic = asdict(EntariConfig.instance.basic)  # noqa
-                for key in old_basic:
-                    if key in new_basic and old_basic[key] != new_basic[key]:
-                        logger.debug(
-                            f"Basic config <y>{key!r}</y> changed from <r>{old_basic[key]!r}</r> "
-                            f"to <g>{new_basic[key]!r}</g>",
-                        )
-                        await publish(ConfigReload("basic", key, new_basic[key], old_basic[key]))
-                for key in set(new_basic) - set(old_basic):
-                    logger.debug(f"Basic config <y>{key!r}</y> appended")
-                    await publish(ConfigReload("basic", key, new_basic[key]))
-                for plugin_name in old_plugin:
-                    if plugin_name.startswith("$"):
-                        continue
-                    pid = plugin_name.replace("::", "arclet.entari.builtins.")
-                    if plugin_name not in EntariConfig.instance.plugin:
-                        if plg := find_plugin(pid):
-                            if plg.is_static:
-                                logger.info(f"Plugin <y>{plg.id!r}</y> is static, ignored.")
-                            else:
-                                del plg
-                                await unload_plugin_async(pid)
-                                logger.info(f"Disposed plugin <blue>{pid!r}</blue>")
-                        continue
-                    old_conf = EntariConfig._clean(old_plugin[plugin_name])
-                    new_conf = EntariConfig.instance.plugin[plugin_name]
-                    if old_conf != new_conf:
-                        if plg := find_plugin(pid):
-                            added = set(new_conf) - set(old_conf)
-                            removed = set(old_conf) - set(new_conf)
-                            changed = {k for k in set(new_conf) & set(old_conf) if new_conf[k] != old_conf[k]}
-                            changes = added | removed | changed
-                            if "$disable" in changes:
-                                plg.check_disable()
-                                changes.remove("$disable")
-                            if "$optional" in changes:
-                                changes.remove("$optional")
-                                if new_conf.get("$optional", False):
-                                    logger.debug(f"Plugin <y>{plg.id!r}</y> is optional, ignored.")
-                                    continue
-                            if not changes:
-                                continue
-                            logger.debug(
-                                f"Plugin <y>{plugin_name!r}</y> config changed from <r>{old_conf!r}</r> "
-                                f"to <g>{new_conf!r}</g>",
-                            )
-                            res = await post(
-                                ConfigReload("plugin", plugin_name, new_conf, old_conf),
-                            )
-                            if res and res.value:
-                                logger.debug(f"Plugin <y>{pid!r}</y> config change handled by itself.")
-                                continue
-                            if plg.is_static:
-                                logger.info(f"Plugin <y>{plg.id!r}</y> is static, ignored.")
-                                continue
-                            logger.info(f"Detected config of <blue>{pid!r}</blue> changed, reloading...")
-                            plugin_file = str(plg.module.__file__)
-                            _conf = plg.config.copy()
-
-                            async def _():
-                                if result := await self._reload(pid, new_conf):
-                                    logger.info(f"Reloaded <blue>{pid!r}</blue>")
-                                    self.fail.pop(plugin_file, None)
-                                else:
-                                    logger.error(f"Failed to reload <blue>{plugin_name!r}</blue>: {result.error!r}")
-                                    self.fail[plugin_file] = (pid, _conf)
-
-                            await asyncio.shield(_())
-                        else:
-                            logger.info(f"Detected <blue>{pid!r}</blue> appended, loading...")
-                            load_plugin(plugin_name, new_conf)
-                if new := (set(EntariConfig.instance.plugin) - set(old_plugin)):
-                    for plugin_name in new:
-                        if plugin_name.startswith("$") or plugin_name.startswith("~"):
-                            continue
-                        if not load_plugin(plugin_name):
-                            continue
+                )
+            ]
+            if not relevant:
+                continue
+            changed = Path(relevant[0][1]).resolve()
+            logger.debug(f"Config file change detected: {str(changed)!r}")
+            report = await applier.apply(file, source="auto_reload")
+            if not report.ok:
+                logger.error(f"Config apply finished with errors: {report.errors}")
 
     async def launch(self, manager: Launart):
         async with self.stage("preparing"):

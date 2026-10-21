@@ -488,9 +488,7 @@ class Plugin:
                 if _was_staged:
                     # 暂存树中止：只拆本事务新建的子插件，同 id 的旧子插件仍在 plugins 中
                     if staged := plugin_service._staged.get(subplug):
-                        tasks.update(
-                            staged.dispose(is_cleanup=is_cleanup, replacing=replacing)
-                        )
+                        tasks.update(staged.dispose(is_cleanup=is_cleanup, replacing=replacing))
                     # 只清理真正新建子插件的归属映射；旧子插件的映射必须保留
                     if subplug not in plugin_service.plugins:
                         plugin_service._subplugined.pop(subplug, None)

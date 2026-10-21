@@ -24,6 +24,7 @@ from .loader import load_plugin as load_plugin
 from .loader import reload_plugin as reload_plugin
 from .loader import reload_subplugin as reload_subplugin
 from .loader import unload_plugin as unload_plugin
+from .loader import unload_plugin_async as unload_plugin_async
 from .model import TS, Plugin, PluginDispatcher, current_plugin
 from .model import PluginMetadata as PluginMetadata
 from .model import PluginRole as PluginRole
@@ -330,17 +331,6 @@ def collect_disposes(*disposes: Disposable | AsyncDisposable):
 def restore():
     """回收该插件收集的所有副作用"""
     return get_plugin(1).restore()
-
-
-async def unload_plugin_async(plugin: str):
-    plugin = plugin.replace("::", "arclet.entari.builtins.")
-    while plugin in plugin_service._subplugined:
-        plugin = plugin_service._subplugined[plugin]
-    if not (_plugin := find_plugin(plugin)):
-        return False
-    if tasks := _plugin.dispose():
-        await asyncio.wait(tasks)
-    return True
 
 
 async def enable_plugin(plugin: str):

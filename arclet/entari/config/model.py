@@ -1,4 +1,5 @@
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from .models.default import BasicConfModel as BasicConfModel
 from .models.default import field as model_field
@@ -106,3 +107,44 @@ class BasicConfig(BasicConfModel):
         if self.prefix.count(""):
             self.prefix = [p for p in self.prefix if p]
             self.prefix.append("")
+
+
+@dataclass(slots=True)
+class ApplyError:
+    plugin: str | None
+    message: str
+    exception: BaseException | None = None
+
+
+@dataclass(slots=True)
+class ApplyReport:
+    ok: bool = True
+    """reload 或某个插件的 load/reload 是否成功"""
+    applied: bool = True
+    """是否应用了配置变更，如果没有 diff 或者变更被忽略，则为 False"""
+    changed_basic: list[str] = field(default_factory=list)
+    """基础配置项变更的 key 列表"""
+    changed_plugins: list[str] = field(default_factory=list)
+    """插件配置项变更的 key 列表"""
+    loaded: list[str] = field(default_factory=list)
+    """实际加载的插件列表"""
+    unloaded: list[str] = field(default_factory=list)
+    """实际卸载的插件列表"""
+    reloaded: list[str] = field(default_factory=list)
+    """实际重载的插件列表"""
+    skipped: list[str] = field(default_factory=list)
+    """实际跳过的插件列表"""
+    errors: list[ApplyError] = field(default_factory=list)
+    """应用配置时发生的错误列表"""
+    ignored: str | None = None
+    """如果配置变更被忽略，则为忽略的原因"""
+
+
+@dataclass(slots=True)
+class FailEntry:
+    plugin_id: str
+    config: dict[str, Any]
+    """重试时使用的配置（应该是“新配置”）"""
+    file: str
+    """插件模块文件，作为 fail map 的 key"""
+    message: str = ""

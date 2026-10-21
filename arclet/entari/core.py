@@ -49,12 +49,13 @@ from .const import (
 )
 from .event.api import SendResponse
 from .event.base import MessageCreatedEvent, event_parse
-from .event.config import ConfigReload
+from .event.config import ConfigModify, ConfigReload
 from .event.lifespan import AccountUpdate, Ready
 from .localdata import local_data, update_localdata
 from .logger import apply_log_save, enable_rich_except, log
 from .message import MessageChain
 from .plugin import Plugin, get_plugins, load_plugin, niche, plugin_config, requires
+from .plugin.apply import handle_config_modify
 from .plugin.model import PluginMetadata, PluginRole
 from .plugin.service import plugin_service
 from .session import EntariProtocol, Session
@@ -377,6 +378,7 @@ class Entari(App):
         self.gen_schema = gen_schema
 
         le.on(ConfigReload, self.reset_self, priority=0)
+        le.on(ConfigModify, handle_config_modify, priority=0)
 
         self._path_scale = ()
         _external = [str(Path(d).resolve()) for d in external_dirs or []]

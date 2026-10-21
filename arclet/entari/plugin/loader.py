@@ -361,6 +361,17 @@ def unload_plugin(plugin: str):
     return True
 
 
+async def unload_plugin_async(plugin: str):
+    plugin = plugin.replace("::", "arclet.entari.builtins.")
+    while plugin in plugin_service._subplugined:
+        plugin = plugin_service._subplugined[plugin]
+    if not (_plugin := find_plugin(plugin)):
+        return False
+    if tasks := _plugin.dispose():
+        await asyncio.wait(tasks)
+    return True
+
+
 def _unload_for_reload(plugin_id: str) -> bool:
     """级联重载中的卸载步骤：以 replacing=True 拆卸，与 reload_plugin 的语义一致
 

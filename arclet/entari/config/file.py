@@ -92,8 +92,10 @@ class EntariConfig:
     register_instance: bool = field(default=True, repr=False)
     env_vars: dict[str, str] = field(default_factory=dict)
     _plugin_names: dict[str, list[str]] = field(default_factory=dict, init=False)
-    _origin_data: dict[str, Any] = field(init=False)
+    _origin_data: dict[str, Any] = field(default_factory=dict, init=False)
     _records: dict[str, set[_EnvReplaced]] = field(default_factory=dict, init=False)
+    _root_plugin_keys: set[str] = field(default_factory=set, init=False)
+    _extra_stems: dict[str, set[str]] = field(default_factory=dict, init=False)
 
     instance: ClassVar["EntariConfig"]
     _inited: ClassVar[bool] = False
@@ -132,6 +134,12 @@ class EntariConfig:
             return data
 
         raise ValueError(f"Unsupported file format: {path.suffix}")
+
+    def _load_root(self) -> dict[str, Any]:
+        data = self.loader(self.path)
+        if "entari" in data:
+            data = data["entari"]
+        return data
 
     def dumper(self, path: Path, save_path: Path, data: dict, indent: int, apply_schema: bool):
         if not path.exists():
@@ -202,7 +210,34 @@ class EntariConfig:
     def plugin_names(self) -> list[str]:
         return list(chain.from_iterable(self._plugin_names.values()))
 
-    def _reload_plugins(self):
+    def _resolve_extra(self, entry: str) -> Path:
+        path = Path(entry)
+        if not path.is_absolute():
+            path = self.path.parent / path
+        return path.resolve()
+
+    def _iter_extra_files(self, entry: str) -> list[Path]:
+        path = self._resolve_extra(entry)
+        if path.is_dir():
+            return sorted(
+                file.resolve() for file in path.iterdir() if file.is_file() and not file.name.endswith(".schema.json")
+            )
+        if path.name.endswith(".schema.json"):
+            return []
+        if not path.exists():
+            raise FileNotFoundError(entry)
+        return [path]
+
+    def _find_extra_entry(self, target: Path) -> str | None:
+        for entry in self.plugin.get("$files", []):
+            base = self._resolve_extra(entry)
+            if target == base:
+                return entry
+            if base.is_dir() and target.parent == base:
+                return entry
+        return None
+
+    def _reload_plugins(self, *, load_files: bool = True):
         self.plugin_extra_files = self.plugin.get("$files", [])  # type: ignore
         self.prelude_plugin = self.plugin.get("$prelude", [])  # type: ignore
 
@@ -218,21 +253,21 @@ class EntariConfig:
                 key = key[1:]
                 value["$optional"] = True
             self.plugin[key] = value
+
         extra_plugins: dict[str, list[str]] = {}
-        for file in self.plugin_extra_files:
-            path = Path(file)
-            if not path.exists():
-                raise FileNotFoundError(file)
-            _plugins = extra_plugins.setdefault(file, [])
-            if path.is_dir():
-                for _path in path.iterdir():
-                    if not _path.is_file() or _path.name.endswith(".schema.json"):
-                        continue
-                    self.plugin[_path.stem] = self.loader(_path)
-                    _plugins.append(_path.stem)
-            elif not path.name.endswith(".schema.json"):
-                self.plugin[path.stem] = self.loader(path)
-                _plugins.append(path.stem)
+        for entry in self.plugin_extra_files:
+            if load_files:
+                stems: set[str] = set()
+                for file in self._iter_extra_files(entry):
+                    stem = file.stem
+                    self.plugin[stem] = self.loader(file)
+                    stems.add(stem)
+                for name in self._extra_stems.get(entry, set()) - stems:
+                    self.plugin.pop(name, None)
+                self._extra_stems[entry] = stems
+            else:
+                stems = {s for s in self._extra_stems.get(entry, set()) if s in self.plugin}
+            extra_plugins[entry] = sorted(stems)
 
         plugin_prefixes = {}
         for item in self.plugin.get("$prefix", []):  # type: ignore
@@ -265,19 +300,149 @@ class EntariConfig:
                 ans[name].append(f"entari_plugin_{name}")
         self._plugin_names = dict(ans)
 
+    def _restore_records(
+        self,
+        snapshot: dict[str, set[_EnvReplaced] | None],
+        *,
+        replace_all: bool = False,
+    ) -> None:
+        if replace_all:
+            # 整根 reload 可能解析了快照里没有的新 $files，先把整个 dict 清掉
+            self._records = {}
+        for key, records in snapshot.items():
+            if records is None:
+                self._records.pop(key, None)
+            else:
+                self._records[key] = set(records)
+
     def reload(self, force: bool = False) -> bool:
         if self.save_flag:
             self.save_flag = False
             if not force:
                 return False
-        data = self.loader(self.path)
-        if "entari" in data:
-            data = data["entari"]
-        self.basic = config_model_validate(BasicConfig, data.get("basic", {}))
-        self._origin_data = data
-        self.plugin = data.get("plugins", {})
-        self._reload_plugins()
-        return True
+        snapshot = (
+            self.basic,
+            self._origin_data,
+            self.plugin,
+            self.plugin_extra_files,
+            self.prelude_plugin,
+            self.plugin_prefixes,
+            self._plugin_names,
+            self._root_plugin_keys,
+            self._extra_stems,
+            {key: set(records) for key, records in self._records.items()},
+        )
+        try:
+            data = self.loader(self.path)
+            if "entari" in data:
+                data = data["entari"]
+            basic = config_model_validate(BasicConfig, data.get("basic", {}))
+            plugin = data.get("plugins", {})
+            self.basic = basic
+            self._origin_data = data
+            self.plugin = plugin
+            self._root_plugin_keys = {key.lstrip("?~") for key in plugin if not key.startswith("$")}
+            self._extra_stems = {}
+            self._reload_plugins()
+            return True
+        except Exception:
+            (
+                self.basic,
+                self._origin_data,
+                self.plugin,
+                self.plugin_extra_files,
+                self.prelude_plugin,
+                self.plugin_prefixes,
+                self._plugin_names,
+                self._root_plugin_keys,
+                self._extra_stems,
+                records,
+            ) = snapshot
+            self._restore_records(records, replace_all=True)  # type: ignore
+            raise
+
+    def reload_file(
+        self,
+        path: str | os.PathLike[str] | None = None,
+        *,
+        force: bool = False,
+    ) -> bool:
+        if path is None:
+            return self.reload(force=force)
+
+        target = Path(path).resolve()
+        if target == self.path.resolve():
+            return self.reload(force=force)
+
+        if self.save_flag:
+            self.save_flag = False
+            if not force:
+                return False
+
+        entry = self._find_extra_entry(target)
+        if entry is None:
+            return False  # 不是配置文件，或不在 $files 里
+
+        if target.is_dir():
+            stems = {file.stem for file in self._iter_extra_files(entry)}
+            if stems & self._root_plugin_keys:
+                # 目录里出现和主文件同名的插件：退化为整根，沿用现有覆盖语义
+                return self.reload(force=force)
+        elif target.stem in self._root_plugin_keys:
+            # 主文件同名插件：退化为整根，沿用现有覆盖语义
+            return self.reload(force=force)
+
+        if target.is_dir():
+            records_paths = self._iter_extra_files(entry)
+        else:
+            records_paths = [target]
+        records_snapshot: dict[str, set[_EnvReplaced] | None] = {}
+        for path in records_paths:
+            key = path.resolve().as_posix()
+            records = self._records.get(key)
+            records_snapshot[key] = None if records is None else set(records)
+        plugin_snapshot = deepcopy(self.plugin)
+        meta_snapshot = (
+            self.plugin_extra_files,
+            self.prelude_plugin,
+            self.plugin_prefixes,
+            self._plugin_names,
+            deepcopy(self._extra_stems),
+        )
+        stem = target.stem
+        try:
+            if target.is_dir():
+                files = {file.stem: file for file in self._iter_extra_files(entry)}
+                old = self._extra_stems.get(entry, set())
+                for name in old - set(files):
+                    self.plugin.pop(name, None)
+                for name, file in files.items():
+                    self.plugin[name] = self.loader(file)
+                self._extra_stems[entry] = set(files)
+            elif target.exists():
+                self.plugin[stem] = self.loader(target)
+                self._extra_stems.setdefault(entry, set()).add(stem)
+            elif target.parent == self._resolve_extra(entry):
+                # 目录条目下的文件被删除
+                self.plugin.pop(stem, None)
+                self._extra_stems.get(entry, set()).discard(stem)
+            else:
+                # 普通文件条目被删除：和整根 reload 一样报错
+                raise FileNotFoundError(str(target))
+
+            self._reload_plugins(load_files=False)
+            return True
+        except Exception:
+            self.plugin = plugin_snapshot
+            (
+                self.plugin_extra_files,
+                self.prelude_plugin,
+                self.plugin_prefixes,
+                self._plugin_names,
+                self._extra_stems,
+            ) = meta_snapshot
+            self._restore_records(records_snapshot)
+            raise
 
     @staticmethod
     def _clean(value: T_M) -> T_M:
