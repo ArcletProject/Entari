@@ -11,6 +11,7 @@ from satori import Channel, ChannelType, EventType, Guild, Member, Role, User
 from ..config import EntariConfig
 from ..config.util import GetattrDict
 from ..session import Session
+from ..utils import escape_tag
 
 # simpleeval._PRIMITIVE_TYPES = frozenset({int, float, str, bool, type(None), bytes, complex})
 NAMES = {
@@ -89,7 +90,7 @@ def parse_filter(expr: str):
         parsed = s.parse(expr)
         s._eval(parsed)
     except (simpleeval.InvalidExpression, TypeError, ValueError, NameError, SyntaxError) as e:
-        raise RuntimeError(f"Invalid filter expression ({e}): {expr}") from None
+        raise RuntimeError(f"Invalid filter expression ({escape_tag(repr(e))}): {escape_tag(repr(expr))}") from None
 
     async def check(session: Session | None = None, is_reply_me: bool = False, is_notice_me: bool = False):
         if not session:

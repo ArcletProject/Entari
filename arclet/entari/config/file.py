@@ -59,12 +59,19 @@ def _iter_values(obj: dict[str, Any], transform: Callable[[Any, str, list[str]],
 def _interpolate(source: str, context: dict[str, Any], records: set[_EnvReplaced], history: list[str]):
     def handle(m: re.Match[str]):
         expr = m.group("expr")
-        expr, default = expr.partition(":-")[::2]
+        expr, sep, default = expr.partition(":-")
         expr = expr.strip()
         default = default.strip()
         ans = safe_eval(expr, context)
-        records.add(_EnvReplaced(tuple(history), str(ans or default), m.group()))
-        return str(ans or default)
+
+        if ans is None:
+            if not sep:
+                return m.group()
+            rendered = default
+        else:
+            rendered = str(ans)
+        records.add(_EnvReplaced(tuple(history), rendered, m.group()))
+        return rendered
 
     return re.sub(EXPR_CONTEXT_PAT, handle, source)
 
