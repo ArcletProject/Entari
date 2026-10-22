@@ -125,7 +125,7 @@ class EntariConfig:
 
             records: set[_EnvReplaced] = set()
             if register:
-                self._records[path.as_posix()] = records
+                self._records[path.resolve().as_posix()] = records
 
             def _transform(value, key, history):
                 if isinstance(value, str):
@@ -163,7 +163,7 @@ class EntariConfig:
             schema_file = f"{save_path.stem}.schema.json"
 
         if end in _dumpers:
-            for record in list(self._records.get(path.as_posix(), ())):
+            for record in list(self._records.get(path.resolve().as_posix(), ())):
                 parts = [
                     int(part[1:]) if part.startswith("$") and part[1:].isdigit() else part for part in record.parts
                 ]
@@ -189,16 +189,21 @@ class EntariConfig:
         # register=True 会重建该文件的记录；只更新 _records，不替换 _origin_data
         self.loader(path)
 
-    def remap_records(self, path: Path, mapper: Callable[[tuple[str, ...]], tuple[str, ...] | None]):
+    def remap_records(self, path: Path, mapper: Callable[[tuple[str, ...]], tuple[str | int, ...] | None]):
         if not path.exists():
             return
-        records = self._records.get(path.as_posix(), set())
+        key = path.resolve().as_posix()
+        records = self._records.get(key, set())
         new_records: set[_EnvReplaced] = set()
         for record in records:
             new_parts = mapper(record.parts)
             if new_parts is not None:
-                new_records.add(_EnvReplaced(new_parts, record.target, record.source))
-        self._records[path.as_posix()] = new_records
+                new_records.add(
+                    _EnvReplaced(
+                        tuple(f"${p}" if isinstance(p, int) else p for p in new_parts), record.target, record.source
+                    )
+                )
+        self._records[key] = new_records
 
     @property
     def data(self) -> dict[str, Any]:
