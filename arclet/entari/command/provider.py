@@ -158,6 +158,7 @@ class AlconnaSuppiler(Propagator):
                 elif pres.value is False:
                     fut.set_result(None)
                     return BLOCK if self.block else STOP
+        msg = None
         if _res.matched or not may_help_text:
             res = CommandResult(self.cmd, _res, may_help_text)
         elif session:
@@ -169,13 +170,14 @@ class AlconnaSuppiler(Propagator):
                     msg = None
                 elif isinstance(ores.value, str | MessageChain):
                     msg = MessageChain(ores.value)
-            if msg:
-                await session.send(msg)
             may_help_text = None
             res = CommandResult(self.cmd, _res, may_help_text)
         else:
             res = CommandResult(self.cmd, _res, may_help_text)
         fut.set_result(res)
+        # 先完成 future 再发送输出，发送失败时共享缓存的其他订阅者不会一直等待
+        if msg and session:
+            await session.send(msg)
         if not _res.matched and not may_help_text:
             return BLOCK if self.block else STOP
         return {"alc_result": res}
