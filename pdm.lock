@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:e99d84914204138faf4ad9e03ebea715f3440304d77161d8775f18336ff51322"
+content_hash = "sha256:45fee5f22de1e26b8c971f4d03d9ade45851f9c480ab02ab4bb4b1cee18b5095"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -1359,7 +1359,7 @@ files = [
 
 [[package]]
 name = "satori-python-client"
-version = "1.3.7"
+version = "1.3.10"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify client part"
 groups = ["default"]
@@ -1372,13 +1372,13 @@ dependencies = [
     "yarl>=1.9.4",
 ]
 files = [
-    {file = "satori_python_client-1.3.7-py3-none-any.whl", hash = "sha256:748470043b23f8585b894b36d3d333a6b92759da47b99069c0f9c3edc078505d"},
-    {file = "satori_python_client-1.3.7.tar.gz", hash = "sha256:94343cd06d00a23bf5951c9f5c25efe43aec25c7a49e3ef521ce603e3207a7a9"},
+    {file = "satori_python_client-1.3.10-py3-none-any.whl", hash = "sha256:d7ac4fdb0121759969e798b35931f191d8d34037127dc32bc72934d8830e270f"},
+    {file = "satori_python_client-1.3.10.tar.gz", hash = "sha256:bf904cccf988ee5e07551e8b2b6c32508e96b5a9baf6e0d4ea4cd064acdeb452"},
 ]
 
 [[package]]
 name = "satori-python-core"
-version = "1.3.9.post1"
+version = "1.3.10"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify common part"
 groups = ["default"]
@@ -1386,8 +1386,8 @@ dependencies = [
     "typing-extensions>=4.7.0",
 ]
 files = [
-    {file = "satori_python_core-1.3.9.post1-py3-none-any.whl", hash = "sha256:4c0f6a3d9cb455f695473ed78fb8ffdd78e8d485c184baae8b9d82d0a2c2449c"},
-    {file = "satori_python_core-1.3.9.post1.tar.gz", hash = "sha256:61058ef4357f6c687d7dccb61bba031d1a44a7e988c57a0ca897ad5a64b4de5c"},
+    {file = "satori_python_core-1.3.10-py3-none-any.whl", hash = "sha256:4bd94198ef6d8dbac27981fa455ffddcad8b40ad7e17cc934f70c61874e1d665"},
+    {file = "satori_python_core-1.3.10.tar.gz", hash = "sha256:7f0a14877a359c146e89055da88c4ff4c899d0a3d81ea7e97a980d681c566754"},
 ]
 
 [[package]]

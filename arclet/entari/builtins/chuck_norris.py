@@ -20,13 +20,23 @@ metadata(
 API_URL = "https://api.chucknorris.io/jokes/random"
 
 
-@command.command("norris", "随机的查克诺里斯笑话")
-async def send_joke(app: Entari):
-    async with app.http.get(API_URL) as response:
-        try:
-            response.raise_for_status()
-        except Exception as e:
-            return repr(e)
-        data = await response.json()
-        joke = data.get("value", "No joke found.")
-        return joke
+@command.command("norris {count?}", "随机的查克诺里斯笑话")
+async def send_joke(app: Entari, count: int = 1):
+    """获取随机的查克诺里斯笑话"""
+
+    async def fetch_joke():
+        async with app.http.get(API_URL) as response:
+            try:
+                response.raise_for_status()
+            except Exception as e:
+                return repr(e)
+            data = await response.json()
+            return data.get("value", "No joke found.")
+
+    if count < 1:
+        return "笑话数量必须大于等于 1。"
+    jokes = []
+    for _ in range(count):
+        joke = await fetch_joke()
+        jokes.append(joke)
+    return "\n".join(jokes)

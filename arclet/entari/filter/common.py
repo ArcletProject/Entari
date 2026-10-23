@@ -38,6 +38,13 @@ def platform(*ids: str):
     return check_platform
 
 
+def adapter(*ids: str):
+    async def check_adapter(session: Session):
+        return (session.account.adapter in ids) if ids else True
+
+    return check_adapter
+
+
 async def direct_message(sess: Session):
     return sess.channel.type == ChannelType.DIRECT
 

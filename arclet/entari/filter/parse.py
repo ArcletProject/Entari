@@ -103,6 +103,7 @@ def parse_filter(expr: str):
             "user": session.event.user,
             "member": session.event.member,
             "platform": session.account.platform,
+            "adapter": session.account.adapter,
             "self_id": session.account.self_id,
             "direct": ChannelType.DIRECT,
             "private": ChannelType.DIRECT,

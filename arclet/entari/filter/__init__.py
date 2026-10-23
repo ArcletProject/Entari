@@ -34,6 +34,7 @@ class _Filter:
     channel = staticmethod(_check_wrapper(common.channel))
     self_ = staticmethod(_check_wrapper(common.account))
     platform = staticmethod(_check_wrapper(common.platform))
+    adapter = staticmethod(_check_wrapper(common.adapter))
     direct = enter_if(common.direct_message)
     private = enter_if(common.direct_message)
     direct_message = enter_if(common.direct_message)

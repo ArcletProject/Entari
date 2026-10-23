@@ -27,12 +27,15 @@ class superusers(Propagator):
 
 class admins(Propagator):
 
+    def __init__(self, admin_roles: list[str] | None = None):
+        self.admin_roles = admin_roles or ["admin", "administrator", "owner"]
+
     async def check(self, session: Session | None = None):
         if not session:
             return STOP
         if session.event.member and session.event.member.roles:
             for role in session.event.member.roles:
-                if any(keyword in role.id.lower() for keyword in ("admin", "administrator", "owner")):
+                if any(keyword in role.id.lower() for keyword in self.admin_roles):
                     return
         config = EntariConfig.instance.basic.superusers
         if (

@@ -159,7 +159,7 @@ class EntariProtocol(ApiProtocol):
             msg.insert(0, reply_to)
         sess = None
         if referrer and "source" in referrer:
-            sess = Session(self.account, referrer["source"])  # type: ignore
+            sess = Session[SatoriEvent](self.account, referrer["source"])  # type: ignore
             msg = await component_transform(sess, msg)
             referrer = {k: v for k, v in referrer.items() if k != "source"}
             sess.elements = msg
