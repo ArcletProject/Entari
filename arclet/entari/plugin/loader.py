@@ -5,6 +5,7 @@ from typing import Any, overload
 from weakref import ref
 
 from arclet.letoderea import publish
+from arclet.letoderea.scope import _scopes
 
 from ..config import EntariConfig
 from ..event.lifespan import Ready
@@ -446,6 +447,10 @@ def promote_staged(plugin: Plugin):
             plugin_service.plugins[sid] = staged
             # 提升后不再属于暂存事务，后续 niche 等动态创建应直接进入 plugins
             staged.staged = False
+            # 暂存作用域以 "<id>@staging" 登记，提升后改回插件 id，按插件 id 定向发布的事件才能找到它
+            _scopes.pop(staged._scope.id, None)
+            staged._scope.id = sid
+            _scopes[sid] = staged._scope
             if sid != plugin.id:
                 plugin_service._subplugined[sid] = plugin.id
             staged.check_disable()
