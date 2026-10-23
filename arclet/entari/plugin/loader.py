@@ -5,6 +5,7 @@ from typing import Any, overload
 from weakref import ref
 
 from arclet.letoderea import publish
+from arclet.letoderea.scope import _scopes
 
 from ..config import EntariConfig
 from ..event.lifespan import Ready
@@ -428,6 +429,17 @@ def _restore_sys_entries(plugin_id: str, entries: dict[str, Any]) -> None:
     sys.modules.update(entries)
 
 
+def _promote_staged_scope(plugin: Plugin, sid: str) -> None:
+    """把暂存作用域的 id 从 ``<id>@staging`` 切换为正式插件 id，并更新全局作用域表"""
+    scope = plugin._scope
+    staging_id = f"{sid}@staging"
+    if scope.id != staging_id:
+        return
+    _scopes.pop(staging_id, None)
+    scope.id = sid
+    _scopes[sid] = scope
+
+
 def promote_staged(plugin: Plugin):
     """将暂存插件及其子插件正式注册进 plugin_service，并恢复启用状态与父绑定
 
@@ -443,6 +455,7 @@ def promote_staged(plugin: Plugin):
             else:
                 plugin_service.bindings.pop(sid, None)
         if staged := plugin_service._staged.pop(sid, None):
+            _promote_staged_scope(staged, sid)
             plugin_service.plugins[sid] = staged
             # 提升后不再属于暂存事务，后续 niche 等动态创建应直接进入 plugins
             staged.staged = False
