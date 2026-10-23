@@ -156,6 +156,7 @@ class AlconnaSuppiler(Propagator):
                 if isinstance(pres.value, Arparma):
                     _res = pres.value
                 elif pres.value is False:
+                    fut.set_result(None)
                     return BLOCK if self.block else STOP
         if _res.matched or not may_help_text:
             res = CommandResult(self.cmd, _res, may_help_text)
