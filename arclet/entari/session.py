@@ -90,12 +90,11 @@ class EntariProtocol(ApiProtocol):
                     if result := await es.post(APIRequest(self.account, _func.__name__, bounds.arguments)):
                         ans = result.value
                     else:
-                        ans = await _func(**bounds.arguments)
-                    success = True
+                        ans = await _func(*bounds.args, **bounds.kwargs)
                 except Exception as e:
-                    ans = e
-                    success = False
-                await es.publish(APIResponse(self.account, _func.__name__, bounds.arguments, success, ans))
+                    await es.publish(APIResponse(self.account, _func.__name__, bounds.arguments, False, e))
+                    raise
+                await es.publish(APIResponse(self.account, _func.__name__, bounds.arguments, True, ans))
                 return ans
             setattr(self, name, wrapper)
 

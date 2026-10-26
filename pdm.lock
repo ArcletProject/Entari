@@ -5,7 +5,7 @@
 groups = ["default", "cli", "cron", "dev", "dotenv", "full", "msgspec", "pydantic", "reload", "rich", "toml", "yaml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:45fee5f22de1e26b8c971f4d03d9ade45851f9c480ab02ab4bb4b1cee18b5095"
+content_hash = "sha256:dc0f94f995f2391223972452d1ba5757f09873b0c6019da43edb10918549f9db"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -1359,7 +1359,7 @@ files = [
 
 [[package]]
 name = "satori-python-client"
-version = "1.3.10"
+version = "1.3.11"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify client part"
 groups = ["default"]
@@ -1368,17 +1368,17 @@ dependencies = [
     "graia-amnesia>=0.11.0",
     "launart>=0.8.2",
     "loguru>=0.7.2",
-    "satori-python-core<1.4.0,>=1.3.6",
+    "satori-python-core<1.4.0,>=1.3.11",
     "yarl>=1.9.4",
 ]
 files = [
-    {file = "satori_python_client-1.3.10-py3-none-any.whl", hash = "sha256:d7ac4fdb0121759969e798b35931f191d8d34037127dc32bc72934d8830e270f"},
-    {file = "satori_python_client-1.3.10.tar.gz", hash = "sha256:bf904cccf988ee5e07551e8b2b6c32508e96b5a9baf6e0d4ea4cd064acdeb452"},
+    {file = "satori_python_client-1.3.11-py3-none-any.whl", hash = "sha256:390e6b024d572f768131281db50f25ce3ae17cfa495985bfbfc12b8dd2049206"},
+    {file = "satori_python_client-1.3.11.tar.gz", hash = "sha256:5015efa3f2a0e3f4182620f50b2f4170547c98496e832af164d326fa854d072d"},
 ]
 
 [[package]]
 name = "satori-python-core"
-version = "1.3.10"
+version = "1.3.11"
 requires_python = "<4.0,>=3.10"
 summary = "Satori Protocol SDK for python, specify common part"
 groups = ["default"]
@@ -1386,8 +1386,8 @@ dependencies = [
     "typing-extensions>=4.7.0",
 ]
 files = [
-    {file = "satori_python_core-1.3.10-py3-none-any.whl", hash = "sha256:4bd94198ef6d8dbac27981fa455ffddcad8b40ad7e17cc934f70c61874e1d665"},
-    {file = "satori_python_core-1.3.10.tar.gz", hash = "sha256:7f0a14877a359c146e89055da88c4ff4c899d0a3d81ea7e97a980d681c566754"},
+    {file = "satori_python_core-1.3.11-py3-none-any.whl", hash = "sha256:05e796df4b548667d9b12dcebb3b8f2bb8d3b6c43ef2a3fa7a066d931af32eab"},
+    {file = "satori_python_core-1.3.11.tar.gz", hash = "sha256:3a13537f80dae47cee4800642741a2947ccce1b471b6bb18fbbf88238f55a76b"},
 ]
 
 [[package]]
