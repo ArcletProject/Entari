@@ -201,10 +201,19 @@ async def _():
 """
 
 
+def _is_subplugin(plg):
+    return plg.id in plugin_service._subplugined
+
+
 @plugin_ctl_disp.assign("list")
 async def plugin_ctl_list(session: Session):
-    plgs = plugin.get_plugins()
-    plgs = [plg for plg in plgs if not plg.metadata or plg.metadata.role is PluginRole.NORMAL]
+    plgs = plugin.get_plugins(subplugged=True)
+    plgs = [
+        plg
+        for plg in plgs
+        if plg.id != "$"
+        and ((plg.metadata and plg.metadata.role is PluginRole.NORMAL) or (not plg.metadata and not _is_subplugin(plg)))
+    ]
     res = "已安装的功能插件：\n"
     for plg in plgs:
         meta = plg.metadata
