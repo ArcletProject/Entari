@@ -70,6 +70,16 @@ STATIC_METHODS = frozenset(
         "message_create",
     }
 )
+ITERATOR_METHODS = frozenset(
+    {
+        "guild_list",
+        "channel_list",
+        "guild_member_list",
+        "friend_list",
+        "guild_role_list",
+        "reaction_list",
+    }
+)
 
 
 class EntariProtocol(ApiProtocol):
@@ -80,6 +90,33 @@ class EntariProtocol(ApiProtocol):
         funcs = inspect.getmembers(self, predicate=lambda x: isinstance(x, MethodType))
         for name, func in funcs:
             if name in STATIC_METHODS:
+                continue
+            if name in ITERATOR_METHODS:
+                @wraps(func)
+                def _wrapper(*args, _func=func, _sig=inspect.signature(func), **kwargs):
+                    bounds = _sig.bind(*args, **kwargs)
+                    bounds.apply_defaults()
+                    arguments = bounds.arguments.copy()
+                    page_result: IterablePageResult = _func(*bounds.args, **bounds.kwargs)
+                    old_func = page_result.func
+
+                    @wraps(old_func)
+                    async def _iter(token: str | None):
+                        arguments["next_token"] = token
+                        try:
+                            if result := await es.post(APIRequest(self.account, _func.__name__, arguments)):
+                                ans = result.value
+                            else:
+                                ans = await old_func(token)
+                        except Exception as e:
+                            await es.publish(APIResponse(self.account, _func.__name__, arguments, False, e))
+                            raise
+                        return ans
+
+                    page_result.func = _iter
+                    return page_result
+
+                setattr(self, name, _wrapper)
                 continue
 
             @wraps(func)
