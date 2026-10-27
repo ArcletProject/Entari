@@ -32,6 +32,7 @@ import datetime
 import enum
 import inspect
 import numbers
+import os
 import pathlib
 import re
 import typing as t
@@ -200,6 +201,8 @@ class SchemaGenerator:
         elif is_sub_type(typ, re.Pattern):
             return self.get_regex_schema()
         elif is_sub_type(typ, pathlib.Path):
+            return self.get_str_schema(default)
+        elif is_sub_type(typ, os.PathLike):
             return self.get_str_schema(default)
 
     def get_complex_schema(self, typ: type, default: t.Any):
